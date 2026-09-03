@@ -1,0 +1,40 @@
+# Arquivos de video (nao versionar - sao dados de teste/uso real, nao codigo)
+*.mkv
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.m4v
+*.webm
+*.flv
+*.mpg
+*.mpeg
+
+# .ts tambem e extensao de video (MPEG transport stream), mas colide com
+# codigo TypeScript (ui/src/**/*.ts) - por isso so ignoramos dentro das
+# pastas de midia, nunca globalmente.
+/Arquivos de video/**/*.ts
+
+# Downloads parciais que podem cair nas pastas de midia
+*.crdownload
+*.part
+*.tmp
+*.download
+
+# Sistema operacional (Windows/macOS)
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editores/IDEs (config local, nao do projeto)
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Estado local do Claude Code - nao faz parte do projeto
+.claude/
