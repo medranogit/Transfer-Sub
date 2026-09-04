@@ -46,7 +46,8 @@ export async function probeSubtitleTracks(mkvmergePath: string, videoFile: strin
         language,
         trackName,
         isAss: ASS_CODEC_IDS.has(codecId),
-        isPtBr: isPtBrTrack(language, trackName)
+        isPtBr: isPtBrTrack(language, trackName),
+        isPtBrGuess: false
       }
     })
 }

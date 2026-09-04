@@ -3,7 +3,7 @@ import { tmpdir } from 'os'
 import { mkdtemp, readFile, rm } from 'fs/promises'
 import { join, basename } from 'path'
 import { episodeKey, findEpisode } from './domain/episodeMatcher'
-import { pickBestTrackIndex } from './domain/subtitleLanguage'
+import { guessPtBrFromContent, pickBestTrackIndex } from './domain/subtitleLanguage'
 import { isEnglishAudio } from './domain/audioLanguage'
 import { formatMsAsTimeCode, parseFirstEventStartMs, parseTimeCodeToMs } from './domain/subtitleTiming'
 import { listVideoFiles } from './infra/videoFiles'
@@ -22,8 +22,44 @@ import type { EpisodeRow, LogEvent, RowStatus, ScanResult, SubtitleTrack, Transf
 
 type LogFn = (event: LogEvent) => void
 
+// Quando nenhuma faixa foi reconhecida como PT-BR por idioma/nome, tenta
+// como ultimo recurso extrair cada faixa e olhar o proprio texto - fansubs
+// as vezes rotulam a faixa com o idioma errado. Para no primeiro palpite
+// positivo para nao gastar tempo extraindo faixas a mais.
+async function tagPtBrGuesses(
+  mkvextractPath: string,
+  sourcePath: string,
+  tracks: SubtitleTrack[],
+  episodeKeyForLog: string,
+  onLog: LogFn
+): Promise<void> {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-guess-'))
+  try {
+    for (const track of tracks) {
+      const tmpPath = join(tmpDir, `probe${subtitleExtension(track.codecId)}`)
+      try {
+        await extractSubtitle(mkvextractPath, sourcePath, track.trackId, tmpPath)
+        const content = await readFile(tmpPath, 'utf-8')
+        if (guessPtBrFromContent(content)) {
+          track.isPtBrGuess = true
+          onLog({
+            level: 'warn',
+            message: `[${episodeKeyForLog}] faixa #${track.trackId} esta rotulada como "${track.language}" mas o conteudo parece ser PT-BR - confira antes de transferir`
+          })
+          break
+        }
+      } catch {
+        // faixa nao pode ser extraida/lida - ignora e tenta a proxima
+      }
+    }
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true })
+  }
+}
+
 export async function scanFolders(
   mkvmergePath: string,
+  mkvextractPath: string,
   sourceDir: string,
   destDir: string,
   onLog: LogFn
@@ -72,6 +108,10 @@ export async function scanFolders(
 
     const assTracks = tracks.filter((t) => t.isAss)
     const usableTracks = assTracks.length > 0 ? assTracks : tracks
+
+    if (usableTracks.length > 0 && !usableTracks.some((t) => t.isPtBr)) {
+      await tagPtBrGuesses(mkvextractPath, sourcePath, usableTracks, key, onLog)
+    }
 
     const bestIndex = pickBestTrackIndex(usableTracks)
     const selectedTrackId = bestIndex >= 0 ? usableTracks[bestIndex].trackId : null

@@ -5,6 +5,10 @@ export interface SubtitleTrack {
   trackName: string
   isAss: boolean
   isPtBr: boolean
+  // true quando nenhuma faixa foi reconhecida como PT-BR por idioma/nome e
+  // o conteudo da legenda parece portugues mesmo assim (fansub rotulou
+  // errado). E so um palpite - ver domain/subtitleLanguage.ts.
+  isPtBrGuess: boolean
 }
 
 export interface EpisodeRow {

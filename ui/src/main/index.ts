@@ -78,10 +78,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('scan:run', async (_e, { sourceDir, destDir }: { sourceDir: string; destDir: string }) => {
     const status = tryLocate(loadConfig().mkvToolNixDir)
-    if (!status.found || !status.mkvmergePath) {
+    if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
       throw new Error('MKVToolNix nao localizado.')
     }
-    return scanFolders(status.mkvmergePath, sourceDir, destDir, (log) => {
+    return scanFolders(status.mkvmergePath, status.mkvextractPath, sourceDir, destDir, (log) => {
       mainWindow?.webContents.send('log', log)
     })
   })

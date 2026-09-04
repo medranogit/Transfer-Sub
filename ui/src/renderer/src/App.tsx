@@ -372,6 +372,12 @@ const PtBrTag = styled.span`
   font-size: 10.5px;
 `
 
+const PtBrGuessTag = styled.span`
+  color: ${(p) => p.theme.colors.warning};
+  font-weight: 700;
+  font-size: 10.5px;
+`
+
 const NoSubtitle = styled.span`
   color: ${(p) => p.theme.colors.textFaint};
   font-style: italic;
@@ -481,7 +487,7 @@ function EpisodeTable({
                       {row.tracks.map((t) => (
                         <option key={t.trackId} value={t.trackId}>
                           {trackLabel(t)}
-                          {t.isPtBr ? '  ★ PT-BR' : ''}
+                          {t.isPtBr ? '  ★ PT-BR' : t.isPtBrGuess ? '  ⚠ pode ser PT-BR' : ''}
                         </option>
                       ))}
                     </TrackSelect>
@@ -489,6 +495,14 @@ function EpisodeTable({
                     <NoSubtitle>(nenhuma legenda encontrada)</NoSubtitle>
                   )}
                   {selectedTrack?.isPtBr && <PtBrTag> auto-selecionado PT-BR</PtBrTag>}
+                  {!selectedTrack?.isPtBr && selectedTrack?.isPtBrGuess && (
+                    <PtBrGuessTag
+                      title="Nenhuma faixa foi identificada como PT-BR por idioma/nome, mas o conteudo desta parece portugues - confira antes de transferir"
+                    >
+                      {' '}
+                      ⚠ rotulada "{selectedTrack.language}", mas parece PT-BR
+                    </PtBrGuessTag>
+                  )}
                 </Td>
                 {!cleanOnly && (
                   <Td>
