@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
-import { scanFolders, transferRows } from './workflow'
+import { cleanRows, scanForClean, scanFolders, transferRows } from './workflow'
 import type { AppConfig, MkvToolsStatus, TransferRequest } from '@shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -86,6 +86,16 @@ app.whenReady().then(() => {
     })
   })
 
+  ipcMain.handle('scan:clean', async (_e, { folder }: { folder: string }) => {
+    const status = tryLocate(loadConfig().mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return scanForClean(status.mkvmergePath, folder, (log) => {
+      mainWindow?.webContents.send('log', log)
+    })
+  })
+
   ipcMain.handle('transfer:run', async (_e, request: TransferRequest) => {
     const status = tryLocate(loadConfig().mkvToolNixDir)
     if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
@@ -94,6 +104,25 @@ app.whenReady().then(() => {
     return transferRows(
       status.mkvmergePath,
       status.mkvextractPath,
+      request.rows,
+      request.outputDir,
+      request.removeEnglishAudio,
+      (rowId, statusValue, message) => {
+        mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
+      },
+      (log) => {
+        mainWindow?.webContents.send('log', log)
+      }
+    )
+  })
+
+  ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {
+    const status = tryLocate(loadConfig().mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return cleanRows(
+      status.mkvmergePath,
       request.rows,
       request.outputDir,
       request.removeEnglishAudio,

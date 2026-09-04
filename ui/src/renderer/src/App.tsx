@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { createGlobalStyle, css, ThemeProvider } from 'styled-components'
+import { ClearOutlined, SwapOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus, SubtitleTrack } from '@shared/types'
 
 // ---------------------------------------------------------------------------
@@ -183,12 +184,14 @@ function FolderField({
   label,
   value,
   onChange,
-  width = 190
+  width = 190,
+  disabled = false
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   width?: number
+  disabled?: boolean
 }) {
   async function browse(): Promise<void> {
     const folder = await window.api.chooseFolder(value || undefined)
@@ -196,10 +199,10 @@ function FolderField({
   }
 
   return (
-    <Row $gap={8}>
+    <Row $gap={8} style={disabled ? { opacity: 0.45 } : undefined}>
       <Label style={{ width, flexShrink: 0 }}>{label}</Label>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="C:\..." />
-      <Button $variant="secondary" onClick={browse}>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="C:\..." disabled={disabled} />
+      <Button $variant="secondary" onClick={browse} disabled={disabled}>
         Procurar...
       </Button>
     </Row>
@@ -410,6 +413,7 @@ function EpisodeTable({
   rows,
   statuses,
   selectedIds,
+  cleanOnly,
   onToggleSelect,
   onToggleSelectAll,
   onTrackChange,
@@ -418,9 +422,10 @@ function EpisodeTable({
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
   selectedIds: Set<string>
+  cleanOnly: boolean
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
-  onTrackChange: (rowId: string, trackId: number) => void
+  onTrackChange: (rowId: string, trackId: number | null) => void
   onFirstLineTargetChange: (rowId: string, value: string) => void
 }) {
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
@@ -434,15 +439,17 @@ function EpisodeTable({
               <input type="checkbox" checked={allSelected} onChange={onToggleSelectAll} />
             </th>
             <th style={{ width: 90 }}>Episodio</th>
-            <th>Arquivo origem</th>
-            <th>Faixa de legenda</th>
-            <th>Arquivo destino</th>
-            <th
-              style={{ width: 130 }}
-              title='Instante em que a primeira legenda deve aparecer no video de destino, formato MM:SS,mmm (ex: 06:39,566). O resto da legenda e deslocado automaticamente. Deixe vazio para nao ajustar.'
-            >
-              1a fala em
-            </th>
+            {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
+            <th>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</th>
+            {!cleanOnly && <th>Arquivo destino</th>}
+            {!cleanOnly && (
+              <th
+                style={{ width: 130 }}
+                title='Instante em que a primeira legenda deve aparecer no video de destino, formato MM:SS,mmm (ex: 06:39,566). O resto da legenda e deslocado automaticamente. Deixe vazio para nao ajustar.'
+              >
+                1a fala em
+              </th>
+            )}
             <th style={{ width: 110 }}>Status</th>
           </tr>
         </Thead>
@@ -466,8 +473,11 @@ function EpisodeTable({
                   {row.tracks.length > 0 ? (
                     <TrackSelect
                       value={row.selectedTrackId ?? ''}
-                      onChange={(e) => onTrackChange(row.id, Number(e.target.value))}
+                      onChange={(e) =>
+                        onTrackChange(row.id, e.target.value === '' ? null : Number(e.target.value))
+                      }
                     >
+                      {cleanOnly && <option value="">Manter todas as legendas</option>}
                       {row.tracks.map((t) => (
                         <option key={t.trackId} value={t.trackId}>
                           {trackLabel(t)}
@@ -480,18 +490,22 @@ function EpisodeTable({
                   )}
                   {selectedTrack?.isPtBr && <PtBrTag> auto-selecionado PT-BR</PtBrTag>}
                 </Td>
-                <Td>
-                  <FileName title={row.destName}>{row.destName}</FileName>
-                </Td>
-                <Td>
-                  <TimingInput
-                    type="text"
-                    placeholder="06:39,566"
-                    value={row.firstLineTargetText}
-                    onChange={(e) => onFirstLineTargetChange(row.id, maskTimeInput(e.target.value))}
-                    title="Instante (MM:SS,mmm) em que a primeira legenda deve aparecer. Vazio = timing original."
-                  />
-                </Td>
+                {!cleanOnly && (
+                  <Td>
+                    <FileName title={row.destName}>{row.destName}</FileName>
+                  </Td>
+                )}
+                {!cleanOnly && (
+                  <Td>
+                    <TimingInput
+                      type="text"
+                      placeholder="06:39,566"
+                      value={row.firstLineTargetText}
+                      onChange={(e) => onFirstLineTargetChange(row.id, maskTimeInput(e.target.value))}
+                      title="Instante (MM:SS,mmm) em que a primeira legenda deve aparecer. Vazio = timing original."
+                    />
+                  </Td>
+                )}
                 <Td>
                   <StatusBadge status={statuses[row.id] ?? 'idle'} />
                 </Td>
@@ -562,13 +576,99 @@ const ProgressFill = styled.div<{ $pct: number }>`
   transition: width 0.2s ease;
 `
 
+const CheckboxInput = styled.input`
+  appearance: none;
+  -webkit-appearance: none;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  border-radius: 5px;
+  border: 1px solid ${(p) => p.theme.colors.borderLight};
+  background: ${(p) => p.theme.colors.panelAlt};
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &::after {
+    content: '';
+    width: 9px;
+    height: 9px;
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    transform: scale(0);
+    transition: transform 0.12s ease-in;
+    background: #10121a;
+  }
+
+  &:checked {
+    background: ${(p) => p.theme.colors.accent};
+    border-color: ${(p) => p.theme.colors.accent};
+  }
+
+  &:checked::after {
+    transform: scale(1);
+  }
+
+  &:hover {
+    border-color: ${(p) => p.theme.colors.accent};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${(p) => p.theme.colors.accent};
+    outline-offset: 2px;
+  }
+`
+
 const CheckboxLabel = styled.label`
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: ${(p) => p.theme.colors.textMuted};
+  gap: 10px;
+  font-size: 12.5px;
+  color: ${(p) => p.theme.colors.text};
   cursor: pointer;
+  user-select: none;
+`
+
+const OptionsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+`
+
+const ModeSwitch = styled.div`
+  display: inline-flex;
+  background: ${(p) => p.theme.colors.panelAlt};
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.sm};
+  padding: 3px;
+  gap: 2px;
+`
+
+const ModeOption = styled.button<{ $active: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  border-radius: 5px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  background: ${(p) => (p.$active ? p.theme.colors.accent : 'transparent')};
+  color: ${(p) => (p.$active ? '#10121a' : p.theme.colors.textMuted)};
+  transition: background 0.15s ease, color 0.15s ease;
+
+  svg {
+    font-size: 14px;
+  }
+
+  &:hover {
+    color: ${(p) => (p.$active ? '#10121a' : p.theme.colors.text)};
+  }
 `
 
 function AppContent() {
@@ -585,6 +685,7 @@ function AppContent() {
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
+  const [cleanOnly, setCleanOnly] = useState(false)
 
   useEffect(() => {
     window.api.loadConfig().then((config) => {
@@ -608,6 +709,14 @@ function AppContent() {
     setLogs((prev) => [...prev, { level, message }])
   }
 
+  function handleModeChange(next: boolean) {
+    if (next === cleanOnly) return
+    setCleanOnly(next)
+    setRows([])
+    setStatuses({})
+    setSelectedIds(new Set())
+  }
+
   async function persistConfig(overrides: Partial<{ sourceDir: string; destDir: string; outputDir: string }> = {}) {
     await window.api.saveConfig({
       sourceDir: overrides.sourceDir ?? sourceDir,
@@ -628,7 +737,12 @@ function AppContent() {
       pushLog('Configure o MKVToolNix antes de escanear.', 'error')
       return
     }
-    if (!sourceDir || !destDir) {
+    if (cleanOnly) {
+      if (!destDir) {
+        pushLog('Selecione a pasta com os arquivos a limpar.', 'error')
+        return
+      }
+    } else if (!sourceDir || !destDir) {
       pushLog('Selecione as pastas de origem e destino.', 'error')
       return
     }
@@ -641,7 +755,7 @@ function AppContent() {
     setStatuses({})
     setSelectedIds(new Set())
     try {
-      const result = await window.api.scan(sourceDir, destDir)
+      const result = cleanOnly ? await window.api.scanClean(destDir) : await window.api.scan(sourceDir, destDir)
       setRows(result.rows)
       setSelectedIds(new Set(result.rows.map((r) => r.id)))
       setStatuses(Object.fromEntries(result.rows.map((r) => [r.id, 'idle' as RowStatus])))
@@ -653,7 +767,7 @@ function AppContent() {
     }
   }
 
-  function handleTrackChange(rowId: string, trackId: number) {
+  function handleTrackChange(rowId: string, trackId: number | null) {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, selectedTrackId: trackId } : r)))
   }
 
@@ -675,22 +789,24 @@ function AppContent() {
   }
 
   async function handleTransfer() {
-    const targets = rows.filter((r) => selectedIds.has(r.id) && r.selectedTrackId !== null)
+    const targets = cleanOnly
+      ? rows.filter((r) => selectedIds.has(r.id))
+      : rows.filter((r) => selectedIds.has(r.id) && r.selectedTrackId !== null)
     if (targets.length === 0) {
-      pushLog('Nenhuma linha selecionada com legenda disponivel.', 'error')
+      pushLog(
+        cleanOnly ? 'Nenhum arquivo selecionado.' : 'Nenhuma linha selecionada com legenda disponivel.',
+        'error'
+      )
       return
     }
     await persistConfig()
     setTransferring(true)
     try {
-      const summary = await window.api.transfer({
-        rows: targets,
-        outputDir: outputDir || destDir,
-        removeEnglishAudio
-      })
+      const request = { rows: targets, outputDir: outputDir || destDir, removeEnglishAudio }
+      const summary = cleanOnly ? await window.api.clean(request) : await window.api.transfer(request)
       pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`)
     } catch (err) {
-      pushLog(`Erro na transferencia: ${(err as Error).message}`, 'error')
+      pushLog(`Erro: ${(err as Error).message}`, 'error')
     } finally {
       setTransferring(false)
     }
@@ -713,29 +829,67 @@ function AppContent() {
       </Header>
 
       <ConfigPanel>
-        <FolderField label="Pasta de origem (com legenda)" value={sourceDir} onChange={setSourceDir} />
-        <FolderField label="Pasta de destino (sem legenda)" value={destDir} onChange={setDestDir} />
+        <Row $gap={8}>
+          <Label style={{ width: 190, flexShrink: 0 }}>Modo</Label>
+          <ModeSwitch>
+            <ModeOption
+              type="button"
+              $active={!cleanOnly}
+              onClick={() => handleModeChange(false)}
+              title="Copia a legenda da pasta de origem para os arquivos correspondentes da pasta de destino"
+            >
+              <SwapOutlined />
+              Transferir legenda
+            </ModeOption>
+            <ModeOption
+              type="button"
+              $active={cleanOnly}
+              onClick={() => handleModeChange(true)}
+              title="So trata os arquivos da pasta de destino: remove legendas extras e/ou dublagem, sem transferir nada"
+            >
+              <ClearOutlined />
+              Apenas limpar
+            </ModeOption>
+          </ModeSwitch>
+        </Row>
+
+        <FolderField
+          label="Pasta de origem (com legenda)"
+          value={sourceDir}
+          onChange={setSourceDir}
+          disabled={cleanOnly}
+        />
+        <FolderField
+          label={cleanOnly ? 'Pasta com os arquivos' : 'Pasta de destino (sem legenda)'}
+          value={destDir}
+          onChange={setDestDir}
+        />
         <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={setOutputDir} />
 
-        <Row $gap={8}>
-          <Label style={{ width: 190, flexShrink: 0 }} />
+        <OptionsRow>
           <CheckboxLabel>
-            <input
+            <CheckboxInput
               type="checkbox"
               checked={removeEnglishAudio}
               onChange={(e) => setRemoveEnglishAudio(e.target.checked)}
             />
             Remover dublagem em ingles do destino (manter so o audio japones)
           </CheckboxLabel>
-        </Row>
+        </OptionsRow>
 
         <ToolbarRow>
           <Row $gap={8}>
             <Button $variant="primary" onClick={handleScan} disabled={scanning}>
-              {scanning ? 'Escaneando...' : 'Escanear pastas'}
+              {scanning ? 'Escaneando...' : cleanOnly ? 'Escanear pasta' : 'Escanear pastas'}
             </Button>
             <Button onClick={handleTransfer} disabled={transferring || rows.length === 0}>
-              {transferring ? 'Transferindo...' : 'Transferir selecionados'}
+              {transferring
+                ? cleanOnly
+                  ? 'Limpando...'
+                  : 'Transferindo...'
+                : cleanOnly
+                  ? 'Limpar selecionados'
+                  : 'Transferir selecionados'}
             </Button>
           </Row>
           <Row $gap={8}>
@@ -754,11 +908,12 @@ function AppContent() {
       </Row>
 
       <Col $gap={6} style={{ flex: 1, minHeight: 0 }}>
-        <SectionTitle>Episodios ({rows.length})</SectionTitle>
+        <SectionTitle>{cleanOnly ? `Arquivos (${rows.length})` : `Episodios (${rows.length})`}</SectionTitle>
         <EpisodeTable
           rows={rows}
           statuses={statuses}
           selectedIds={selectedIds}
+          cleanOnly={cleanOnly}
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
           onTrackChange={handleTrackChange}

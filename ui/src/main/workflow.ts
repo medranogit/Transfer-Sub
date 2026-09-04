@@ -8,10 +8,12 @@ import { isEnglishAudio } from './domain/audioLanguage'
 import { formatMsAsTimeCode, parseFirstEventStartMs, parseTimeCodeToMs } from './domain/subtitleTiming'
 import { listVideoFiles } from './infra/videoFiles'
 import {
+  cleanTracksInto,
   extractSubtitle,
   muxSubtitleInto,
   probeAudioTracks,
   probeSubtitleTracks,
+  resolveCleanOutputPath,
   resolveOutputPath,
   subtitleExtension
 } from './infra/mkvProcess'
@@ -94,6 +96,46 @@ export async function scanFolders(
   onLog({ level: 'info', message: `Encontrados ${rows.length} episodios casados.` })
 
   return { rows, warnings, unmatchedSource }
+}
+
+// Modo "apenas limpar": nao ha par origem/destino, cada arquivo da pasta
+// informada e tratado sozinho (sourcePath === destPath). O dropdown de
+// legenda usa as proprias faixas do arquivo; selectedTrackId comeca em
+// null (mantem todas as legendas) - o usuario escolhe manualmente qual
+// faixa manter quando quiser remover as demais.
+export async function scanForClean(mkvmergePath: string, folder: string, onLog: LogFn): Promise<ScanResult> {
+  const files = listVideoFiles(folder)
+  const rows: EpisodeRow[] = []
+  const warnings: string[] = []
+
+  for (const file of files) {
+    let tracks: SubtitleTrack[]
+    try {
+      tracks = await probeSubtitleTracks(mkvmergePath, file)
+    } catch (err) {
+      onLog({ level: 'error', message: `Falha ao ler faixas de ${basename(file)}: ${(err as Error).message}` })
+      tracks = []
+    }
+
+    const [season, episode] = findEpisode(basename(file))
+    const key = episodeKey(season, episode) ?? basename(file)
+
+    rows.push({
+      id: file,
+      episodeKey: key,
+      sourcePath: file,
+      sourceName: basename(file),
+      destPath: file,
+      destName: basename(file),
+      tracks,
+      selectedTrackId: null,
+      firstLineTargetText: ''
+    })
+  }
+
+  onLog({ level: 'info', message: `Encontrados ${rows.length} arquivos na pasta.` })
+
+  return { rows, warnings, unmatchedSource: [] }
 }
 
 // Se removeEnglishAudio estiver ligado, devolve a lista de IDs de faixas de
@@ -276,6 +318,90 @@ export async function transferRows(
   onLog({
     level: 'info',
     message: `Transferencia concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+  })
+
+  return { total, success, failed }
+}
+
+// Modo "apenas limpar": remuxa cada arquivo (row.destPath) filtrando faixas -
+// mantem so a legenda escolhida (ou todas, se null) e, opcionalmente, remove
+// audio em ingles. Sem extracao/adicao de legenda externa.
+export async function cleanRows(
+  mkvmergePath: string,
+  rows: EpisodeRow[],
+  outputDir: string,
+  removeEnglishAudio: boolean,
+  onProgress: (rowId: string, status: RowStatus, message?: string) => void,
+  onLog: LogFn
+): Promise<TransferSummary> {
+  let success = 0
+  let failed = 0
+
+  for (const row of rows) {
+    const outputFile = resolveCleanOutputPath(row.destPath, outputDir)
+    onProgress(row.id, 'muxing')
+
+    try {
+      const keepAudioTrackIds = await resolveAudioTrackFilter(
+        mkvmergePath,
+        row.destPath,
+        removeEnglishAudio,
+        row.episodeKey,
+        onLog
+      )
+
+      const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
+      const audioInfo = keepAudioTrackIds ? ' (removendo audio em ingles)' : ''
+      const subInfo =
+        row.selectedTrackId !== null ? ` (mantendo somente legenda #${row.selectedTrackId})` : ''
+      onLog({
+        level: 'info',
+        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}`
+      })
+
+      await cleanTracksInto(mkvmergePath, row.destPath, outputFile, row.selectedTrackId, keepAudioTrackIds)
+
+      onProgress(row.id, 'done')
+      success += 1
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        episodeKey: row.episodeKey,
+        sourceFile: row.sourcePath,
+        destFile: row.destPath,
+        outputFile,
+        trackId: row.selectedTrackId,
+        language: null,
+        trackName: null,
+        firstLineTargetText: '',
+        appliedOffsetMs: null,
+        status: 'done'
+      })
+    } catch (err) {
+      failed += 1
+      const message = (err as Error).message
+      onProgress(row.id, 'error', message)
+      onLog({ level: 'error', message: `[${row.episodeKey}] ERRO: ${message}` })
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        episodeKey: row.episodeKey,
+        sourceFile: row.sourcePath,
+        destFile: row.destPath,
+        outputFile,
+        trackId: row.selectedTrackId,
+        language: null,
+        trackName: null,
+        firstLineTargetText: '',
+        appliedOffsetMs: null,
+        status: 'error',
+        error: message
+      })
+    }
+  }
+
+  const total = rows.length
+  onLog({
+    level: 'info',
+    message: `Limpeza concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 
   return { total, success, failed }

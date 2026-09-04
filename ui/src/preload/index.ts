@@ -23,8 +23,12 @@ const api = {
   scan: (sourceDir: string, destDir: string): Promise<ScanResult> =>
     ipcRenderer.invoke('scan:run', { sourceDir, destDir }),
 
+  scanClean: (folder: string): Promise<ScanResult> => ipcRenderer.invoke('scan:clean', { folder }),
+
   transfer: (request: TransferRequest): Promise<TransferSummary> =>
     ipcRenderer.invoke('transfer:run', request),
+
+  clean: (request: TransferRequest): Promise<TransferSummary> => ipcRenderer.invoke('clean:run', request),
 
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)

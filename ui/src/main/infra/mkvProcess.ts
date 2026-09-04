@@ -132,3 +132,39 @@ export function resolveOutputPath(destVideo: string, outputFolder: string): stri
   const base = parse(destVideo).name + ' [legendado]'
   return join(outputFolder, `${base}.mkv`)
 }
+
+// Remuxa o proprio arquivo filtrando faixas: mantem so a legenda escolhida
+// (null = mantem todas) e, opcionalmente, so as faixas de audio indicadas.
+// Nao extrai/adiciona nada - e so uma remuxagem com filtro (modo "limpar").
+export async function cleanTracksInto(
+  mkvmergePath: string,
+  sourceFile: string,
+  outputFile: string,
+  keepSubtitleTrackId: number | null,
+  keepAudioTrackIds?: number[]
+): Promise<void> {
+  const args = ['-o', outputFile]
+  if (keepAudioTrackIds) {
+    args.push('--audio-tracks', keepAudioTrackIds.join(','))
+  }
+  if (keepSubtitleTrackId !== null) {
+    args.push('--subtitle-tracks', String(keepSubtitleTrackId))
+  }
+  args.push(sourceFile)
+
+  try {
+    await execFileAsync(mkvmergePath, args, { maxBuffer: 32 * 1024 * 1024 })
+  } catch (err) {
+    const execErr = err as { code?: number; stderr?: string; stdout?: string }
+    if (execErr.code && execErr.code >= 2) {
+      throw new Error(execErr.stderr?.trim() || execErr.stdout?.trim() || 'mkvmerge falhou')
+    }
+  }
+}
+
+// Mesmo esquema de nome fixo (sobrescreve por nome) do resolveOutputPath,
+// mas com sufixo proprio para nao colidir com o modo transferencia.
+export function resolveCleanOutputPath(sourceFile: string, outputFolder: string): string {
+  const base = parse(sourceFile).name + ' [limpo]'
+  return join(outputFolder, `${base}.mkv`)
+}
