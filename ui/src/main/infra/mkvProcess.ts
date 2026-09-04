@@ -93,18 +93,24 @@ export async function muxSubtitleInto(
   language = 'und',
   trackName = '',
   offsetMs = 0,
-  keepAudioTrackIds?: number[]
+  keepAudioTrackIds?: number[],
+  clearDefaultSubtitleTrackIds?: number[]
 ): Promise<void> {
   const args = ['-o', outputFile]
   if (keepAudioTrackIds) {
     args.push('--audio-tracks', keepAudioTrackIds.join(','))
   }
+  // Zera a flag "padrao" de legendas ja existentes no destino, para a
+  // legenda transferida ser a unica marcada como padrao no arquivo final.
+  clearDefaultSubtitleTrackIds?.forEach((trackId) => {
+    args.push('--default-track-flag', `${trackId}:no`)
+  })
   args.push(
     destVideo,
     '--language',
     `0:${language}`,
     '--default-track-flag',
-    '0:no'
+    '0:yes'
   )
   if (trackName) {
     args.push('--track-name', `0:${trackName}`)
@@ -149,6 +155,7 @@ export async function cleanTracksInto(
   }
   if (keepSubtitleTrackId !== null) {
     args.push('--subtitle-tracks', String(keepSubtitleTrackId))
+    args.push('--default-track-flag', `${keepSubtitleTrackId}:yes`)
   }
   args.push(sourceFile)
 

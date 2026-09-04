@@ -256,6 +256,16 @@ export async function transferRows(
         onLog
       )
 
+      // Legendas que ja existem no destino (ex: signs/songs de um raw) nao
+      // podem continuar marcadas como padrao, senao o arquivo final fica
+      // com duas faixas de legenda "padrao" ao mesmo tempo.
+      let destSubtitleTrackIds: number[] = []
+      try {
+        destSubtitleTrackIds = (await probeSubtitleTracks(mkvmergePath, row.destPath)).map((t) => t.trackId)
+      } catch {
+        destSubtitleTrackIds = []
+      }
+
       onProgress(row.id, 'muxing')
       const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
       const audioInfo = keepAudioTrackIds ? ' (removendo audio em ingles)' : ''
@@ -272,7 +282,8 @@ export async function transferRows(
         track.language,
         track.trackName,
         offsetMs,
-        keepAudioTrackIds
+        keepAudioTrackIds,
+        destSubtitleTrackIds
       )
 
       onProgress(row.id, 'done')
