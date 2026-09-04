@@ -1,10 +1,21 @@
+import { existsSync } from 'fs'
 import { tmpdir } from 'os'
-import { mkdtemp, rm } from 'fs/promises'
+import { mkdtemp, readFile, rm } from 'fs/promises'
 import { join, basename } from 'path'
 import { episodeKey, findEpisode } from './domain/episodeMatcher'
 import { pickBestTrackIndex } from './domain/subtitleLanguage'
+import { isEnglishAudio } from './domain/audioLanguage'
+import { formatMsAsTimeCode, parseFirstEventStartMs, parseTimeCodeToMs } from './domain/subtitleTiming'
 import { listVideoFiles } from './infra/videoFiles'
-import { extractSubtitle, muxSubtitleInto, probeSubtitleTracks, subtitleExtension, uniqueOutputPath } from './infra/mkvProcess'
+import {
+  extractSubtitle,
+  muxSubtitleInto,
+  probeAudioTracks,
+  probeSubtitleTracks,
+  resolveOutputPath,
+  subtitleExtension
+} from './infra/mkvProcess'
+import { appendTransferLog } from './infra/transferLog'
 import type { EpisodeRow, LogEvent, RowStatus, ScanResult, SubtitleTrack, TransferSummary } from '@shared/types'
 
 type LogFn = (event: LogEvent) => void
@@ -71,7 +82,8 @@ export async function scanFolders(
       destPath,
       destName: basename(destPath),
       tracks: usableTracks,
-      selectedTrackId
+      selectedTrackId,
+      firstLineTargetText: ''
     })
   }
 
@@ -84,11 +96,90 @@ export async function scanFolders(
   return { rows, warnings, unmatchedSource }
 }
 
+// Se removeEnglishAudio estiver ligado, devolve a lista de IDs de faixas de
+// audio a manter (todas menos as em ingles). Retorna undefined quando nao ha
+// nada a filtrar (recurso desligado, sem faixas em ingles, ou remover as
+// faixas em ingles deixaria o arquivo sem nenhum audio) - nesses casos o
+// mkvmerge mantem todas as faixas de audio originais.
+async function resolveAudioTrackFilter(
+  mkvmergePath: string,
+  destPath: string,
+  removeEnglishAudio: boolean,
+  episodeKeyForLog: string,
+  onLog: LogFn
+): Promise<number[] | undefined> {
+  if (!removeEnglishAudio) return undefined
+
+  let audioTracks
+  try {
+    audioTracks = await probeAudioTracks(mkvmergePath, destPath)
+  } catch (err) {
+    onLog({
+      level: 'warn',
+      message: `[${episodeKeyForLog}] falha ao ler faixas de audio de ${basename(destPath)}: ${(err as Error).message}`
+    })
+    return undefined
+  }
+
+  const keepIds = audioTracks.filter((t) => !isEnglishAudio(t.language)).map((t) => t.trackId)
+  if (keepIds.length === audioTracks.length) return undefined // nenhuma faixa em ingles encontrada
+  if (keepIds.length === 0) {
+    onLog({
+      level: 'warn',
+      message: `[${episodeKeyForLog}] todas as faixas de audio sao em ingles - mantendo todas por seguranca`
+    })
+    return undefined
+  }
+  return keepIds
+}
+
+// Calcula o deslocamento (ms) a aplicar via --sync, comparando o instante
+// da primeira legenda extraida com o instante desejado (row.firstLineTargetText).
+// Retorna 0 quando nao ha alvo definido ou quando algo nao pode ser
+// interpretado (formato invalido, arquivo sem nenhum evento) - nesses casos
+// a legenda mantem o timing original, sem travar a transferencia.
+async function resolveOffsetMs(
+  subPath: string,
+  extension: string,
+  firstLineTargetText: string,
+  episodeKeyForLog: string,
+  onLog: LogFn
+): Promise<number> {
+  if (!firstLineTargetText.trim()) return 0
+
+  const targetMs = parseTimeCodeToMs(firstLineTargetText)
+  if (targetMs === null) {
+    onLog({
+      level: 'warn',
+      message: `[${episodeKeyForLog}] tempo "${firstLineTargetText}" invalido (use MM:SS,mmm) - mantendo timing original`
+    })
+    return 0
+  }
+
+  const content = await readFile(subPath, 'utf-8')
+  const originalMs = parseFirstEventStartMs(content, extension)
+  if (originalMs === null) {
+    onLog({
+      level: 'warn',
+      message: `[${episodeKeyForLog}] nao encontrei nenhuma legenda no arquivo extraido - mantendo timing original`
+    })
+    return 0
+  }
+
+  const offsetMs = targetMs - originalMs
+  onLog({
+    level: 'info',
+    message: `[${episodeKeyForLog}] primeira legenda original em ${formatMsAsTimeCode(originalMs)}, alvo ${formatMsAsTimeCode(targetMs)} (deslocamento de ${offsetMs}ms)`
+  })
+  return offsetMs
+}
+
 export async function transferRows(
   mkvmergePath: string,
   mkvextractPath: string,
   rows: EpisodeRow[],
   outputDir: string,
+  removeEnglishAudio: boolean,
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn
 ): Promise<TransferSummary> {
@@ -107,22 +198,75 @@ export async function transferRows(
     onLog({ level: 'info', message: `[${row.episodeKey}] extraindo faixa ${track.trackId} de ${row.sourceName}` })
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-'))
+    const outputFile = resolveOutputPath(row.destPath, outputDir)
     try {
-      const subPath = join(tmpDir, `sub${subtitleExtension(track.codecId)}`)
+      const extension = subtitleExtension(track.codecId)
+      const subPath = join(tmpDir, `sub${extension}`)
       await extractSubtitle(mkvextractPath, row.sourcePath, track.trackId, subPath)
 
-      const outputFile = uniqueOutputPath(row.destPath, outputDir)
-      onProgress(row.id, 'muxing')
-      onLog({ level: 'info', message: `[${row.episodeKey}] gerando ${basename(outputFile)}` })
+      const offsetMs = await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
 
-      await muxSubtitleInto(mkvmergePath, row.destPath, subPath, outputFile, track.language, track.trackName)
+      const keepAudioTrackIds = await resolveAudioTrackFilter(
+        mkvmergePath,
+        row.destPath,
+        removeEnglishAudio,
+        row.episodeKey,
+        onLog
+      )
+
+      onProgress(row.id, 'muxing')
+      const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
+      const audioInfo = keepAudioTrackIds ? ' (removendo audio em ingles)' : ''
+      onLog({
+        level: 'info',
+        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}`
+      })
+
+      await muxSubtitleInto(
+        mkvmergePath,
+        row.destPath,
+        subPath,
+        outputFile,
+        track.language,
+        track.trackName,
+        offsetMs,
+        keepAudioTrackIds
+      )
 
       onProgress(row.id, 'done')
       success += 1
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        episodeKey: row.episodeKey,
+        sourceFile: row.sourcePath,
+        destFile: row.destPath,
+        outputFile,
+        trackId: track.trackId,
+        language: track.language,
+        trackName: track.trackName,
+        firstLineTargetText: row.firstLineTargetText,
+        appliedOffsetMs: offsetMs,
+        status: 'done'
+      })
     } catch (err) {
       failed += 1
-      onProgress(row.id, 'error', (err as Error).message)
-      onLog({ level: 'error', message: `[${row.episodeKey}] ERRO: ${(err as Error).message}` })
+      const message = (err as Error).message
+      onProgress(row.id, 'error', message)
+      onLog({ level: 'error', message: `[${row.episodeKey}] ERRO: ${message}` })
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        episodeKey: row.episodeKey,
+        sourceFile: row.sourcePath,
+        destFile: row.destPath,
+        outputFile,
+        trackId: track.trackId,
+        language: track.language,
+        trackName: track.trackName,
+        firstLineTargetText: row.firstLineTargetText,
+        appliedOffsetMs: null,
+        status: 'error',
+        error: message
+      })
     } finally {
       await rm(tmpDir, { recursive: true, force: true })
     }

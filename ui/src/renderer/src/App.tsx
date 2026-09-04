@@ -374,6 +374,33 @@ const NoSubtitle = styled.span`
   font-style: italic;
 `
 
+const TimingInput = styled.input`
+  width: 110px;
+  background: ${(p) => p.theme.colors.panelAlt};
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.sm};
+  padding: 5px 6px;
+  color: ${(p) => p.theme.colors.text};
+  font-family: ${(p) => p.theme.font.mono};
+
+  &::placeholder {
+    color: ${(p) => p.theme.colors.textFaint};
+  }
+
+  &:focus {
+    border-color: ${(p) => p.theme.colors.accent};
+  }
+`
+
+// Mascara de digitacao: conforme o usuario digita numeros, monta
+// progressivamente o formato MM:SS,mmm (ex: "0025130" vira "00:25,130").
+function maskTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 7)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`
+  return `${digits.slice(0, 2)}:${digits.slice(2, 4)},${digits.slice(4)}`
+}
+
 function trackLabel(track: SubtitleTrack): string {
   const name = track.trackName ? ` "${track.trackName}"` : ''
   return `#${track.trackId} [${track.language}]${name}`
@@ -385,7 +412,8 @@ function EpisodeTable({
   selectedIds,
   onToggleSelect,
   onToggleSelectAll,
-  onTrackChange
+  onTrackChange,
+  onFirstLineTargetChange
 }: {
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
@@ -393,6 +421,7 @@ function EpisodeTable({
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
   onTrackChange: (rowId: string, trackId: number) => void
+  onFirstLineTargetChange: (rowId: string, value: string) => void
 }) {
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
 
@@ -408,6 +437,12 @@ function EpisodeTable({
             <th>Arquivo origem</th>
             <th>Faixa de legenda</th>
             <th>Arquivo destino</th>
+            <th
+              style={{ width: 130 }}
+              title='Instante em que a primeira legenda deve aparecer no video de destino, formato MM:SS,mmm (ex: 06:39,566). O resto da legenda e deslocado automaticamente. Deixe vazio para nao ajustar.'
+            >
+              1a fala em
+            </th>
             <th style={{ width: 110 }}>Status</th>
           </tr>
         </Thead>
@@ -447,6 +482,15 @@ function EpisodeTable({
                 </Td>
                 <Td>
                   <FileName title={row.destName}>{row.destName}</FileName>
+                </Td>
+                <Td>
+                  <TimingInput
+                    type="text"
+                    placeholder="06:39,566"
+                    value={row.firstLineTargetText}
+                    onChange={(e) => onFirstLineTargetChange(row.id, maskTimeInput(e.target.value))}
+                    title="Instante (MM:SS,mmm) em que a primeira legenda deve aparecer. Vazio = timing original."
+                  />
                 </Td>
                 <Td>
                   <StatusBadge status={statuses[row.id] ?? 'idle'} />
@@ -518,6 +562,15 @@ const ProgressFill = styled.div<{ $pct: number }>`
   transition: width 0.2s ease;
 `
 
+const CheckboxLabel = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: ${(p) => p.theme.colors.textMuted};
+  cursor: pointer;
+`
+
 function AppContent() {
   const [sourceDir, setSourceDir] = useState('')
   const [destDir, setDestDir] = useState('')
@@ -531,6 +584,7 @@ function AppContent() {
 
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
+  const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
 
   useEffect(() => {
     window.api.loadConfig().then((config) => {
@@ -603,6 +657,10 @@ function AppContent() {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, selectedTrackId: trackId } : r)))
   }
 
+  function handleFirstLineTargetChange(rowId: string, firstLineTargetText: string) {
+    setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, firstLineTargetText } : r)))
+  }
+
   function handleToggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
@@ -625,7 +683,11 @@ function AppContent() {
     await persistConfig()
     setTransferring(true)
     try {
-      const summary = await window.api.transfer({ rows: targets, outputDir: outputDir || destDir })
+      const summary = await window.api.transfer({
+        rows: targets,
+        outputDir: outputDir || destDir,
+        removeEnglishAudio
+      })
       pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`)
     } catch (err) {
       pushLog(`Erro na transferencia: ${(err as Error).message}`, 'error')
@@ -654,6 +716,19 @@ function AppContent() {
         <FolderField label="Pasta de origem (com legenda)" value={sourceDir} onChange={setSourceDir} />
         <FolderField label="Pasta de destino (sem legenda)" value={destDir} onChange={setDestDir} />
         <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={setOutputDir} />
+
+        <Row $gap={8}>
+          <Label style={{ width: 190, flexShrink: 0 }} />
+          <CheckboxLabel>
+            <input
+              type="checkbox"
+              checked={removeEnglishAudio}
+              onChange={(e) => setRemoveEnglishAudio(e.target.checked)}
+            />
+            Remover dublagem em ingles do destino (manter so o audio japones)
+          </CheckboxLabel>
+        </Row>
+
         <ToolbarRow>
           <Row $gap={8}>
             <Button $variant="primary" onClick={handleScan} disabled={scanning}>
@@ -687,6 +762,7 @@ function AppContent() {
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
           onTrackChange={handleTrackChange}
+          onFirstLineTargetChange={handleFirstLineTargetChange}
         />
       </Col>
 

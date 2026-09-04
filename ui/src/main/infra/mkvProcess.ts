@@ -1,7 +1,6 @@
 // Infraestrutura: chamadas de processo ao mkvmerge/mkvextract (probe,
 // extracao e remux). Depende do dominio apenas para classificar cada
 // faixa encontrada (isAss / isPtBr).
-import { existsSync } from 'fs'
 import { join, parse } from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -56,6 +55,25 @@ export function subtitleExtension(codecId: string): string {
   return SUB_EXT_BY_CODEC[codecId] ?? '.sub'
 }
 
+export interface AudioTrack {
+  trackId: number
+  language: string
+}
+
+export async function probeAudioTracks(mkvmergePath: string, videoFile: string): Promise<AudioTrack[]> {
+  const { stdout } = await execFileAsync(mkvmergePath, ['-J', videoFile], {
+    maxBuffer: 32 * 1024 * 1024
+  })
+  const data = JSON.parse(stdout) as { tracks: MkvMergeTrackJson[] }
+
+  return data.tracks
+    .filter((t) => t.type === 'audio')
+    .map((t) => ({
+      trackId: t.id,
+      language: t.properties?.language_ietf || t.properties?.language || 'und'
+    }))
+}
+
 export async function extractSubtitle(
   mkvextractPath: string,
   videoFile: string,
@@ -73,19 +91,26 @@ export async function muxSubtitleInto(
   subtitleFile: string,
   outputFile: string,
   language = 'und',
-  trackName = ''
+  trackName = '',
+  offsetMs = 0,
+  keepAudioTrackIds?: number[]
 ): Promise<void> {
-  const args = [
-    '-o',
-    outputFile,
+  const args = ['-o', outputFile]
+  if (keepAudioTrackIds) {
+    args.push('--audio-tracks', keepAudioTrackIds.join(','))
+  }
+  args.push(
     destVideo,
     '--language',
     `0:${language}`,
     '--default-track-flag',
     '0:no'
-  ]
+  )
   if (trackName) {
     args.push('--track-name', `0:${trackName}`)
+  }
+  if (offsetMs) {
+    args.push('--sync', `0:${offsetMs}`)
   }
   args.push(subtitleFile)
 
@@ -100,13 +125,10 @@ export async function muxSubtitleInto(
   }
 }
 
-export function uniqueOutputPath(destVideo: string, outputFolder: string): string {
+// Nome fixo por episodio (sem sufixo de contador): se ja existir um arquivo
+// com esse nome na pasta de saida, o mkvmerge sobrescreve - nao criamos
+// duplicados "(1)", "(2)", etc.
+export function resolveOutputPath(destVideo: string, outputFolder: string): string {
   const base = parse(destVideo).name + ' [legendado]'
-  let candidate = join(outputFolder, `${base}.mkv`)
-  let counter = 1
-  while (existsSync(candidate)) {
-    candidate = join(outputFolder, `${base} (${counter}).mkv`)
-    counter += 1
-  }
-  return candidate
+  return join(outputFolder, `${base}.mkv`)
 }

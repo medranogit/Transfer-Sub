@@ -21,6 +21,9 @@
 *.tmp
 *.download
 
+# Log de transferencia gerado pelo app (dado de uso real, nao codigo)
+transfer-log.json
+
 # Sistema operacional (Windows/macOS)
 Thumbs.db
 ehthumbs.db

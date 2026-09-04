@@ -2,6 +2,9 @@ node_modules
 out
 dist
 *.log
+
+# Log de transferencia gerado pelo app em runtime (dado de uso real, nao codigo)
+transfer-log.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

@@ -96,6 +96,7 @@ app.whenReady().then(() => {
       status.mkvextractPath,
       request.rows,
       request.outputDir,
+      request.removeEnglishAudio,
       (rowId, statusValue, message) => {
         mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
       },

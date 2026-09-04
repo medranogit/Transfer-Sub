@@ -16,6 +16,11 @@ export interface EpisodeRow {
   destName: string
   tracks: SubtitleTrack[]
   selectedTrackId: number | null
+  // Instante em que a primeira legenda deve aparecer no video de destino,
+  // no formato "MM:SS,mmm" (ex: "06:39,566") ou "H:MM:SS,mmm". Vazio = usar
+  // o timing original, sem ajuste. O deslocamento e calculado no processo
+  // principal a partir da legenda extraida.
+  firstLineTargetText: string
 }
 
 export interface ScanResult {
@@ -53,6 +58,7 @@ export interface AppConfig {
 export interface TransferRequest {
   rows: EpisodeRow[]
   outputDir: string
+  removeEnglishAudio: boolean
 }
 
 export interface TransferSummary {
