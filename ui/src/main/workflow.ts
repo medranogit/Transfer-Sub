@@ -89,36 +89,61 @@ export async function scanFolders(
   const sourceFiles = listVideoFiles(sourceDir)
   const destFiles = listVideoFiles(destDir)
 
-  const sourceByKey = new Map<string, string>()
   const warnings: string[] = []
 
-  for (const file of sourceFiles) {
-    const [season, episode] = findEpisode(basename(file))
-    const key = episodeKey(season, episode)
-    if (key) {
-      if (!sourceByKey.has(key)) sourceByKey.set(key, file)
-    } else {
-      warnings.push(`Nao identifiquei episodio em (origem): ${basename(file)}`)
-    }
+  interface Candidate {
+    file: string
+    season: number | null
   }
 
-  const destByKey = new Map<string, string>()
-  for (const file of destFiles) {
-    const [season, episode] = findEpisode(basename(file))
-    const key = episodeKey(season, episode)
-    if (key) {
-      if (!destByKey.has(key)) destByKey.set(key, file)
-    } else {
-      warnings.push(`Nao identifiquei episodio em (destino): ${basename(file)}`)
+  function indexByEpisode(files: string[], side: string): Map<number, Candidate[]> {
+    const map = new Map<number, Candidate[]>()
+    for (const file of files) {
+      const [season, episode] = findEpisode(basename(file))
+      if (episode === null) {
+        warnings.push(`Nao identifiquei episodio em (${side}): ${basename(file)}`)
+        continue
+      }
+      const list = map.get(episode) ?? []
+      list.push({ file, season })
+      map.set(episode, list)
     }
+    return map
   }
 
-  const commonKeys = [...sourceByKey.keys()].filter((k) => destByKey.has(k)).sort()
+  const sourceByEpisode = indexByEpisode(sourceFiles, 'origem')
+  const destByEpisode = indexByEpisode(destFiles, 'destino')
+
+  // Casa pelo numero do episodio; a temporada so desempata quando ha mais de
+  // um arquivo com o mesmo numero de um lado (pasta com varias temporadas
+  // juntas). Fansubs raramente incluem a temporada no nome do arquivo (ex:
+  // "Nome - 01.mkv"), enquanto bibliotecas organizadas costumam usar
+  // "Nome - S01E01.mkv" - exigir que os dois lados concordassem em
+  // temporada deixava de casar episodios legitimos como esse.
+  function pickPair(sourceCandidates: Candidate[], destCandidates: Candidate[]): [Candidate, Candidate] | null {
+    if (sourceCandidates.length === 1 && destCandidates.length === 1) {
+      return [sourceCandidates[0], destCandidates[0]]
+    }
+    for (const s of sourceCandidates) {
+      for (const d of destCandidates) {
+        if (s.season !== null && s.season === d.season) return [s, d]
+      }
+    }
+    return null
+  }
+
+  const episodes = [...sourceByEpisode.keys()].filter((e) => destByEpisode.has(e)).sort((a, b) => a - b)
   const rows: EpisodeRow[] = []
+  const matchedSourceFiles = new Set<string>()
 
-  for (const key of commonKeys) {
-    const sourcePath = sourceByKey.get(key)!
-    const destPath = destByKey.get(key)!
+  for (const episode of episodes) {
+    const pair = pickPair(sourceByEpisode.get(episode)!, destByEpisode.get(episode)!)
+    if (!pair) continue
+    const [source, dest] = pair
+    matchedSourceFiles.add(source.file)
+    const sourcePath = source.file
+    const destPath = dest.file
+    const key = episodeKey(source.season ?? dest.season, episode)!
 
     let tracks: SubtitleTrack[]
     try {
@@ -152,9 +177,10 @@ export async function scanFolders(
     })
   }
 
-  const unmatchedSource = [...sourceByKey.keys()]
-    .filter((k) => !destByKey.has(k))
-    .map((k) => basename(sourceByKey.get(k)!))
+  const unmatchedSource = [...sourceByEpisode.values()]
+    .flat()
+    .filter((c) => !matchedSourceFiles.has(c.file))
+    .map((c) => basename(c.file))
 
   onLog({ level: 'info', message: `Encontrados ${rows.length} episodios casados.` })
 
