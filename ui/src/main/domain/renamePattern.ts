@@ -18,6 +18,13 @@ export interface RenameResult {
   reason: string | null
 }
 
+// Formato usado no nome gerado (2 digitos - ex: "S01E05") - diferente do
+// episodeKey() de episodeMatcher.ts (3 digitos no episodio), que serve pro
+// casamento origem/destino, nao pra exibicao aqui.
+export function formatSeasonEpisode(season: number, episode: number): string {
+  return `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
+}
+
 // Nome final: "{texto inicial} - S{temporada}E{episodio} - {texto final}"
 // (partes vazias sao omitidas, sem deixar " - " sobrando). O episodio vem do
 // nome original via findEpisode (mesma logica usada pro matching entre
@@ -28,8 +35,7 @@ export function buildRenamedName(originalFileName: string, fields: RenameFields)
   const [, episode] = findEpisode(originalFileName)
   if (episode === null) return { name: null, reason: 'episodio nao detectado no nome original' }
 
-  const seasonEpisode = `S${String(fields.season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
-  const newBase = [fields.prefixText.trim(), seasonEpisode, fields.suffixText.trim()]
+  const newBase = [fields.prefixText.trim(), formatSeasonEpisode(fields.season, episode), fields.suffixText.trim()]
     .filter((part) => part.length > 0)
     .join(' - ')
 

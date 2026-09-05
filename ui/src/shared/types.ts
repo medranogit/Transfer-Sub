@@ -154,6 +154,9 @@ export interface RenamePreviewRow {
   originalName: string
   newName: string | null
   skipReason: string | null
+  // "S01E05" (temporada informada + episodio detectado) - so pra identificar
+  // a linha no Historico; null quando o episodio nao foi detectado.
+  episodeKey: string | null
 }
 
 export interface RenameSummary {

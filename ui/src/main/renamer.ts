@@ -2,8 +2,10 @@
 // dos videos de uma pasta, a partir dos 3 campos (ver domain/renamePattern.ts).
 import { existsSync } from 'fs'
 import { basename, dirname, join } from 'path'
-import { buildRenamedName } from './domain/renamePattern'
+import { findEpisode } from './domain/episodeMatcher'
+import { buildRenamedName, formatSeasonEpisode } from './domain/renamePattern'
 import { renameFile } from './infra/fileRename'
+import { appendTransferLog } from './infra/transferLog'
 import { listVideoFiles } from './infra/videoFiles'
 import type { LogEvent, RenameFields, RenamePreviewRow, RenameSummary } from '@shared/types'
 
@@ -13,7 +15,9 @@ export function previewRename(folder: string, fields: RenameFields): RenamePrevi
   const rows: RenamePreviewRow[] = listVideoFiles(folder).map((path) => {
     const originalName = basename(path)
     const { name, reason } = buildRenamedName(originalName, fields)
-    return { id: path, originalPath: path, originalName, newName: name, skipReason: reason }
+    const [, episode] = findEpisode(originalName)
+    const episodeKey = episode === null ? null : formatSeasonEpisode(fields.season, episode)
+    return { id: path, originalPath: path, originalName, newName: name, skipReason: reason, episodeKey }
   })
 
   // Dois arquivos gerando o mesmo novo nome corromperia um dos dois (a
@@ -56,9 +60,37 @@ export async function applyRename(rows: RenamePreviewRow[], onLog: LogFn): Promi
       await renameFile(row.originalPath, newPath)
       success += 1
       onLog({ level: 'success', message: `${row.originalName} -> ${row.newName}` })
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        episodeKey: row.episodeKey ?? row.originalName,
+        sourceFile: row.originalPath,
+        destFile: row.originalPath,
+        outputFile: newPath,
+        trackId: null,
+        language: null,
+        trackName: null,
+        firstLineTargetText: '',
+        appliedOffsetMs: null,
+        status: 'done'
+      })
     } catch (err) {
       failed += 1
-      onLog({ level: 'error', message: `${row.originalName}: ${(err as Error).message}` })
+      const message = (err as Error).message
+      onLog({ level: 'error', message: `${row.originalName}: ${message}` })
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        episodeKey: row.episodeKey ?? row.originalName,
+        sourceFile: row.originalPath,
+        destFile: row.originalPath,
+        outputFile: newPath,
+        trackId: null,
+        language: null,
+        trackName: null,
+        firstLineTargetText: '',
+        appliedOffsetMs: null,
+        status: 'error',
+        error: message
+      })
     }
   }
 

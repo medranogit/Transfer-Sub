@@ -239,6 +239,10 @@ pré-visualização → aplicar):
   a base do nome muda.
 - Só considera vídeos (`infra/videoFiles.ts`, mesmo filtro usado pelo resto
   do app) — não mexe em legendas/outros arquivos soltos na pasta.
+- Cada renomeação (sucesso ou erro) também é gravada em `transfer-log.json`
+  igual Transferir/Limpar (`renamer.ts` chama `appendTransferLog`) — aparece
+  junto na página Histórico, com "Episódio" mostrando o `S00E00` calculado e
+  "Arquivo gerado" mostrando o novo nome.
 
 ## Log de transferências
 
