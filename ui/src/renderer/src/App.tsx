@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
 import type {
+  DetectedRenameFields,
   EpisodeRow,
   LogEvent,
   MkvToolsStatus,
@@ -19,6 +20,7 @@ import { HistoryView } from './components/HistoryView'
 import { SettingsView } from './components/SettingsView'
 import { SyncModal } from './components/SyncModal'
 import { NotificationsMenu } from './components/NotificationsMenu'
+import { ConfirmDialog } from './ui/ConfirmDialog'
 import { playCompletionSound } from './utils/completionSound'
 
 // ---------------------------------------------------------------------------
@@ -93,9 +95,21 @@ function AppContent() {
   })
 
   const [renameFolder, setRenameFolder] = useState('')
-  const [renameFields, setRenameFields] = useState<RenameFields>({ prefixText: '', season: 1, suffixText: '' })
+  const [renameFields, setRenameFields] = useState<RenameFields>({
+    fansub: '',
+    animeName: '',
+    season: 1,
+    tags: ''
+  })
+  const [renameFansubPresets, setRenameFansubPresets] = useState<string[]>([])
+  const [renameTagPresets, setRenameTagPresets] = useState<string[]>([])
   const [renameRows, setRenameRows] = useState<RenamePreviewRow[]>([])
   const [renameScanning, setRenameScanning] = useState(false)
+  const [renameUpdating, setRenameUpdating] = useState(false)
+  // Fansub detectada no escaneamento que ainda nao esta na lista conhecida -
+  // preenchida so enquanto o modal de confirmacao esta aberto perguntando se
+  // adiciona a lista e aplica no campo (ver handleRenameScan).
+  const [pendingFansub, setPendingFansub] = useState<DetectedRenameFields | null>(null)
   const [renaming, setRenaming] = useState(false)
 
   const cleanOnly = view === 'clean'
@@ -107,6 +121,9 @@ function AppContent() {
       setOutputDir(config.outputDir)
       setNamingTransfer(config.namingTransfer)
       setNamingClean(config.namingClean)
+      setRenameFolder(config.renameFolder)
+      setRenameFansubPresets(config.renameFansubPresets)
+      setRenameTagPresets(config.renameTagPresets)
       window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
     })
 
@@ -150,6 +167,9 @@ function AppContent() {
       outputDir: string
       namingTransfer: NamingConfig
       namingClean: NamingConfig
+      renameFolder: string
+      renameFansubPresets: string[]
+      renameTagPresets: string[]
     }> = {}
   ) {
     await window.api.saveConfig({
@@ -158,7 +178,10 @@ function AppContent() {
       outputDir: overrides.outputDir ?? outputDir,
       mkvToolNixDir: mkvStatus.mkvmergePath ? mkvStatus.mkvmergePath.replace(/[\\/][^\\/]+$/, '') : '',
       namingTransfer: overrides.namingTransfer ?? namingTransfer,
-      namingClean: overrides.namingClean ?? namingClean
+      namingClean: overrides.namingClean ?? namingClean,
+      renameFolder: overrides.renameFolder ?? renameFolder,
+      renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
+      renameTagPresets: overrides.renameTagPresets ?? renameTagPresets
     })
   }
 
@@ -170,6 +193,16 @@ function AppContent() {
   function handleNamingCleanChange(next: NamingConfig) {
     setNamingClean(next)
     persistConfig({ namingClean: next })
+  }
+
+  function handleRenameFansubPresetsChange(next: string[]) {
+    setRenameFansubPresets(next)
+    persistConfig({ renameFansubPresets: next })
+  }
+
+  function handleRenameTagPresetsChange(next: string[]) {
+    setRenameTagPresets(next)
+    persistConfig({ renameTagPresets: next })
   }
 
   async function handleChooseMkvDir() {
@@ -228,10 +261,30 @@ function AppContent() {
       pushLog('Informe uma temporada valida.', 'error')
       return
     }
+    await persistConfig({ renameFolder })
     setRenameScanning(true)
     try {
-      const result = await window.api.previewRename(renameFolder, renameFields)
+      const { rows: result, detected } = await window.api.previewRename(renameFolder, renameFields)
       setRenameRows(result)
+      if (detected) {
+        const fansubKnown =
+          !detected.fansub || renameFansubPresets.some((p) => p.toLowerCase() === detected.fansub.toLowerCase())
+        setRenameFields((prev) => ({
+          ...prev,
+          fansub: fansubKnown ? detected.fansub : '',
+          animeName: detected.animeName,
+          season: detected.season
+        }))
+        if (fansubKnown) {
+          pushLog(`Detectado automaticamente: fansub "${detected.fansub}", temporada ${detected.season}.`, 'info')
+        } else {
+          setPendingFansub(detected)
+          pushLog(
+            `Detectado automaticamente: temporada ${detected.season}. Fansub "${detected.fansub}" nao esta na lista - confirme para adicionar.`,
+            'info'
+          )
+        }
+      }
       const ready = result.filter((r) => r.newName).length
       pushLog(`Pre-visualizacao gerada: ${ready}/${result.length} prontos para renomear.`, ready ? 'success' : 'warn')
     } catch (err) {
@@ -239,6 +292,41 @@ function AppContent() {
     } finally {
       setRenameScanning(false)
     }
+  }
+
+  async function handleRenameUpdate() {
+    if (renameRows.length === 0) return
+    if (!Number.isFinite(renameFields.season) || renameFields.season < 0) {
+      pushLog('Informe uma temporada valida.', 'error')
+      return
+    }
+    setRenameUpdating(true)
+    try {
+      const result = await window.api.recomputeRename(
+        renameRows.map((r) => r.originalPath),
+        renameFields
+      )
+      setRenameRows(result)
+      const ready = result.filter((r) => r.newName).length
+      pushLog(`Pre-visualizacao atualizada: ${ready}/${result.length} prontos para renomear.`, ready ? 'success' : 'warn')
+    } catch (err) {
+      pushLog(`Erro ao atualizar: ${(err as Error).message}`, 'error')
+    } finally {
+      setRenameUpdating(false)
+    }
+  }
+
+  function handleConfirmNewFansub() {
+    if (!pendingFansub) return
+    const next = [...renameFansubPresets, pendingFansub.fansub]
+    setRenameFansubPresets(next)
+    persistConfig({ renameFansubPresets: next })
+    setRenameFields((prev) => ({ ...prev, fansub: pendingFansub.fansub }))
+    setPendingFansub(null)
+  }
+
+  function handleCancelNewFansub() {
+    setPendingFansub(null)
   }
 
   async function handleRenameApply() {
@@ -430,10 +518,14 @@ function AppContent() {
             onFolderChange={setRenameFolder}
             fields={renameFields}
             onFieldsChange={setRenameFields}
+            fansubPresets={renameFansubPresets}
+            tagPresets={renameTagPresets}
             rows={renameRows}
             scanning={renameScanning}
+            updating={renameUpdating}
             renaming={renaming}
             onScan={handleRenameScan}
+            onUpdate={handleRenameUpdate}
             onApply={handleRenameApply}
             logs={logs}
           />
@@ -449,6 +541,10 @@ function AppContent() {
             onNamingTransferChange={handleNamingTransferChange}
             namingClean={namingClean}
             onNamingCleanChange={handleNamingCleanChange}
+            renameFansubPresets={renameFansubPresets}
+            onRenameFansubPresetsChange={handleRenameFansubPresetsChange}
+            renameTagPresets={renameTagPresets}
+            onRenameTagPresetsChange={handleRenameTagPresetsChange}
           />
         )}
       </MainArea>
@@ -462,6 +558,17 @@ function AppContent() {
           onManualOffsetChange={(value) => handleManualOffsetChange(syncRow.id, value)}
           preferredEnTrackId={preferredEnTrackId}
           onEnTrackChosen={setPreferredEnTrackId}
+        />
+      )}
+
+      {pendingFansub && (
+        <ConfirmDialog
+          title="Fansub desconhecida"
+          message={`A fansub "${pendingFansub.fansub}" detectada no arquivo nao esta na lista conhecida. Adicionar a lista e usar nos campos?`}
+          confirmLabel="Adicionar e usar"
+          cancelLabel="Deixar em branco"
+          onConfirm={handleConfirmNewFansub}
+          onCancel={handleCancelNewFansub}
         />
       )}
     </Shell>

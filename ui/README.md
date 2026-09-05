@@ -221,16 +221,37 @@ tempo — o que corromperia o vídeo original.
 ## Renomeador
 
 Página separada (`components/RenameView.tsx`) pra renomear em lote os vídeos
-de uma pasta a partir de 3 campos simples — **texto inicial**, **temporada**
-e **texto final** (ex: `[DKB] Benriya Saitou-san, Isekai ni Iku` / `1` /
-`BD HEVC 1080P`). Fluxo igual ao das outras páginas (escanear → tabela de
-pré-visualização → aplicar):
+de uma pasta a partir de 4 campos — **Fansub**, **Nome do anime**,
+**Temporada** e **Tags** (ex: `Judas` / `Black Clover` / `1` /
+`BD HEVC 1080p`). Fluxo igual ao das outras páginas (escanear → tabela de
+pré-visualização → aplicar), mais um botão **Atualizar**:
 
 - O episódio é detectado automaticamente em cada arquivo via
-  `episodeMatcher.findEpisode`; a temporada informada vale pra pasta inteira
-  (não é detectada por arquivo). Nome final:
-  `{texto inicial} - S{temporada}E{episódio} - {texto final}` (partes vazias
-  são omitidas), com os números sempre em 2 dígitos (`01`, `11`...).
+  `episodeMatcher.findEpisode`; fansub/nome/temporada/tags valem pra pasta
+  inteira (não são detectados por arquivo, exceto o episódio). Nome final:
+  `[fansub] nome do anime - S{temporada}E{episódio} - tags` (partes vazias
+  são omitidas, sem colchete/traço sobrando), com os números sempre em 2
+  dígitos (`01`, `11`...) — `domain/renamePattern.ts`.
+- **Detecção automática**: no primeiro escaneamento de uma pasta (campos
+  ainda em branco), o app tenta identificar fansub (tag `[...]` no início do
+  primeiro arquivo), nome do anime (texto entre a tag e a marcação de
+  episódio) e temporada a partir de um arquivo de exemplo
+  (`detectRenameFields`) e já preenche os campos — nunca sobrescreve edição
+  manual do usuário (só dispara quando os 3 campos de texto estão vazios).
+- **Atualizar**: reaplica os campos (fansub/nome/temporada/tags) editados em
+  cima da mesma lista de arquivos já escaneada, sem reler a pasta do disco —
+  só "Escanear pasta" volta a listar os arquivos de novo. Implementado como
+  um caso de uso separado (`recomputeRename`, IPC `rename:recompute`) que
+  reusa a mesma função pura de geração de nome.
+- **Fansubs/tags conhecidas**: configuráveis na página Configurações
+  (`renameFansubPresets`/`renameTagPresets` em `AppConfig`, editados via o
+  componente reutilizável `ui/TagListEditor.tsx`) — sugeridas como dropdown
+  nos campos Fansub (autocomplete nativo via `<datalist>`) e Tags (um
+  `<select>` que soma a tag escolhida ao texto, sem substituir o que já foi
+  digitado). Fansubs padrão: DKB, Erai-raws, EMBER, Judas, WF. Tags padrão:
+  HEVC, BD, WebRip, 1080p, 720p.
+- A última pasta usada é lembrada entre sessões (`AppConfig.renameFolder`,
+  mesmo esquema de `sourceDir`/`destDir`).
 - Arquivo sem episódio detectável no nome original é marcado como "não
   detectado" e fica de fora da renomeação (não trava a pasta inteira).
 - Dois arquivos que gerariam o mesmo novo nome são marcados como conflito em

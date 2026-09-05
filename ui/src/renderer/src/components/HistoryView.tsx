@@ -37,13 +37,23 @@ const KIND_LABELS: Record<NonNullable<TransferLogEntry['kind']>, string> = {
   rename: 'Renomeador'
 }
 
-// Entradas gravadas antes do campo "kind" existir nao tem como saber se
-// eram Transferir ou Limpeza - so o Renomeador surgiu depois desse campo, e
-// so ele reusa sourceFile === destFile (mesmo esquema que Limpeza ja usava
-// pra "sem pasta de destino separada"), entao o palpite fica so entre esses
-// dois pra entradas antigas.
+function folderOf(path: string): string {
+  return path.replace(/[\\/][^\\/]*$/, '').toLowerCase()
+}
+
+// Entradas gravadas antes do campo "kind" existir nao tem como saber com
+// certeza qual operacao gerou cada uma - o palpite usa o que da pra inferir
+// dos caminhos:
+// - sourceFile !== destFile so acontece no modo Transferir (par
+//   origem/destino).
+// - sourceFile === destFile cobre tanto Limpeza quanto Renomeador (os dois
+//   trabalham numa unica pasta) - o desempate e a pasta do arquivo gerado:
+//   Renomeador sempre renomeia no lugar (mesma pasta do original), enquanto
+//   Limpeza normalmente escreve numa pasta de saida separada.
 function resolveKind(entry: TransferLogEntry): NonNullable<TransferLogEntry['kind']> {
-  return entry.kind ?? (entry.sourceFile === entry.destFile ? 'clean' : 'transfer')
+  if (entry.kind) return entry.kind
+  if (entry.sourceFile !== entry.destFile) return 'transfer'
+  return folderOf(entry.outputFile) === folderOf(entry.sourceFile) ? 'rename' : 'clean'
 }
 
 const KindTag = styled.span<{ $kind: NonNullable<TransferLogEntry['kind']> }>`

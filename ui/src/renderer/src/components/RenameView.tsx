@@ -1,15 +1,18 @@
 // Pagina "Renomeador" - renomeia em lote os videos de uma pasta a partir de
-// 3 campos simples (texto inicial, temporada, texto final), pra facilitar
+// 4 campos simples (fansub, nome do anime, temporada, tags), pra facilitar
 // quando o usuario quer trocar o padrao de nome de uma leva de arquivos sem
 // editar um por um. O episodio e detectado automaticamente por arquivo (ver
-// domain/renamePattern.ts); a temporada informada vale pra pasta inteira.
-// Mesma estrutura de sempre (config -> escanear -> tabela de
-// pre-visualizacao -> aplicar -> log).
+// domain/renamePattern.ts); fansub/nome/temporada sao sugeridos ao escanear
+// pela primeira vez (so quando os campos ainda estao em branco). Mesma
+// estrutura de sempre (config -> escanear -> tabela de pre-visualizacao ->
+// aplicar -> log), mais um botao "Atualizar" que reaplica os campos sem
+// reler a pasta do disco.
 import styled from 'styled-components'
-import { CheckCircleFilled, WarningFilled } from '@ant-design/icons'
+import { CheckCircleFilled, ReloadOutlined, WarningFilled } from '@ant-design/icons'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
+import { SuggestInput, TagPickerInput } from '../ui/SuggestInput'
 import { FolderField } from './FolderField'
 import { LogPanel } from './LogPanel'
 
@@ -57,10 +60,14 @@ export function RenameView({
   onFolderChange,
   fields,
   onFieldsChange,
+  fansubPresets,
+  tagPresets,
   rows,
   scanning,
+  updating,
   renaming,
   onScan,
+  onUpdate,
   onApply,
   logs
 }: {
@@ -68,10 +75,14 @@ export function RenameView({
   onFolderChange: (value: string) => void
   fields: RenameFields
   onFieldsChange: (next: RenameFields) => void
+  fansubPresets: string[]
+  tagPresets: string[]
   rows: RenamePreviewRow[]
   scanning: boolean
+  updating: boolean
   renaming: boolean
   onScan: () => void
+  onUpdate: () => void
   onApply: () => void
   logs: LogEvent[]
 }) {
@@ -83,15 +94,24 @@ export function RenameView({
         <FolderField label="Pasta com os arquivos" value={folder} onChange={onFolderChange} />
 
         <FieldsRow>
-          <Field>
-            <Label>Texto inicial</Label>
-            <Input
-              value={fields.prefixText}
-              onChange={(e) => onFieldsChange({ ...fields, prefixText: e.target.value })}
-              placeholder="[DKB] Benriya Saitou-san, Isekai ni Iku"
+          <Field $width={130}>
+            <Label>Fansub</Label>
+            <SuggestInput
+              value={fields.fansub}
+              onChange={(value) => onFieldsChange({ ...fields, fansub: value })}
+              options={fansubPresets}
+              placeholder="Judas"
             />
           </Field>
-          <Field $width={100}>
+          <Field>
+            <Label>Nome do anime</Label>
+            <Input
+              value={fields.animeName}
+              onChange={(e) => onFieldsChange({ ...fields, animeName: e.target.value })}
+              placeholder="Black Clover"
+            />
+          </Field>
+          <Field $width={90}>
             <Label>Temporada</Label>
             <Input
               type="number"
@@ -100,24 +120,35 @@ export function RenameView({
               onChange={(e) => onFieldsChange({ ...fields, season: Number(e.target.value) })}
             />
           </Field>
-          <Field>
-            <Label>Texto final</Label>
-            <Input
-              value={fields.suffixText}
-              onChange={(e) => onFieldsChange({ ...fields, suffixText: e.target.value })}
-              placeholder="BD HEVC 1080P"
+          <Field style={{ flex: 1.6 }}>
+            <Label>Tags</Label>
+            <TagPickerInput
+              value={fields.tags}
+              onChange={(value) => onFieldsChange({ ...fields, tags: value })}
+              options={tagPresets}
+              placeholder="BD HEVC 1080p"
             />
           </Field>
         </FieldsRow>
         <Hint>
           O episodio e detectado automaticamente em cada arquivo. Resultado:{' '}
-          <strong>texto inicial - S(temporada)E(episodio) - texto final</strong> (ex: "...Iku - S01E01 - BD HEVC
-          1080P"). A extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
+          <strong>[fansub] nome do anime - S(temporada)E(episodio) - tags</strong> (ex: "[Judas] Black Clover -
+          S01E02 - BD HEVC 1080p"). Fansub/nome/temporada sao sugeridos no primeiro escaneamento da pasta. A
+          extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
         </Hint>
 
         <Row $gap={8}>
           <Button $variant="primary" onClick={onScan} disabled={scanning || !folder}>
             {scanning ? 'Escaneando...' : 'Escanear pasta'}
+          </Button>
+          <Button
+            type="button"
+            $variant="secondary"
+            onClick={onUpdate}
+            disabled={updating || rows.length === 0}
+            title="Reaplica os campos sem reler a pasta do disco"
+          >
+            <ReloadOutlined /> {updating ? 'Atualizando...' : 'Atualizar'}
           </Button>
           <Button onClick={onApply} disabled={renaming || readyCount === 0}>
             {renaming ? 'Renomeando...' : `Renomear (${readyCount})`}

@@ -7,6 +7,7 @@ import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
 import type { MkvToolsStatus, NamingConfig } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Checkbox } from '../ui/Checkbox'
+import { TagListEditor } from '../ui/TagListEditor'
 
 const SettingsPanel = styled(Panel)`
   padding: 16px 18px;
@@ -87,7 +88,11 @@ export function SettingsView({
   namingTransfer,
   onNamingTransferChange,
   namingClean,
-  onNamingCleanChange
+  onNamingCleanChange,
+  renameFansubPresets,
+  onRenameFansubPresetsChange,
+  renameTagPresets,
+  onRenameTagPresetsChange
 }: {
   mkvStatus: MkvToolsStatus
   onChooseMkvDir: () => void
@@ -95,6 +100,10 @@ export function SettingsView({
   onNamingTransferChange: (next: NamingConfig) => void
   namingClean: NamingConfig
   onNamingCleanChange: (next: NamingConfig) => void
+  renameFansubPresets: string[]
+  onRenameFansubPresetsChange: (next: string[]) => void
+  renameTagPresets: string[]
+  onRenameTagPresetsChange: (next: string[]) => void
 }) {
   return (
     <Col $gap={14}>
@@ -124,6 +133,18 @@ export function SettingsView({
           onChange={onNamingTransferChange}
         />
         <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
+      </SettingsPanel>
+
+      <SettingsPanel>
+        <SectionTitle>Renomeador</SectionTitle>
+        <Col $gap={6}>
+          <Label>Fansubs conhecidas</Label>
+          <TagListEditor values={renameFansubPresets} onChange={onRenameFansubPresetsChange} />
+        </Col>
+        <Col $gap={6}>
+          <Label>Tags conhecidas</Label>
+          <TagListEditor values={renameTagPresets} onChange={onRenameTagPresetsChange} />
+        </Col>
       </SettingsPanel>
     </Col>
   )

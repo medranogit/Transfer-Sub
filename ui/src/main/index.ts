@@ -5,7 +5,7 @@ import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocat
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
 import { CancellationToken } from './infra/cancellation'
 import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, transferRows } from './workflow'
-import { applyRename, previewRename } from './renamer'
+import { applyRename, previewRename, recomputeRename } from './renamer'
 import type { AppConfig, MkvToolsStatus, RenameFields, RenamePreviewRow, TransferRequest } from '@shared/types'
 
 // Tamanho inicial da janela do app - ajuste aqui.
@@ -227,6 +227,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('rename:preview', (_e, { folder, fields }: { folder: string; fields: RenameFields }) =>
     previewRename(folder, fields)
+  )
+
+  ipcMain.handle('rename:recompute', (_e, { paths, fields }: { paths: string[]; fields: RenameFields }) =>
+    recomputeRename(paths, fields)
   )
 
   ipcMain.handle('rename:apply', (_e, rows: RenamePreviewRow[]) =>

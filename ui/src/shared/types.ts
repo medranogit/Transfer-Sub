@@ -83,6 +83,13 @@ export interface AppConfig {
   mkvToolNixDir: string
   namingTransfer: NamingConfig
   namingClean: NamingConfig
+  // Ultima pasta usada no Renomeador (nao tem par origem/destino/saida como
+  // o resto do app - so essa).
+  renameFolder: string
+  // Listas configuraveis em Configuracoes, sugeridas via dropdown nos campos
+  // Fansub/Tags do Renomeador - crescem conforme o usuario usa/cadastra.
+  renameFansubPresets: string[]
+  renameTagPresets: string[]
 }
 
 export interface TransferRequest {
@@ -139,13 +146,24 @@ export interface TransferLogEntry {
   error?: string
 }
 
-// Os 3 campos do Renomeador: texto inicial + temporada (fixa pra pasta
-// inteira) + texto final. O episodio e detectado por arquivo - ver
-// domain/renamePattern.ts.
+// Os 4 campos do Renomeador: "[fansub] nomeAnime - S(season)E(episodio) -
+// tags". Season e tags valem pra pasta inteira; o episodio e detectado por
+// arquivo - ver domain/renamePattern.ts. fansub/animeName podem ser
+// detectados automaticamente no primeiro escaneamento (ver DetectedRenameFields).
 export interface RenameFields {
-  prefixText: string
+  fansub: string
+  animeName: string
   season: number
-  suffixText: string
+  tags: string
+}
+
+// Palpite de fansub/nomeAnime/temporada a partir do primeiro arquivo de uma
+// pasta recem-escaneada - a UI so aplica isso quando os campos ainda estao
+// em branco (nao sobrescreve edicao manual do usuario).
+export interface DetectedRenameFields {
+  fansub: string
+  animeName: string
+  season: number
 }
 
 // Uma linha da pre-visualizacao do Renomeador: nome atual x novo nome
@@ -160,6 +178,11 @@ export interface RenamePreviewRow {
   // "S01E05" (temporada informada + episodio detectado) - so pra identificar
   // a linha no Historico; null quando o episodio nao foi detectado.
   episodeKey: string | null
+}
+
+export interface RenamePreviewResult {
+  rows: RenamePreviewRow[]
+  detected: DetectedRenameFields | null
 }
 
 export interface RenameSummary {

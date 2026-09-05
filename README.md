@@ -29,9 +29,10 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 - 🔀 **Dois modos**, cada um sua própria página no menu lateral: **Transferir Legenda** (entre
   pastas de origem/destino) ou **Limpeza** (trata os arquivos de uma única pasta, sem
   transferir nada) — mais **Renomeador**, **Histórico** e **Configurações** como páginas próprias.
-- ✏️ **Renomeador** — renomeia em lote os vídeos de uma pasta a partir de 3 campos simples (texto
-  inicial, temporada, texto final; o episódio é detectado por arquivo), pré-visualizando o
-  resultado antes de aplicar.
+- ✏️ **Renomeador** — renomeia em lote os vídeos de uma pasta a partir de 4 campos (fansub, nome do
+  anime, temporada, tags; o episódio é detectado por arquivo), com auto-detecção no primeiro
+  escaneamento, fansubs/tags conhecidas configuráveis com dropdown de sugestão, e um botão
+  Atualizar que reaplica os campos sem reler a pasta.
 - 📂 **Casamento automático de episódio** pelo nome do arquivo — reconhece `S01E05`, `1x05`,
   `Episodio 05`, `E05`, e cai num fallback inteligente para nomes de fansub tipo
   `[Grupo] Nome do Show - 05 (1080p) [ABCD1234].mkv`.

@@ -10,7 +10,10 @@ const DEFAULT_CONFIG: AppConfig = {
   outputDir: '',
   mkvToolNixDir: '',
   namingTransfer: { signatureEnabled: true, tagEnabled: false, tagWord: 'legendado' },
-  namingClean: { signatureEnabled: true, tagEnabled: false, tagWord: 'limpo' }
+  namingClean: { signatureEnabled: true, tagEnabled: false, tagWord: 'limpo' },
+  renameFolder: '',
+  renameFansubPresets: ['DKB', 'Erai-raws', 'EMBER', 'Judas', 'WF'],
+  renameTagPresets: ['HEVC', 'BD', 'WebRip', '1080p', '720p']
 }
 
 function configPath(): string {

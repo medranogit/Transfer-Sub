@@ -1,18 +1,21 @@
 // Caso de uso do Renomeador: pre-visualizar e aplicar a renomeacao em lote
-// dos videos de uma pasta, a partir dos 3 campos (ver domain/renamePattern.ts).
+// dos videos de uma pasta, a partir dos 4 campos (ver domain/renamePattern.ts).
 import { existsSync } from 'fs'
 import { basename, dirname, join } from 'path'
 import { findEpisode } from './domain/episodeMatcher'
-import { buildRenamedName, formatSeasonEpisode } from './domain/renamePattern'
+import { buildRenamedName, detectRenameFields, formatSeasonEpisode } from './domain/renamePattern'
 import { renameFile } from './infra/fileRename'
 import { appendTransferLog } from './infra/transferLog'
 import { listVideoFiles } from './infra/videoFiles'
-import type { LogEvent, RenameFields, RenamePreviewRow, RenameSummary } from '@shared/types'
+import type { LogEvent, RenameFields, RenamePreviewResult, RenamePreviewRow, RenameSummary } from '@shared/types'
 
 type LogFn = (event: LogEvent) => void
 
-export function previewRename(folder: string, fields: RenameFields): RenamePreviewRow[] {
-  const rows: RenamePreviewRow[] = listVideoFiles(folder).map((path) => {
+// Compartilhado entre previewRename (escaneia a pasta do zero) e
+// recomputeRename (reaplica os campos em cima de uma lista de arquivos ja
+// conhecida, sem tocar no disco de novo - usado pelo botao "Atualizar").
+function buildPreviewRows(paths: string[], fields: RenameFields): RenamePreviewRow[] {
+  const rows: RenamePreviewRow[] = paths.map((path) => {
     const originalName = basename(path)
     const { name, reason } = buildRenamedName(originalName, fields)
     const [, episode] = findEpisode(originalName)
@@ -35,6 +38,32 @@ export function previewRename(folder: string, fields: RenameFields): RenamePrevi
     }
     return row
   })
+}
+
+export function previewRename(folder: string, fields: RenameFields): RenamePreviewResult {
+  const paths = listVideoFiles(folder)
+
+  // So tenta detectar fansub/nome/temporada quando os campos ainda estao em
+  // branco (primeiro escaneamento da pasta) - se o usuario ja editou algo,
+  // nunca sobrescreve. Quando aplica, usa os valores detectados agora mesmo
+  // pra montar a pre-visualizacao (senao a tabela mostraria o resultado com
+  // os campos ainda em branco, dessincronizado do que a UI vai exibir).
+  const isBlank = !fields.fansub.trim() && !fields.animeName.trim() && !fields.tags.trim()
+  const detected = isBlank && paths.length > 0 ? detectRenameFields(basename(paths[0])) : null
+  const effectiveFields = detected
+    ? { ...fields, fansub: detected.fansub, animeName: detected.animeName, season: detected.season }
+    : fields
+
+  const rows = buildPreviewRows(paths, effectiveFields)
+  return { rows, detected }
+}
+
+// Reaplica os campos atuais sobre os MESMOS arquivos de uma pre-visualizacao
+// anterior (paths vem do lado do renderer) - usado pelo botao "Atualizar",
+// pra nao precisar reler a pasta inteira do disco so porque o usuario editou
+// um campo de texto.
+export function recomputeRename(paths: string[], fields: RenameFields): RenamePreviewRow[] {
+  return buildPreviewRows(paths, fields)
 }
 
 export async function applyRename(rows: RenamePreviewRow[], onLog: LogFn): Promise<RenameSummary> {
