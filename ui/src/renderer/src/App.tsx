@@ -428,6 +428,11 @@ const TimingInput = styled.input`
   &:focus {
     border-color: ${(p) => p.theme.colors.accent};
   }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 `
 
 // Mascara de digitacao: conforme o usuario digita numeros, monta
@@ -437,6 +442,15 @@ function maskTimeInput(raw: string): string {
   if (digits.length <= 2) return digits
   if (digits.length <= 4) return `${digits.slice(0, 2)}:${digits.slice(2)}`
   return `${digits.slice(0, 2)}:${digits.slice(2, 4)},${digits.slice(4)}`
+}
+
+// Mascara de digitacao: mantem um "-" opcional no inicio (adianta) seguido
+// so de digitos (sem sinal = atrasa), ex: "-500" ou "1200".
+function maskOffsetInput(raw: string): string {
+  const negative = raw.trim().startsWith('-')
+  const digits = raw.replace(/\D/g, '').slice(0, 6)
+  if (!digits) return negative ? '-' : ''
+  return (negative ? '-' : '') + digits
 }
 
 function trackLabel(track: SubtitleTrack): string {
@@ -452,7 +466,8 @@ function EpisodeTable({
   onToggleSelect,
   onToggleSelectAll,
   onTrackChange,
-  onFirstLineTargetChange
+  onFirstLineTargetChange,
+  onManualOffsetChange
 }: {
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
@@ -462,6 +477,7 @@ function EpisodeTable({
   onToggleSelectAll: () => void
   onTrackChange: (rowId: string, trackId: number | null) => void
   onFirstLineTargetChange: (rowId: string, value: string) => void
+  onManualOffsetChange: (rowId: string, value: string) => void
 }) {
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
 
@@ -480,9 +496,17 @@ function EpisodeTable({
             {!cleanOnly && (
               <th
                 style={{ width: 130 }}
-                title='Instante em que a primeira legenda deve aparecer no video de destino, formato MM:SS,mmm (ex: 06:39,566). O resto da legenda e deslocado automaticamente. Deixe vazio para nao ajustar.'
+                title='Instante em que a primeira legenda deve aparecer no video de destino, formato MM:SS,mmm (ex: 06:39,566). O resto da legenda e deslocado automaticamente. Preencha isso OU "Atraso/adiantamento", nao os dois.'
               >
                 1a fala em
+              </th>
+            )}
+            {!cleanOnly && (
+              <th
+                style={{ width: 130 }}
+                title='Desloca a legenda inteira em milissegundos: valor positivo atrasa (ex: 500), com "-" na frente adianta (ex: -500). Preencha isso OU "1a fala em", nao os dois.'
+              >
+                Atraso/adiant. (ms)
               </th>
             )}
             <th style={{ width: 110 }}>Status</th>
@@ -544,8 +568,21 @@ function EpisodeTable({
                       type="text"
                       placeholder="06:39,566"
                       value={row.firstLineTargetText}
+                      disabled={row.manualOffsetText !== ''}
                       onChange={(e) => onFirstLineTargetChange(row.id, maskTimeInput(e.target.value))}
                       title="Instante (MM:SS,mmm) em que a primeira legenda deve aparecer. Vazio = timing original."
+                    />
+                  </Td>
+                )}
+                {!cleanOnly && (
+                  <Td>
+                    <TimingInput
+                      type="text"
+                      placeholder="500 ou -500"
+                      value={row.manualOffsetText}
+                      disabled={row.firstLineTargetText !== ''}
+                      onChange={(e) => onManualOffsetChange(row.id, maskOffsetInput(e.target.value))}
+                      title='Desloca a legenda em ms: positivo atrasa, "-" na frente adianta. Vazio = sem deslocamento manual.'
                     />
                   </Td>
                 )}
@@ -850,7 +887,23 @@ function AppContent() {
   }
 
   function handleFirstLineTargetChange(rowId: string, firstLineTargetText: string) {
-    setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, firstLineTargetText } : r)))
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? { ...r, firstLineTargetText, manualOffsetText: firstLineTargetText ? '' : r.manualOffsetText }
+          : r
+      )
+    )
+  }
+
+  function handleManualOffsetChange(rowId: string, manualOffsetText: string) {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? { ...r, manualOffsetText, firstLineTargetText: manualOffsetText ? '' : r.firstLineTargetText }
+          : r
+      )
+    )
   }
 
   function handleToggleSelect(id: string) {
@@ -1028,6 +1081,7 @@ function AppContent() {
           onToggleSelectAll={handleToggleSelectAll}
           onTrackChange={handleTrackChange}
           onFirstLineTargetChange={handleFirstLineTargetChange}
+          onManualOffsetChange={handleManualOffsetChange}
         />
       </Col>
 

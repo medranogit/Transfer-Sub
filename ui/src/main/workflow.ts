@@ -132,7 +132,8 @@ export async function scanFolders(
       destName: basename(destPath),
       tracks: usableTracks,
       selectedTrackId,
-      firstLineTargetText: ''
+      firstLineTargetText: '',
+      manualOffsetText: ''
     })
   }
 
@@ -176,7 +177,8 @@ export async function scanForClean(mkvmergePath: string, folder: string, onLog: 
       destName: basename(file),
       tracks,
       selectedTrackId: null,
-      firstLineTargetText: ''
+      firstLineTargetText: '',
+      manualOffsetText: ''
     })
   }
 
@@ -263,6 +265,28 @@ async function resolveOffsetMs(
   return offsetMs
 }
 
+// Deslocamento manual informado diretamente pelo usuario (em ms, positivo
+// atrasa e negativo adianta), como alternativa ao calculo automatico feito
+// por resolveOffsetMs. A UI garante que so um dos dois esteja preenchido por
+// vez; aqui so cuidamos de um valor invalido nao travar a transferencia.
+function resolveManualOffsetMs(text: string, episodeKeyForLog: string, onLog: LogFn): number {
+  const value = Number(text.trim())
+  if (!Number.isFinite(value)) {
+    onLog({
+      level: 'warn',
+      message: `[${episodeKeyForLog}] deslocamento manual "${text}" invalido - mantendo timing original`
+    })
+    return 0
+  }
+
+  const offsetMs = Math.round(value)
+  onLog({
+    level: 'info',
+    message: `[${episodeKeyForLog}] aplicando deslocamento manual de ${offsetMs}ms`
+  })
+  return offsetMs
+}
+
 export async function transferRows(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -308,7 +332,9 @@ export async function transferRows(
         })
       }
 
-      const offsetMs = await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
+      const offsetMs = row.manualOffsetText.trim()
+        ? resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
+        : await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
 
       const keepAudioTrackIds = await resolveAudioTrackFilter(
         mkvmergePath,

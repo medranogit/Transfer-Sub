@@ -23,8 +23,13 @@ export interface EpisodeRow {
   // Instante em que a primeira legenda deve aparecer no video de destino,
   // no formato "MM:SS,mmm" (ex: "06:39,566") ou "H:MM:SS,mmm". Vazio = usar
   // o timing original, sem ajuste. O deslocamento e calculado no processo
-  // principal a partir da legenda extraida.
+  // principal a partir da legenda extraida. Mutuamente exclusivo com
+  // manualOffsetText (a UI limpa um quando o outro e preenchido).
   firstLineTargetText: string
+  // Deslocamento manual em milissegundos (positivo atrasa, negativo adianta),
+  // como alternativa a firstLineTargetText. Vazio = nao aplicar deslocamento
+  // manual (usa firstLineTargetText, se preenchido, ou o timing original).
+  manualOffsetText: string
 }
 
 export interface ScanResult {
