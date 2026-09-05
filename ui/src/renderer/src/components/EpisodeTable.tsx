@@ -2,6 +2,7 @@ import styled from 'styled-components'
 import { ClockCircleFilled, SyncOutlined } from '@ant-design/icons'
 import type { EpisodeRow, RowStatus } from '@shared/types'
 import { Button, Row } from '../ui/primitives'
+import { Checkbox } from '../ui/Checkbox'
 import { syncAdjustmentLabel, trackLabel } from '../utils/subtitleDisplay'
 import { StatusBadge } from './StatusBadge'
 
@@ -36,6 +37,8 @@ const Thead = styled.thead`
 `
 
 const Tr = styled.tr`
+  cursor: pointer;
+
   &:not(:last-child) td {
     border-bottom: 1px solid ${(p) => p.theme.colors.border};
   }
@@ -117,7 +120,7 @@ export function EpisodeTable({
         <Thead>
           <tr>
             <th style={{ width: 30 }}>
-              <input type="checkbox" checked={allSelected} onChange={onToggleSelectAll} />
+              <Checkbox checked={allSelected} onChange={onToggleSelectAll} title="Selecionar todos" />
             </th>
             <th style={{ width: 90 }}>Episodio</th>
             {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
@@ -131,19 +134,15 @@ export function EpisodeTable({
           {rows.map((row) => {
             const selectedTrack = row.tracks.find((t) => t.trackId === row.selectedTrackId)
             return (
-              <Tr key={row.id}>
+              <Tr key={row.id} onClick={() => onToggleSelect(row.id)}>
                 <Td>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(row.id)}
-                    onChange={() => onToggleSelect(row.id)}
-                  />
+                  <Checkbox checked={selectedIds.has(row.id)} onChange={() => onToggleSelect(row.id)} />
                 </Td>
                 <Td>{row.episodeKey}</Td>
                 <Td>
                   <FileName title={row.sourceName}>{row.sourceName}</FileName>
                 </Td>
-                <Td>
+                <Td onClick={(e) => e.stopPropagation()}>
                   {row.tracks.length > 0 ? (
                     <TrackSelect
                       value={row.selectedTrackId ?? ''}
@@ -176,7 +175,7 @@ export function EpisodeTable({
                   </Td>
                 )}
                 {!cleanOnly && (
-                  <Td>
+                  <Td onClick={(e) => e.stopPropagation()}>
                     <Row $gap={8}>
                       {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
                       <Button

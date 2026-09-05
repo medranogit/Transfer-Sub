@@ -4,21 +4,7 @@
 import { app } from 'electron'
 import { readFile, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
-
-export interface TransferLogEntry {
-  timestamp: string
-  episodeKey: string
-  sourceFile: string
-  destFile: string
-  outputFile: string
-  trackId: number | null
-  language: string | null
-  trackName: string | null
-  firstLineTargetText: string
-  appliedOffsetMs: number | null
-  status: 'done' | 'error'
-  error?: string
-}
+import type { TransferLogEntry } from '@shared/types'
 
 const LOG_FILE_NAME = 'transfer-log.json'
 // Mantem so as entradas mais recentes - sem isso o arquivo cresce pra
@@ -41,6 +27,12 @@ async function readLog(): Promise<TransferLogEntry[]> {
   } catch {
     return []
   }
+}
+
+// Usado pela tela de historico - mais recente primeiro.
+export async function loadTransferLog(): Promise<TransferLogEntry[]> {
+  const entries = await readLog()
+  return entries.slice().reverse()
 }
 
 // Serializa leitura+escrita do log: sem isso, duas chamadas concorrentes

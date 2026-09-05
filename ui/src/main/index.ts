@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
+import { loadTransferLog } from './infra/transferLog'
 import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, transferRows } from './workflow'
 import type { AppConfig, MkvToolsStatus, TransferRequest } from '@shared/types'
 
@@ -150,6 +151,8 @@ app.whenReady().then(() => {
     }
     return getTrackEvents(status.mkvmergePath, status.mkvextractPath, filePath, trackId)
   })
+
+  ipcMain.handle('transferLog:load', () => loadTransferLog())
 
   ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {
     const status = tryLocate(loadConfig().mkvToolNixDir)

@@ -1,6 +1,6 @@
 {
   "name": "transfer-sub-ui",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Transfer Sub - transferir legendas ASS entre arquivos MKV",
   "main": "./out/main/index.js",
   "author": "Vinicius Medrano",

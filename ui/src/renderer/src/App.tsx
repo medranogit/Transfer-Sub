@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
-import { CheckOutlined } from '@ant-design/icons'
+import { CheckOutlined, HistoryOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus } from '@shared/types'
 import { theme } from './theme'
 import { GlobalStyle } from './GlobalStyle'
@@ -11,6 +11,7 @@ import { LogPanel } from './components/LogPanel'
 import { ModeToggle } from './components/ModeToggle'
 import { EpisodeTable } from './components/EpisodeTable'
 import { SyncModal } from './components/SyncModal'
+import { HistoryModal } from './components/HistoryModal'
 import { playCompletionSound } from './utils/completionSound'
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ function AppContent() {
   const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
   const [cleanOnly, setCleanOnly] = useState(false)
   const [syncRowId, setSyncRowId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const [preferredEnTrackId, setPreferredEnTrackId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -201,17 +203,34 @@ function AppContent() {
     if (row) pushLog(`[${row.episodeKey}] deslocamento de ${offsetMs}ms aplicado via auto-sync`, 'success')
   }
 
+  // Selecionar uma linha marca a intencao de (re)processa-la agora - se ela
+  // ainda carregava um status 'done'/'error' de uma transferencia anterior
+  // nesta mesma sessao, isso deixava a % de progresso ja alta so por causa
+  // de linhas que nem entraram nesta leva, dando a falsa impressao de que a
+  // transferencia pulou o arquivo (sem pular - o mkvmerge sempre sobrescreve).
+  function selectRows(nextIds: Set<string>) {
+    const added = [...nextIds].filter((id) => !selectedIds.has(id))
+    setSelectedIds(nextIds)
+    if (added.length > 0) {
+      setStatuses((prev) => {
+        const next = { ...prev }
+        added.forEach((id) => {
+          next[id] = 'idle'
+        })
+        return next
+      })
+    }
+  }
+
   function handleToggleSelect(id: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    selectRows(next)
   }
 
   function handleToggleSelectAll() {
-    setSelectedIds((prev) => (prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.id))))
+    selectRows(selectedIds.size === rows.length ? new Set() : new Set(rows.map((r) => r.id)))
   }
 
   async function handleTransfer() {
@@ -257,9 +276,14 @@ function AppContent() {
     <Shell>
       <Header>
         <Title>Transfer Sub</Title>
-        <MkvStatusText $found={mkvStatus.found}>
-          {mkvStatus.found ? `MKVToolNix: ${mkvStatus.mkvmergePath}` : 'MKVToolNix nao localizado'}
-        </MkvStatusText>
+        <Row $gap={14}>
+          <Button type="button" $variant="ghost" onClick={() => setShowHistory(true)}>
+            <HistoryOutlined /> Historico
+          </Button>
+          <MkvStatusText $found={mkvStatus.found}>
+            {mkvStatus.found ? `MKVToolNix: ${mkvStatus.mkvmergePath}` : 'MKVToolNix nao localizado'}
+          </MkvStatusText>
+        </Row>
       </Header>
 
       <ConfigPanel>
@@ -358,6 +382,8 @@ function AppContent() {
           onEnTrackChosen={setPreferredEnTrackId}
         />
       )}
+
+      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
     </Shell>
   )
 }

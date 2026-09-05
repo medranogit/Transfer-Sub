@@ -94,3 +94,20 @@ export interface SyncPrepareResult {
   // idioma). Null quando nenhuma faixa bateu - o usuario escolhe manualmente.
   suggestedEnTrackId: number | null
 }
+
+// Uma entrada do historico persistido em transfer-log.json - cobre tanto
+// transferencias quanto limpezas, de qualquer sessao anterior do app.
+export interface TransferLogEntry {
+  timestamp: string
+  episodeKey: string
+  sourceFile: string
+  destFile: string
+  outputFile: string
+  trackId: number | null
+  language: string | null
+  trackName: string | null
+  firstLineTargetText: string
+  appliedOffsetMs: number | null
+  status: 'done' | 'error'
+  error?: string
+}

@@ -6,6 +6,7 @@ import type {
   ScanResult,
   SubtitleEvent,
   SyncPrepareResult,
+  TransferLogEntry,
   TransferProgressEvent,
   TransferRequest,
   TransferSummary
@@ -37,6 +38,8 @@ const api = {
 
   getTrackEvents: (filePath: string, trackId: number): Promise<SubtitleEvent[]> =>
     ipcRenderer.invoke('sync:trackEvents', { filePath, trackId }),
+
+  loadTransferLog: (): Promise<TransferLogEntry[]> => ipcRenderer.invoke('transferLog:load'),
 
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)
