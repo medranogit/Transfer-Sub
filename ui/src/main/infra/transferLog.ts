@@ -53,3 +53,14 @@ export function appendTransferLog(entry: TransferLogEntry): Promise<void> {
   writeQueue = task.catch(() => {})
   return task
 }
+
+// Apagar tudo, pedido explicitamente pelo usuario na tela de Historico -
+// passa pela mesma fila pra nao colidir com uma transferencia gravando
+// uma entrada nova ao mesmo tempo.
+export function clearTransferLog(): Promise<void> {
+  const task = writeQueue.then(async () => {
+    await writeFile(logPath(), JSON.stringify([], null, 2), 'utf-8')
+  })
+  writeQueue = task.catch(() => {})
+  return task
+}

@@ -42,6 +42,7 @@ const api = {
     ipcRenderer.invoke('sync:trackEvents', { filePath, trackId }),
 
   loadTransferLog: (): Promise<TransferLogEntry[]> => ipcRenderer.invoke('transferLog:load'),
+  clearTransferLog: (): Promise<void> => ipcRenderer.invoke('transferLog:clear'),
 
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)

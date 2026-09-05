@@ -26,8 +26,9 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 
 ## Funcionalidades
 
-- 🔀 **Dois modos**, num seletor no topo da tela: **Transferir legenda** (entre pastas de
-  origem/destino) ou **Apenas limpar** (trata os arquivos de uma única pasta, sem transferir nada).
+- 🔀 **Dois modos**, cada um sua própria página no menu lateral: **Transferir Legenda** (entre
+  pastas de origem/destino) ou **Apenas Limpar** (trata os arquivos de uma única pasta, sem
+  transferir nada) — mais **Histórico** e **Configurações** como páginas próprias.
 - 📂 **Casamento automático de episódio** pelo nome do arquivo — reconhece `S01E05`, `1x05`,
   `Episodio 05`, `E05`, e cai num fallback inteligente para nomes de fansub tipo
   `[Grupo] Nome do Show - 05 (1080p) [ABCD1234].mkv`.
@@ -71,7 +72,7 @@ npm install
 npm run dev
 ```
 
-**Modo Transferir legenda:**
+**Página Transferir Legenda:**
 
 1. Selecione a **pasta de origem** (arquivos que já têm a legenda embutida) e a **pasta de destino**
    (arquivos que vão receber a legenda).
@@ -83,11 +84,12 @@ npm run dev
    app calcular o deslocamento.
 4. Clique em **Transferir selecionados**.
 
-**Modo Apenas limpar:**
+**Página Apenas Limpar:**
 
-1. Troque o seletor de modo para **Apenas limpar** e selecione a pasta com os arquivos.
+1. Vá na página **Apenas Limpar** no menu lateral e selecione a pasta com os arquivos.
 2. Clique em **Escanear pasta** — a tabela mostra cada arquivo e suas próprias faixas de legenda.
-3. Para remover legendas extras, escolha no dropdown qual manter (padrão é manter todas).
+3. Para remover legendas extras, escolha no dropdown qual manter (padrão é manter todas) — o botão
+   **Aplicar a todos** no cabeçalho copia a faixa escolhida na 1ª linha pras demais.
 4. Clique em **Limpar selecionados**.
 
 Quer gerar um instalador `.exe` em vez de rodar em modo desenvolvimento?

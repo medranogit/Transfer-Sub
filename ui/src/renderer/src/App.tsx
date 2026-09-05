@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
-import { CheckOutlined, HistoryOutlined, StopOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus } from '@shared/types'
 import { theme } from './theme'
 import { GlobalStyle } from './GlobalStyle'
-import { Button, Col, Label, Panel, Row, SectionTitle } from './ui/primitives'
-import { Chip, ChipRow } from './ui/Chip'
-import { FolderField } from './components/FolderField'
-import { LogPanel } from './components/LogPanel'
-import { ModeToggle } from './components/ModeToggle'
-import { EpisodeTable } from './components/EpisodeTable'
+import { Sidebar } from './components/Sidebar'
+import type { ViewId } from './components/Sidebar'
+import { WorkflowView } from './components/WorkflowView'
+import { HistoryView } from './components/HistoryView'
+import { SettingsView } from './components/SettingsView'
 import { SyncModal } from './components/SyncModal'
-import { HistoryModal } from './components/HistoryModal'
 import { NotificationsMenu } from './components/NotificationsMenu'
 import { playCompletionSound } from './utils/completionSound'
 
@@ -21,6 +18,12 @@ import { playCompletionSound } from './utils/completionSound'
 
 const Shell = styled.div`
   height: 100%;
+  display: flex;
+`
+
+const MainArea = styled.div`
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: 16px;
@@ -39,41 +42,16 @@ const Title = styled.h1`
   font-weight: 700;
 `
 
-const MkvStatusText = styled.span<{ $found: boolean }>`
-  font-size: 11.5px;
-  color: ${(p) => (p.$found ? p.theme.colors.success : p.theme.colors.danger)};
-`
-
-const ConfigPanel = styled(Panel)`
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-`
-
-const ToolbarRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-`
-
-const ProgressTrack = styled.div`
-  height: 6px;
-  border-radius: 999px;
-  background: ${(p) => p.theme.colors.panelAlt};
-  overflow: hidden;
-  flex: 1;
-`
-
-const ProgressFill = styled.div<{ $pct: number }>`
-  height: 100%;
-  width: ${(p) => p.$pct}%;
-  background: ${(p) => p.theme.colors.accent};
-  transition: width 0.2s ease;
-`
+const VIEW_TITLES: Record<ViewId, string> = {
+  transfer: 'Transferir Legenda',
+  clean: 'Apenas Limpar',
+  history: 'Historico',
+  settings: 'Configuracoes'
+}
 
 function AppContent() {
+  const [view, setView] = useState<ViewId>('transfer')
+
   const [sourceDir, setSourceDir] = useState('')
   const [destDir, setDestDir] = useState('')
   const [outputDir, setOutputDir] = useState('')
@@ -91,10 +69,10 @@ function AppContent() {
   const [aborting, setAborting] = useState(false)
   const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
   const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
-  const [cleanOnly, setCleanOnly] = useState(false)
   const [syncRowId, setSyncRowId] = useState<string | null>(null)
-  const [showHistory, setShowHistory] = useState(false)
   const [preferredEnTrackId, setPreferredEnTrackId] = useState<number | null>(null)
+
+  const cleanOnly = view === 'clean'
 
   useEffect(() => {
     window.api.loadConfig().then((config) => {
@@ -118,13 +96,21 @@ function AppContent() {
     setLogs((prev) => [...prev, { level, message }])
   }
 
-  function handleModeChange(next: boolean) {
-    if (next === cleanOnly) return
-    if (scanning || transferring) return
-    setCleanOnly(next)
-    setRows([])
-    setStatuses({})
-    setSelectedIds(new Set())
+  // Trocar entre Transferir Legenda <-> Apenas Limpar invalida a tabela
+  // escaneada (o escaneamento de cada modo e diferente) - Historico e
+  // Configuracoes nao mexem nesse estado, entao navegam livremente.
+  function handleNavigate(next: ViewId) {
+    if (next === view) return
+    const isWorkflowSwitch = (next === 'transfer' || next === 'clean') && (view === 'transfer' || view === 'clean')
+    if (isWorkflowSwitch) {
+      if (scanning || transferring) return
+      setRows([])
+      setStatuses({})
+      setSelectedIds(new Set())
+      setScanWarnings([])
+      setUnmatchedSource([])
+    }
+    setView(next)
   }
 
   async function persistConfig(overrides: Partial<{ sourceDir: string; destDir: string; outputDir: string }> = {}) {
@@ -308,109 +294,50 @@ function AppContent() {
 
   return (
     <Shell>
-      <Header>
-        <Row $gap={14}>
-          <Title>Transfer Sub</Title>
-          <Button type="button" $variant="ghost" onClick={() => setShowHistory(true)}>
-            <HistoryOutlined /> Historico
-          </Button>
-          <MkvStatusText $found={mkvStatus.found}>
-            {mkvStatus.found ? `MKVToolNix: ${mkvStatus.mkvmergePath}` : 'MKVToolNix nao localizado'}
-          </MkvStatusText>
-        </Row>
-        <NotificationsMenu warnings={scanWarnings} unmatchedSource={unmatchedSource} />
-      </Header>
+      <Sidebar active={view} onNavigate={handleNavigate} workflowSwitchDisabled={scanning || transferring} />
 
-      <ConfigPanel>
-        <Row $gap={8}>
-          <Label style={{ width: 190, flexShrink: 0 }}>Modo</Label>
-          <ModeToggle cleanOnly={cleanOnly} disabled={scanning || transferring} onChange={handleModeChange} />
-        </Row>
+      <MainArea>
+        <Header>
+          <Title>{VIEW_TITLES[view]}</Title>
+          <NotificationsMenu warnings={scanWarnings} unmatchedSource={unmatchedSource} />
+        </Header>
 
-        <FolderField
-          label="Pasta de origem (com legenda)"
-          value={sourceDir}
-          onChange={setSourceDir}
-          disabled={cleanOnly}
-        />
-        <FolderField
-          label={cleanOnly ? 'Pasta com os arquivos' : 'Pasta de destino (sem legenda)'}
-          value={destDir}
-          onChange={setDestDir}
-        />
-        <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={setOutputDir} />
+        {(view === 'transfer' || view === 'clean') && (
+          <WorkflowView
+            cleanOnly={cleanOnly}
+            sourceDir={sourceDir}
+            destDir={destDir}
+            outputDir={outputDir}
+            onSourceDirChange={setSourceDir}
+            onDestDirChange={setDestDir}
+            onOutputDirChange={setOutputDir}
+            removeEnglishAudio={removeEnglishAudio}
+            onToggleRemoveEnglishAudio={() => setRemoveEnglishAudio(!removeEnglishAudio)}
+            removeExtraSubtitles={removeExtraSubtitles}
+            onToggleRemoveExtraSubtitles={() => setRemoveExtraSubtitles(!removeExtraSubtitles)}
+            scanning={scanning}
+            transferring={transferring}
+            aborting={aborting}
+            onScan={handleScan}
+            onTransfer={handleTransfer}
+            onAbort={handleAbort}
+            rows={rows}
+            statuses={statuses}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+            onToggleSelectAll={handleToggleSelectAll}
+            onTrackChange={handleTrackChange}
+            onApplyTrackToAll={handleApplyTrackToAll}
+            onOpenSync={setSyncRowId}
+            progressPct={progressPct}
+            logs={logs}
+          />
+        )}
 
-        <ChipRow>
-          <Chip type="button" $active={removeEnglishAudio} onClick={() => setRemoveEnglishAudio(!removeEnglishAudio)}>
-            {removeEnglishAudio && <CheckOutlined />}
-            Remover dublagem em ingles do destino (manter so o audio japones)
-          </Chip>
-          {!cleanOnly && (
-            <Chip
-              type="button"
-              $active={removeExtraSubtitles}
-              onClick={() => setRemoveExtraSubtitles(!removeExtraSubtitles)}
-            >
-              {removeExtraSubtitles && <CheckOutlined />}
-              Limpar legendas do destino, deixando so a transferida
-            </Chip>
-          )}
-        </ChipRow>
+        {view === 'history' && <HistoryView />}
 
-        <ToolbarRow>
-          <Row $gap={8}>
-            <Button $variant="primary" onClick={handleScan} disabled={scanning}>
-              {scanning ? 'Escaneando...' : cleanOnly ? 'Escanear pasta' : 'Escanear pastas'}
-            </Button>
-            <Button onClick={handleTransfer} disabled={transferring || rows.length === 0}>
-              {transferring
-                ? cleanOnly
-                  ? 'Limpando...'
-                  : 'Transferindo...'
-                : cleanOnly
-                  ? 'Limpar selecionados'
-                  : 'Transferir selecionados'}
-            </Button>
-            {(transferring || scanning) && (
-              <Button type="button" $variant="danger" onClick={handleAbort} disabled={aborting}>
-                <StopOutlined /> {aborting ? 'Abortando...' : 'Abortar'}
-              </Button>
-            )}
-          </Row>
-          <Row $gap={8}>
-            <Button $variant="ghost" onClick={handleChooseMkvDir}>
-              Localizar MKVToolNix...
-            </Button>
-          </Row>
-        </ToolbarRow>
-      </ConfigPanel>
-
-      <Row $gap={10}>
-        <ProgressTrack>
-          <ProgressFill $pct={progressPct} />
-        </ProgressTrack>
-        <span style={{ fontSize: 11, minWidth: 34, textAlign: 'right' }}>{progressPct}%</span>
-      </Row>
-
-      <Col $gap={6} style={{ flex: 1, minHeight: 0 }}>
-        <SectionTitle>{cleanOnly ? `Arquivos (${rows.length})` : `Episodios (${rows.length})`}</SectionTitle>
-        <EpisodeTable
-          rows={rows}
-          statuses={statuses}
-          selectedIds={selectedIds}
-          cleanOnly={cleanOnly}
-          onToggleSelect={handleToggleSelect}
-          onToggleSelectAll={handleToggleSelectAll}
-          onTrackChange={handleTrackChange}
-          onOpenSync={setSyncRowId}
-          onApplyTrackToAll={handleApplyTrackToAll}
-        />
-      </Col>
-
-      <Col $gap={6}>
-        <SectionTitle>Log</SectionTitle>
-        <LogPanel entries={logs} />
-      </Col>
+        {view === 'settings' && <SettingsView mkvStatus={mkvStatus} onChooseMkvDir={handleChooseMkvDir} />}
+      </MainArea>
 
       {syncRow && (
         <SyncModal
@@ -423,8 +350,6 @@ function AppContent() {
           onEnTrackChosen={setPreferredEnTrackId}
         />
       )}
-
-      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
     </Shell>
   )
 }

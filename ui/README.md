@@ -3,16 +3,25 @@
 Janela desktop nativa em React/TypeScript. É o único front-end do projeto —
 a versão anterior em Tkinter/Python foi removida.
 
-A tela tem um seletor de modo (ícones do [`@ant-design/icons`](https://ant.design/components/icon)):
+A navegação principal é um menu lateral (`components/Sidebar.tsx`, ícones do
+[`@ant-design/icons`](https://ant.design/components/icon)) com quatro
+páginas:
 
-- **Transferir legenda** — casa episódios entre uma pasta de origem (com
+- **Transferir Legenda** — casa episódios entre uma pasta de origem (com
   legenda) e uma de destino (sem legenda) e transfere a faixa escolhida.
-- **Apenas limpar** — não transfere nada; escaneia só uma pasta e permite
+- **Apenas Limpar** — não transfere nada; escaneia só uma pasta e permite
   manter apenas uma faixa de legenda (removendo as demais) e/ou remover a
   dublagem em inglês de cada arquivo.
+- **Histórico** — todas as transferências/limpezas já feitas, persistidas em
+  `transfer-log.json` (sobrevive a reinícios do app).
+- **Configurações** — hoje só o status/localização do MKVToolNix; é o lugar
+  certo pra qualquer preferência global futura (as opções atuais, tipo
+  remover áudio, são por operação e ficam nas páginas de Transferir/Limpar).
 
-Trocar de modo limpa a lista escaneada, para evitar rodar uma ação com dados
-da tela anterior.
+Trocar entre Transferir Legenda e Apenas Limpar limpa a lista escaneada
+(para evitar rodar uma ação com dados da tela anterior) e fica bloqueado
+durante um escaneamento/transferência em andamento; Histórico e
+Configurações navegam livremente a qualquer momento.
 
 A lógica de negócio roda inteira no processo principal do Electron (Node.js),
 separada em duas camadas:
@@ -44,11 +53,14 @@ separada em duas camadas:
 A janela (React) só fala com o processo principal via IPC
 (`src/preload/index.ts`), nunca chama o MKVToolNix diretamente. O front-end
 fica em `src/renderer/src/`, dividido por responsabilidade: `App.tsx` é só o
-orquestrador (estado + handlers da tela); `theme.ts`/`GlobalStyle.ts` cuidam
-do tema; `ui/` guarda primitivas genéricas reaproveitáveis (`Button`, `Row`,
-`Chip`...); `components/` tem um arquivo por peça de UI com estado/lógica
-própria (`EpisodeTable`, `SyncModal`, `LogPanel`...); `utils/` guarda funções
-puras de formatação (legenda/timing, som de conclusão).
+orquestrador (estado + handlers, decide qual página mostrar); `theme.ts`/
+`GlobalStyle.ts` cuidam do tema; `ui/` guarda primitivas genéricas
+reaproveitáveis (`Button`, `Row`, `Chip`, `Checkbox`, `ConfirmDialog`...);
+`components/` tem um arquivo por peça de UI com estado/lógica própria —
+inclui as quatro páginas da Sidebar (`WorkflowView` usada tanto por
+Transferir quanto por Limpar, `HistoryView`, `SettingsView`) e peças menores
+(`EpisodeTable`, `SyncModal`, `LogPanel`...); `utils/` guarda funções puras
+de formatação (legenda/timing, som de conclusão).
 
 ## Rodando em desenvolvimento
 
@@ -157,14 +169,14 @@ se mais opções forem adicionadas no futuro.
   Transferir) — remove as legendas que já existiam no arquivo de destino no
   resultado final, mantendo apenas a faixa transferida.
 
-## Abortar uma transferência/limpeza em andamento
+## Abortar uma operação em andamento
 
-O botão **Abortar** aparece ao lado de "Transferir/Limpar selecionados"
-enquanto uma operação roda. Ele mata o processo `mkvmerge` do episódio atual
-na hora (`infra/cancellation.ts`) e para de processar os episódios
-restantes; o arquivo de saída parcial (truncado pela morte do processo) é
-apagado automaticamente. Os episódios já concluídos antes do abort
-permanecem intactos.
+O botão **Abortar** aparece ao lado de "Transferir/Limpar selecionados" (e
+também durante o Escaneamento) enquanto uma operação roda. Ele mata o
+processo `mkvmerge`/`mkvextract` atual na hora (`infra/cancellation.ts`) e
+para de processar os itens restantes; o arquivo de saída parcial (truncado
+pela morte do processo) é apagado automaticamente. Os itens já concluídos
+antes do abort permanecem intactos.
 
 ## Não sobrescreve com duplicados
 
@@ -203,9 +215,12 @@ anterior antes de atualizar, o que apagaria qualquer arquivo solto ali).
 Esse arquivo é só histórico de execuções passadas: o formato de cada entrada
 (`trackId`, `language`, `trackName`, `appliedOffsetMs`...) já cobre qualquer
 um dos três métodos de ajuste de timing, então não precisou mudar com a
-adição do deslocamento manual/Sincronizar. A tela cheia de histórico
-(`components/HistoryModal.tsx`, botão "Histórico" no cabeçalho) lê esse
-arquivo com paginação (100 por página).
+adição do deslocamento manual/Sincronizar. A página **Histórico** da Sidebar
+(`components/HistoryView.tsx`) lê esse arquivo com paginação (100 por
+página) e tem um botão **Apagar histórico** que zera o arquivo
+(`clearTransferLog` em `infra/transferLog.ts`) — com dupla confirmação
+(`ui/ConfirmDialog.tsx`, reutilizável: exige marcar uma caixinha antes de
+liberar o botão de confirmar) já que é uma ação irreversível.
 
 ## Estrutura
 
@@ -213,25 +228,29 @@ arquivo com paginação (100 por página).
 src/
   main/
     domain/     regras puras, sem I/O:
-                episodeMatcher.ts   — casar episodio pelo nome do arquivo
+                episodeMatcher.ts   — casar episodio pelo numero (temporada so desempata)
                 subtitleLanguage.ts — reconhecer/priorizar legenda PT-BR
                 audioLanguage.ts    — reconhecer audio em ingles
                 subtitleTiming.ts   — parse/format de timecodes MM:SS,mmm
+                subtitleEncoding.ts — decodificar legenda (UTF-8 com fallback Windows-1252)
     infra/      I/O: mkvToolNixLocator.ts, mkvProcess.ts, videoFiles.ts,
-                configStore.ts, transferLog.ts
+                configStore.ts, transferLog.ts, cancellation.ts (abortar)
     workflow.ts casos de uso: scanFolders/transferRows (Transferir),
                 scanForClean/cleanRows (Limpar)
     index.ts    entrypoint do Electron + handlers IPC
   preload/      ponte contextBridge exposta como window.api
   renderer/     app React + main.tsx (bootstrap):
-                App.tsx           orquestrador (estado + handlers), monta a tela
+                App.tsx           orquestrador (estado + handlers), decide a pagina ativa
                 theme.ts          tema (cores/spacing) + tipagem do styled-components
                 GlobalStyle.ts    estilos globais (scrollbar, reset, fonte)
                 ui/               primitivas genericas: primitives.ts (Button, Row, Col,
-                                  Panel, Label, Input, SectionTitle), Chip.ts
-                components/       FolderField, StatusBadge, LogPanel, ModeToggle,
-                                  EpisodeTable, SyncModal — cada um com seu proprio estado
+                                  Panel, Label, Input, SectionTitle), Chip.ts, Checkbox.tsx,
+                                  ConfirmDialog.tsx (modal de confirmacao reutilizavel)
+                components/       Sidebar (navegacao), WorkflowView (pagina Transferir/
+                                  Limpar), HistoryView, SettingsView, FolderField,
+                                  StatusBadge, LogPanel, EpisodeTable, SyncModal,
+                                  NotificationsMenu — cada um com seu proprio estado
                 utils/            subtitleDisplay.ts (formatacao de legenda/timing),
-                                  completionSound.ts
+                                  completionSound.ts, useEscapeToClose.ts
   shared/       tipos TypeScript compartilhados entre main/preload/renderer
 ```
