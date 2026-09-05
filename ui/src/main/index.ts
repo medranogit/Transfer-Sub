@@ -20,6 +20,10 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#14151a',
+    // Empacotado, o icone ja vem embutido no .exe (build.win.icon); em
+    // desenvolvimento nao ha .exe, entao precisa apontar pro arquivo direto.
+    icon: is_dev() ? join(__dirname, '../../build/icon.ico') : undefined,
+    title: `Transfer Sub - v${app.getVersion()}`,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -27,6 +31,10 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+
+  // O React seta document.title (via index.html) e isso sobrescreveria o
+  // titulo com a versao definido acima assim que a pagina carrega.
+  mainWindow.on('page-title-updated', (event) => event.preventDefault())
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
