@@ -1,11 +1,12 @@
-// Pagina de configuracoes - hoje so o MKVToolNix (status + localizar), mas
-// e o lugar certo pra qualquer preferencia global que vier no futuro (o
-// resto das opcoes atuais, tipo remover audio, sao por operacao e ficam nas
-// paginas de Transferir/Limpar, nao aqui).
+// Pagina de configuracoes - MKVToolNix (status + localizar) e como o app
+// nomeia o arquivo de saida (assinatura da fansub no inicio + marcacao livre
+// no final, uma config por modo). O resto das opcoes, tipo remover audio, e
+// por operacao e fica nas paginas de Transferir/Limpeza, nao aqui.
 import styled from 'styled-components'
 import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
-import type { MkvToolsStatus } from '@shared/types'
-import { Button, Col, Label, Panel, Row } from '../ui/primitives'
+import type { MkvToolsStatus, NamingConfig } from '@shared/types'
+import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
+import { Checkbox } from '../ui/Checkbox'
 
 const SettingsPanel = styled(Panel)`
   padding: 16px 18px;
@@ -31,12 +32,69 @@ const PathText = styled.span`
   word-break: break-all;
 `
 
+const ToggleLabel = styled.span`
+  font-size: 13px;
+  color: ${(p) => p.theme.colors.text};
+`
+
+function NamingConfigPanel({
+  id,
+  title,
+  value,
+  onChange
+}: {
+  id: string
+  title: string
+  value: NamingConfig
+  onChange: (next: NamingConfig) => void
+}) {
+  return (
+    <Col $gap={10}>
+      <Label>{title}</Label>
+
+      <Row $gap={10}>
+        <Checkbox
+          checked={value.signatureEnabled}
+          onChange={() => onChange({ ...value, signatureEnabled: !value.signatureEnabled })}
+        />
+        <ToggleLabel>
+          Assinar <strong>[TS - Tag]</strong> ao lado da tag da fansub, no inicio do nome
+        </ToggleLabel>
+      </Row>
+
+      <Row $gap={10}>
+        <Checkbox checked={value.tagEnabled} onChange={() => onChange({ ...value, tagEnabled: !value.tagEnabled })} />
+        <ToggleLabel>Adicionar uma marcacao no final do nome</ToggleLabel>
+      </Row>
+      {value.tagEnabled && (
+        <Row $gap={8}>
+          <Label htmlFor={id}>Palavra</Label>
+          <Input
+            id={id}
+            value={value.tagWord}
+            onChange={(e) => onChange({ ...value, tagWord: e.target.value })}
+            placeholder="ex: legendado"
+          />
+        </Row>
+      )}
+    </Col>
+  )
+}
+
 export function SettingsView({
   mkvStatus,
-  onChooseMkvDir
+  onChooseMkvDir,
+  namingTransfer,
+  onNamingTransferChange,
+  namingClean,
+  onNamingCleanChange
 }: {
   mkvStatus: MkvToolsStatus
   onChooseMkvDir: () => void
+  namingTransfer: NamingConfig
+  onNamingTransferChange: (next: NamingConfig) => void
+  namingClean: NamingConfig
+  onNamingCleanChange: (next: NamingConfig) => void
 }) {
   return (
     <Col $gap={14}>
@@ -55,6 +113,17 @@ export function SettingsView({
             Localizar MKVToolNix...
           </Button>
         </Row>
+      </SettingsPanel>
+
+      <SettingsPanel>
+        <SectionTitle>Nome do arquivo de saida</SectionTitle>
+        <NamingConfigPanel
+          id="tag-word-transfer"
+          title="Transferir Legenda"
+          value={namingTransfer}
+          onChange={onNamingTransferChange}
+        />
+        <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
       </SettingsPanel>
     </Col>
   )

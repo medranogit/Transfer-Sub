@@ -35,6 +35,7 @@ import { CancellationToken, OperationAbortedError } from './infra/cancellation'
 import type {
   EpisodeRow,
   LogEvent,
+  NamingConfig,
   RowStatus,
   ScanResult,
   SubtitleEvent,
@@ -370,7 +371,8 @@ export async function transferRows(
   removeExtraSubtitles: boolean,
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn,
-  token?: CancellationToken
+  token: CancellationToken | undefined,
+  naming: NamingConfig
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
@@ -389,7 +391,7 @@ export async function transferRows(
     onLog({ level: 'info', message: `[${row.episodeKey}] extraindo faixa ${track.trackId} de ${row.sourceName}` })
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-'))
-    const outputFile = resolveOutputPath(row.destPath, outputDir)
+    const outputFile = resolveOutputPath(row.destPath, outputDir, naming)
     if (samePath(outputFile, row.destPath)) {
       failed += 1
       onProgress(row.id, 'error', 'Pasta de saida igual a de destino geraria o mesmo nome de arquivo')
@@ -541,7 +543,8 @@ export async function cleanRows(
   removeEnglishAudio: boolean,
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn,
-  token?: CancellationToken
+  token: CancellationToken | undefined,
+  naming: NamingConfig
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
@@ -549,7 +552,7 @@ export async function cleanRows(
   for (const row of rows) {
     if (token?.aborted) break
 
-    const outputFile = resolveCleanOutputPath(row.destPath, outputDir)
+    const outputFile = resolveCleanOutputPath(row.destPath, outputDir, naming)
     if (samePath(outputFile, row.destPath)) {
       failed += 1
       onProgress(row.id, 'error', 'Pasta de saida igual a de destino geraria o mesmo nome de arquivo')

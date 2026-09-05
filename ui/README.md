@@ -9,7 +9,7 @@ páginas:
 
 - **Transferir Legenda** — casa episódios entre uma pasta de origem (com
   legenda) e uma de destino (sem legenda) e transfere a faixa escolhida.
-- **Apenas Limpar** — não transfere nada; escaneia só uma pasta e permite
+- **Limpeza** — não transfere nada; escaneia só uma pasta e permite
   manter apenas uma faixa de legenda (removendo as demais) e/ou remover a
   dublagem em inglês de cada arquivo.
 - **Histórico** — todas as transferências/limpezas já feitas, persistidas em
@@ -18,7 +18,7 @@ páginas:
   certo pra qualquer preferência global futura (as opções atuais, tipo
   remover áudio, são por operação e ficam nas páginas de Transferir/Limpar).
 
-Trocar entre Transferir Legenda e Apenas Limpar limpa a lista escaneada
+Trocar entre Transferir Legenda e Limpeza limpa a lista escaneada
 (para evitar rodar uma ação com dados da tela anterior) e fica bloqueado
 durante um escaneamento/transferência em andamento; Histórico e
 Configurações navegam livremente a qualquer momento.
@@ -184,13 +184,20 @@ O nome do arquivo de saída é fixo por episódio/arquivo, então rodar de novo
 sobre o mesmo arquivo sobrescreve o resultado anterior em vez de criar `(1)`,
 `(2)` etc. — a identificação é só pelo nome do arquivo de origem.
 
-Nos dois modos (Transferir e Limpar), em vez de acrescentar um sufixo tipo
-`[legendado]`/`[limpo]`, o app assina ao lado da tag da fansub original —
-`[Judas] Nome do episodio.mkv` vira `[TS - Judas] Nome do episodio.mkv`
+Nos dois modos (Transferir e Limpar), por padrão o app assina ao lado da tag
+da fansub original em vez de acrescentar um sufixo tipo `[legendado]`/`[limpo]`
+— `[Judas] Nome do episodio.mkv` vira `[TS - Judas] Nome do episodio.mkv`
 (`withTransferSubSignature`/`resolveOutputPath`/`resolveCleanOutputPath` em
 `infra/mkvProcess.ts`). Sem tag reconhecida no nome original, usa
 `[TS] Nome do episodio.mkv`. Se o arquivo já tiver sido processado antes (já
 começa com `[TS...]`), a assinatura não é duplicada.
+
+Em Configurações dá pra ajustar isso por modo (Transferir/Limpeza), via
+`AppConfig.namingTransfer`/`namingClean` (`NamingConfig` em `shared/types.ts`):
+desligar a assinatura `[TS - Tag]` (`signatureEnabled`, ligada por padrão) e/ou
+ligar uma marcação extra no final do nome (`tagEnabled`/`tagWord`, ex.
+`[legendado]`/`[limpo]` — a palavra é livre, desligada por padrão). Ex. com os
+dois recursos juntos: `[TS - Judas] Nome do episodio [legendado].mkv`.
 
 Como a saída pode acabar com o mesmo nome do arquivo de entrada quando a
 pasta de saída é igual à de destino (ex: reprocessar um arquivo já

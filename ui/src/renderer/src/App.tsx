@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
-import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus } from '@shared/types'
+import type { EpisodeRow, LogEvent, MkvToolsStatus, NamingConfig, RowStatus } from '@shared/types'
 import { theme } from './theme'
 import { GlobalStyle } from './GlobalStyle'
 import { Sidebar } from './components/Sidebar'
@@ -44,7 +44,7 @@ const Title = styled.h1`
 
 const VIEW_TITLES: Record<ViewId, string> = {
   transfer: 'Transferir Legenda',
-  clean: 'Apenas Limpar',
+  clean: 'Limpeza',
   history: 'Historico',
   settings: 'Configuracoes'
 }
@@ -71,6 +71,16 @@ function AppContent() {
   const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
   const [syncRowId, setSyncRowId] = useState<string | null>(null)
   const [preferredEnTrackId, setPreferredEnTrackId] = useState<number | null>(null)
+  const [namingTransfer, setNamingTransfer] = useState<NamingConfig>({
+    signatureEnabled: true,
+    tagEnabled: false,
+    tagWord: 'legendado'
+  })
+  const [namingClean, setNamingClean] = useState<NamingConfig>({
+    signatureEnabled: true,
+    tagEnabled: false,
+    tagWord: 'limpo'
+  })
 
   const cleanOnly = view === 'clean'
 
@@ -79,6 +89,8 @@ function AppContent() {
       setSourceDir(config.sourceDir)
       setDestDir(config.destDir)
       setOutputDir(config.outputDir)
+      setNamingTransfer(config.namingTransfer)
+      setNamingClean(config.namingClean)
       window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
     })
 
@@ -96,14 +108,16 @@ function AppContent() {
     setLogs((prev) => [...prev, { level, message }])
   }
 
-  // Trocar entre Transferir Legenda <-> Apenas Limpar invalida a tabela
-  // escaneada (o escaneamento de cada modo e diferente) - Historico e
-  // Configuracoes nao mexem nesse estado, entao navegam livremente.
+  // Com um escaneamento/transferencia/limpeza em andamento a Sidebar ja
+  // desabilita todo o resto (so a aba ativa fica clicavel) - essa checagem e
+  // so uma segunda camada de protecao. Trocar entre Transferir Legenda <->
+  // Limpeza tambem invalida a tabela escaneada (o escaneamento de cada
+  // modo e diferente).
   function handleNavigate(next: ViewId) {
     if (next === view) return
+    if (scanning || transferring) return
     const isWorkflowSwitch = (next === 'transfer' || next === 'clean') && (view === 'transfer' || view === 'clean')
     if (isWorkflowSwitch) {
-      if (scanning || transferring) return
       setRows([])
       setStatuses({})
       setSelectedIds(new Set())
@@ -113,13 +127,33 @@ function AppContent() {
     setView(next)
   }
 
-  async function persistConfig(overrides: Partial<{ sourceDir: string; destDir: string; outputDir: string }> = {}) {
+  async function persistConfig(
+    overrides: Partial<{
+      sourceDir: string
+      destDir: string
+      outputDir: string
+      namingTransfer: NamingConfig
+      namingClean: NamingConfig
+    }> = {}
+  ) {
     await window.api.saveConfig({
       sourceDir: overrides.sourceDir ?? sourceDir,
       destDir: overrides.destDir ?? destDir,
       outputDir: overrides.outputDir ?? outputDir,
-      mkvToolNixDir: mkvStatus.mkvmergePath ? mkvStatus.mkvmergePath.replace(/[\\/][^\\/]+$/, '') : ''
+      mkvToolNixDir: mkvStatus.mkvmergePath ? mkvStatus.mkvmergePath.replace(/[\\/][^\\/]+$/, '') : '',
+      namingTransfer: overrides.namingTransfer ?? namingTransfer,
+      namingClean: overrides.namingClean ?? namingClean
     })
+  }
+
+  function handleNamingTransferChange(next: NamingConfig) {
+    setNamingTransfer(next)
+    persistConfig({ namingTransfer: next })
+  }
+
+  function handleNamingCleanChange(next: NamingConfig) {
+    setNamingClean(next)
+    persistConfig({ namingClean: next })
   }
 
   async function handleChooseMkvDir() {
@@ -294,7 +328,7 @@ function AppContent() {
 
   return (
     <Shell>
-      <Sidebar active={view} onNavigate={handleNavigate} workflowSwitchDisabled={scanning || transferring} />
+      <Sidebar active={view} onNavigate={handleNavigate} navigationLocked={scanning || transferring} />
 
       <MainArea>
         <Header>
@@ -336,7 +370,16 @@ function AppContent() {
 
         {view === 'history' && <HistoryView />}
 
-        {view === 'settings' && <SettingsView mkvStatus={mkvStatus} onChooseMkvDir={handleChooseMkvDir} />}
+        {view === 'settings' && (
+          <SettingsView
+            mkvStatus={mkvStatus}
+            onChooseMkvDir={handleChooseMkvDir}
+            namingTransfer={namingTransfer}
+            onNamingTransferChange={handleNamingTransferChange}
+            namingClean={namingClean}
+            onNamingCleanChange={handleNamingCleanChange}
+          />
+        )}
       </MainArea>
 
       {syncRow && (

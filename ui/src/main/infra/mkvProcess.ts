@@ -5,7 +5,7 @@ import { join, parse } from 'path'
 import { execFile } from 'child_process'
 import type { ChildProcess } from 'child_process'
 import { promisify } from 'util'
-import type { SubtitleTrack } from '@shared/types'
+import type { NamingConfig, SubtitleTrack } from '@shared/types'
 import { isPtBrTrack } from '../domain/subtitleLanguage'
 import { CancellationToken, OperationAbortedError } from './cancellation'
 
@@ -230,24 +230,34 @@ export async function muxSubtitleInto(
 
 // A fansub original quase sempre marca o nome com "[Tag]" no inicio (ex:
 // "[Judas] Nome do episodio"). Em vez de acrescentar um sufixo tipo
-// " [legendado]"/" [limpo]", assina ao lado da tag original (ex: "[TS -
-// Judas] Nome do episodio"), igual como fansubs costumam colaborar entre si -
-// usado tanto no modo Transferir quanto no Limpar.
+// " [legendado]"/" [limpo]", por padrao assina ao lado da tag original (ex:
+// "[TS - Judas] Nome do episodio"), igual como fansubs costumam colaborar
+// entre si - usado tanto no modo Transferir quanto no Limpar. Configuravel
+// em Configuracoes (NamingConfig.signatureEnabled) - desligado, mantem o
+// nome original intacto nessa parte.
 const FANSUB_TAG = /^\[([^\]]+)\]/
 // Ja assinado (ex: rodando Limpar sobre um arquivo que o proprio app gerou
 // antes) - nao assina de novo, senao vira "[TS - TS - Tag]".
 const ALREADY_SIGNED = /^\[TS(?:\s*-\s*[^\]]+)?\]/
 
-function withTransferSubSignature(name: string): string {
-  if (ALREADY_SIGNED.test(name)) return name
+function withTransferSubSignature(name: string, enabled: boolean): string {
+  if (!enabled || ALREADY_SIGNED.test(name)) return name
   return FANSUB_TAG.test(name) ? name.replace(FANSUB_TAG, '[TS - $1]') : `[TS] ${name}`
+}
+
+// Marcacao opcional configurada pelo usuario em Configuracoes (ex: "
+// [legendado]"), acrescentada ao final do nome - independente da assinatura
+// da fansub, que fica no inicio. tagWord vazio/undefined = nao marca.
+function withOptionalTag(name: string, tagWord?: string): string {
+  return tagWord ? `${name} [${tagWord}]` : name
 }
 
 // Nome fixo por episodio (sem sufixo de contador): se ja existir um arquivo
 // com esse nome na pasta de saida, o mkvmerge sobrescreve - nao criamos
 // duplicados "(1)", "(2)", etc.
-export function resolveOutputPath(destVideo: string, outputFolder: string): string {
-  const base = withTransferSubSignature(parse(destVideo).name)
+export function resolveOutputPath(destVideo: string, outputFolder: string, naming: NamingConfig): string {
+  const signed = withTransferSubSignature(parse(destVideo).name, naming.signatureEnabled)
+  const base = withOptionalTag(signed, naming.tagEnabled ? naming.tagWord.trim() : undefined)
   return join(outputFolder, `${base}.mkv`)
 }
 
@@ -276,8 +286,9 @@ export async function cleanTracksInto(
 }
 
 // Mesmo esquema de nome fixo (sobrescreve por nome) e mesma assinatura do
-// resolveOutputPath - ver withTransferSubSignature.
-export function resolveCleanOutputPath(sourceFile: string, outputFolder: string): string {
-  const base = withTransferSubSignature(parse(sourceFile).name)
+// resolveOutputPath - ver withTransferSubSignature/withOptionalTag.
+export function resolveCleanOutputPath(sourceFile: string, outputFolder: string, naming: NamingConfig): string {
+  const signed = withTransferSubSignature(parse(sourceFile).name, naming.signatureEnabled)
+  const base = withOptionalTag(signed, naming.tagEnabled ? naming.tagWord.trim() : undefined)
   return join(outputFolder, `${base}.mkv`)
 }

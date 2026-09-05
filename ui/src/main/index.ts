@@ -138,7 +138,8 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('transfer:run', async (_e, request: TransferRequest) => {
-    const status = tryLocate(loadConfig().mkvToolNixDir)
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
     if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
       throw new Error('MKVToolNix nao localizado.')
     }
@@ -158,7 +159,8 @@ app.whenReady().then(() => {
         (log) => {
           mainWindow?.webContents.send('log', log)
         },
-        token
+        token,
+        config.namingTransfer
       )
     } finally {
       if (activeToken === token) activeToken = null
@@ -195,7 +197,8 @@ app.whenReady().then(() => {
   ipcMain.handle('transferLog:clear', () => clearTransferLog())
 
   ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {
-    const status = tryLocate(loadConfig().mkvToolNixDir)
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
     if (!status.found || !status.mkvmergePath) {
       throw new Error('MKVToolNix nao localizado.')
     }
@@ -213,7 +216,8 @@ app.whenReady().then(() => {
         (log) => {
           mainWindow?.webContents.send('log', log)
         },
-        token
+        token,
+        config.namingClean
       )
     } finally {
       if (activeToken === token) activeToken = null

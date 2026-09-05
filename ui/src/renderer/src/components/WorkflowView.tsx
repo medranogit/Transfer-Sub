@@ -1,5 +1,5 @@
 // Pagina de trabalho compartilhada pelos dois modos (Transferir Legenda /
-// Apenas Limpar) - mesma estrutura de sempre (pastas, opcoes, tabela, log),
+// Limpeza) - mesma estrutura de sempre (pastas, opcoes, tabela, log),
 // so que agora e uma pagina navegada pela Sidebar em vez de alternada por
 // um toggle dentro de uma unica tela.
 import styled from 'styled-components'

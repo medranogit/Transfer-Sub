@@ -1,4 +1,4 @@
-// Navegacao lateral principal do app: Transferir Legenda / Apenas Limpar
+// Navegacao lateral principal do app: Transferir Legenda / Limpeza
 // (os dois modos de trabalho, antes um toggle dentro da mesma tela) mais
 // Historico e Configuracoes como paginas proprias.
 import type { ReactNode } from 'react'
@@ -9,7 +9,7 @@ export type ViewId = 'transfer' | 'clean' | 'history' | 'settings'
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: ReactNode }[] = [
   { id: 'transfer', label: 'Transferir Legenda', icon: <SwapOutlined /> },
-  { id: 'clean', label: 'Apenas Limpar', icon: <ClearOutlined /> },
+  { id: 'clean', label: 'Limpeza', icon: <ClearOutlined /> },
   { id: 'history', label: 'Historico', icon: <HistoryOutlined /> },
   { id: 'settings', label: 'Configuracoes', icon: <SettingOutlined /> }
 ]
@@ -70,17 +70,26 @@ const NavItem = styled.button<{ $active: boolean }>`
   }
 `
 
+const Footer = styled.div`
+  margin-top: auto;
+  padding: 10px 12px 2px;
+  font-size: 11px;
+  color: ${(p) => p.theme.colors.textFaint};
+  text-align: center;
+`
+
 export function Sidebar({
   active,
   onNavigate,
-  workflowSwitchDisabled
+  navigationLocked
 }: {
   active: ViewId
   onNavigate: (id: ViewId) => void
-  // Trocar entre Transferir Legenda <-> Apenas Limpar no meio de um
-  // escaneamento/transferencia invalidaria a tabela/estado em andamento -
-  // Historico e Configuracoes continuam acessiveis a qualquer momento.
-  workflowSwitchDisabled: boolean
+  // Enquanto um escaneamento/transferencia/limpeza esta rodando, navegar pra
+  // qualquer outra pagina (inclusive Historico/Configuracoes) esconderia o
+  // progresso/log em andamento e, no caso de Transferir<->Limpar, invalidaria
+  // a tabela escaneada - trava tudo menos a aba ativa ate a operacao acabar.
+  navigationLocked: boolean
 }) {
   return (
     <Wrap>
@@ -88,21 +97,19 @@ export function Sidebar({
         <TranslationOutlined />
         Transfer Sub
       </Brand>
-      {NAV_ITEMS.map((item) => {
-        const isWorkflowTab = item.id === 'transfer' || item.id === 'clean'
-        return (
-          <NavItem
-            key={item.id}
-            type="button"
-            $active={active === item.id}
-            disabled={isWorkflowTab && workflowSwitchDisabled && active !== item.id}
-            onClick={() => onNavigate(item.id)}
-          >
-            {item.icon}
-            {item.label}
-          </NavItem>
-        )
-      })}
+      {NAV_ITEMS.map((item) => (
+        <NavItem
+          key={item.id}
+          type="button"
+          $active={active === item.id}
+          disabled={navigationLocked && active !== item.id}
+          onClick={() => onNavigate(item.id)}
+        >
+          {item.icon}
+          {item.label}
+        </NavItem>
+      ))}
+      <Footer>medranogit</Footer>
     </Wrap>
   )
 }

@@ -63,11 +63,26 @@ export interface MkvToolsStatus {
   mkvextractPath?: string
 }
 
+// Configuracao de como o app nomeia o arquivo de saida - uma por modo
+// (Transferir/Limpeza), configuravel em Configuracoes:
+// - signatureEnabled: acrescenta "[TS - Tag]"/"[TS]" no INICIO do nome, ao
+//   lado da tag da fansub original (ligado por padrao - era o unico
+//   comportamento antes desta opcao existir).
+// - tagEnabled/tagWord: acrescenta uma palavra livre no FINAL do nome (ex:
+//   "Nome do Episodio [legendado].mkv"). Desligado por padrao.
+export interface NamingConfig {
+  signatureEnabled: boolean
+  tagEnabled: boolean
+  tagWord: string
+}
+
 export interface AppConfig {
   sourceDir: string
   destDir: string
   outputDir: string
   mkvToolNixDir: string
+  namingTransfer: NamingConfig
+  namingClean: NamingConfig
 }
 
 export interface TransferRequest {

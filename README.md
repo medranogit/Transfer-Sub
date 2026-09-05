@@ -27,7 +27,7 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 ## Funcionalidades
 
 - 🔀 **Dois modos**, cada um sua própria página no menu lateral: **Transferir Legenda** (entre
-  pastas de origem/destino) ou **Apenas Limpar** (trata os arquivos de uma única pasta, sem
+  pastas de origem/destino) ou **Limpeza** (trata os arquivos de uma única pasta, sem
   transferir nada) — mais **Histórico** e **Configurações** como páginas próprias.
 - 📂 **Casamento automático de episódio** pelo nome do arquivo — reconhece `S01E05`, `1x05`,
   `Episodio 05`, `E05`, e cai num fallback inteligente para nomes de fansub tipo
@@ -55,9 +55,10 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
   lado a lado a legenda em inglês do destino com a PT-BR da origem, clicar na mesma fala nos dois
   lados e deixar o app calcular o deslocamento.
 - 🧩 **Não sobrescreve com duplicados** — o resultado é sempre salvo com nome fixo por
-  episódio/arquivo, assinando `[TS - Tag]` ao lado da tag da fansub original (nos dois modos, em
-  vez de sufixos tipo `[legendado]`/`[limpo]`); rodar de novo substitui o anterior em vez de criar
-  `(1)`, `(2)`, etc.
+  episódio/arquivo; rodar de novo substitui o anterior em vez de criar `(1)`, `(2)`, etc. Por padrão
+  assina `[TS - Tag]` ao lado da tag da fansub original (nos dois modos), mas em Configurações dá
+  pra desligar essa assinatura e/ou ligar, opcionalmente e por modo, uma marcação extra no final do
+  nome (ex: `[legendado]`/`[limpo]`, a palavra é livre).
 - 📊 Log colorido em tempo real (info/sucesso/aviso/erro), som de conclusão e histórico salvo em
   `transfer-log.json`.
 
@@ -84,9 +85,9 @@ npm run dev
    app calcular o deslocamento.
 4. Clique em **Transferir selecionados**.
 
-**Página Apenas Limpar:**
+**Página Limpeza:**
 
-1. Vá na página **Apenas Limpar** no menu lateral e selecione a pasta com os arquivos.
+1. Vá na página **Limpeza** no menu lateral e selecione a pasta com os arquivos.
 2. Clique em **Escanear pasta** — a tabela mostra cada arquivo e suas próprias faixas de legenda.
 3. Para remover legendas extras, escolha no dropdown qual manter (padrão é manter todas) — o botão
    **Aplicar a todos** no cabeçalho copia a faixa escolhida na 1ª linha pras demais.

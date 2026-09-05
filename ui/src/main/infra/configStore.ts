@@ -8,7 +8,9 @@ const DEFAULT_CONFIG: AppConfig = {
   sourceDir: '',
   destDir: '',
   outputDir: '',
-  mkvToolNixDir: ''
+  mkvToolNixDir: '',
+  namingTransfer: { signatureEnabled: true, tagEnabled: false, tagWord: 'legendado' },
+  namingClean: { signatureEnabled: true, tagEnabled: false, tagWord: 'limpo' }
 }
 
 function configPath(): string {
