@@ -21,6 +21,9 @@ export interface TransferLogEntry {
 }
 
 const LOG_FILE_NAME = 'transfer-log.json'
+// Mantem so as entradas mais recentes - sem isso o arquivo cresce pra
+// sempre num uso continuo por anos.
+const MAX_LOG_ENTRIES = 5000
 
 // Em desenvolvimento, app.getAppPath() aponta para a raiz do projeto (onde
 // ficam package.json e README.md). Empacotado, essa pasta vira o .asar
@@ -40,8 +43,21 @@ async function readLog(): Promise<TransferLogEntry[]> {
   }
 }
 
-export async function appendTransferLog(entry: TransferLogEntry): Promise<void> {
-  const entries = await readLog()
-  entries.push(entry)
-  await writeFile(logPath(), JSON.stringify(entries, null, 2), 'utf-8')
+// Serializa leitura+escrita do log: sem isso, duas chamadas concorrentes
+// (duplo clique, ou duas janelas do app abertas) podem ler o mesmo estado
+// antes de qualquer uma escrever - a segunda escrita sobrescreve a primeira
+// e aquela entrada some do historico, mesmo com o arquivo final gerado
+// normalmente.
+let writeQueue: Promise<void> = Promise.resolve()
+
+export function appendTransferLog(entry: TransferLogEntry): Promise<void> {
+  const task = writeQueue.then(async () => {
+    const entries = await readLog()
+    entries.push(entry)
+    const trimmed = entries.length > MAX_LOG_ENTRIES ? entries.slice(entries.length - MAX_LOG_ENTRIES) : entries
+    await writeFile(logPath(), JSON.stringify(trimmed, null, 2), 'utf-8')
+  })
+  // Mesmo se essa escrita falhar, a fila segue livre para a proxima chamada.
+  writeQueue = task.catch(() => {})
+  return task
 }

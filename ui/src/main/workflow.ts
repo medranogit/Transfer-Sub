@@ -10,6 +10,7 @@ import {
   resolveTransferTrackName
 } from './domain/subtitleLanguage'
 import { isEnglishAudio } from './domain/audioLanguage'
+import { decodeSubtitleBuffer } from './domain/subtitleEncoding'
 import {
   formatMsAsTimeCode,
   parseFirstEventStartMs,
@@ -60,7 +61,7 @@ async function tagPtBrGuesses(
       const tmpPath = join(tmpDir, `probe${subtitleExtension(track.codecId)}`)
       try {
         await extractSubtitle(mkvextractPath, sourcePath, track.trackId, tmpPath)
-        const content = await readFile(tmpPath, 'utf-8')
+        const content = decodeSubtitleBuffer(await readFile(tmpPath))
         if (guessPtBrFromContent(content)) {
           track.isPtBrGuess = true
           onLog({
@@ -261,7 +262,7 @@ async function resolveOffsetMs(
     return 0
   }
 
-  const content = await readFile(subPath, 'utf-8')
+  const content = decodeSubtitleBuffer(await readFile(subPath))
   const originalMs = parseFirstEventStartMs(content, extension)
   if (originalMs === null) {
     onLog({
@@ -543,7 +544,7 @@ async function extractSubtitleEvents(
     const extension = subtitleExtension(track.codecId)
     const tmpPath = join(tmpDir, `evt${extension}`)
     await extractSubtitle(mkvextractPath, filePath, track.trackId, tmpPath)
-    const content = await readFile(tmpPath, 'utf-8')
+    const content = decodeSubtitleBuffer(await readFile(tmpPath))
     return parseSubtitleEvents(content, extension)
   } finally {
     await rm(tmpDir, { recursive: true, force: true })

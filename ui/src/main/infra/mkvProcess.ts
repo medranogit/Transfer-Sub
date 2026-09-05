@@ -9,6 +9,25 @@ import { isPtBrTrack } from '../domain/subtitleLanguage'
 
 const execFileAsync = promisify(execFile)
 
+// mkvmerge usa codigo de saida 1 para "concluido com avisos" (seguro
+// ignorar) e 2+ para erro real. Quando o processo e encerrado por sinal
+// (crash, falta de memoria, antivirus interferindo) o Node nao preenche
+// `code` (fica undefined) - sem tratar esse caso como falha, o app registrava
+// "concluido" mesmo sem gerar o arquivo de saida.
+async function runMkvTool(execPath: string, args: string[]): Promise<void> {
+  try {
+    await execFileAsync(execPath, args, { maxBuffer: 32 * 1024 * 1024 })
+  } catch (err) {
+    const execErr = err as { code?: number; signal?: string; stderr?: string; stdout?: string }
+    if (execErr.code === 1) return
+    throw new Error(
+      execErr.signal
+        ? `processo encerrado inesperadamente (sinal ${execErr.signal})`
+        : execErr.stderr?.trim() || execErr.stdout?.trim() || 'mkvmerge falhou'
+    )
+  }
+}
+
 const ASS_CODEC_IDS = new Set(['S_TEXT/ASS', 'S_TEXT/SSA'])
 const SUB_EXT_BY_CODEC: Record<string, string> = {
   'S_TEXT/ASS': '.ass',
@@ -179,15 +198,7 @@ export async function muxSubtitleInto(
   }
   args.push(subtitleFile)
 
-  try {
-    await execFileAsync(mkvmergePath, args, { maxBuffer: 32 * 1024 * 1024 })
-  } catch (err) {
-    const execErr = err as { code?: number; stderr?: string; stdout?: string }
-    // mkvmerge usa codigo 1 para "concluido com avisos" - so 2+ e erro real.
-    if (execErr.code && execErr.code >= 2) {
-      throw new Error(execErr.stderr?.trim() || execErr.stdout?.trim() || 'mkvmerge falhou')
-    }
-  }
+  await runMkvTool(mkvmergePath, args)
 }
 
 // Nome fixo por episodio (sem sufixo de contador): se ja existir um arquivo
@@ -218,14 +229,7 @@ export async function cleanTracksInto(
   }
   args.push(sourceFile)
 
-  try {
-    await execFileAsync(mkvmergePath, args, { maxBuffer: 32 * 1024 * 1024 })
-  } catch (err) {
-    const execErr = err as { code?: number; stderr?: string; stdout?: string }
-    if (execErr.code && execErr.code >= 2) {
-      throw new Error(execErr.stderr?.trim() || execErr.stdout?.trim() || 'mkvmerge falhou')
-    }
-  }
+  await runMkvTool(mkvmergePath, args)
 }
 
 // Mesmo esquema de nome fixo (sobrescreve por nome) do resolveOutputPath,
