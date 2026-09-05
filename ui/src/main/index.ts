@@ -5,7 +5,8 @@ import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocat
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
 import { CancellationToken } from './infra/cancellation'
 import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, transferRows } from './workflow'
-import type { AppConfig, MkvToolsStatus, TransferRequest } from '@shared/types'
+import { applyRename, previewRename } from './renamer'
+import type { AppConfig, MkvToolsStatus, RenameFields, RenamePreviewRow, TransferRequest } from '@shared/types'
 
 // Tamanho inicial da janela do app - ajuste aqui.
 const WINDOW_WIDTH = 1600
@@ -223,6 +224,16 @@ app.whenReady().then(() => {
       if (activeToken === token) activeToken = null
     }
   })
+
+  ipcMain.handle('rename:preview', (_e, { folder, fields }: { folder: string; fields: RenameFields }) =>
+    previewRename(folder, fields)
+  )
+
+  ipcMain.handle('rename:apply', (_e, rows: RenamePreviewRow[]) =>
+    applyRename(rows, (log) => {
+      mainWindow?.webContents.send('log', log)
+    })
+  )
 
   createWindow()
 

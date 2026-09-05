@@ -135,3 +135,29 @@ export interface TransferLogEntry {
   status: 'done' | 'error'
   error?: string
 }
+
+// Os 3 campos do Renomeador: texto inicial + temporada (fixa pra pasta
+// inteira) + texto final. O episodio e detectado por arquivo - ver
+// domain/renamePattern.ts.
+export interface RenameFields {
+  prefixText: string
+  season: number
+  suffixText: string
+}
+
+// Uma linha da pre-visualizacao do Renomeador: nome atual x novo nome
+// calculado a partir dos campos. newName null = nao foi possivel gerar (ver
+// skipReason) - a linha fica de fora quando o usuario clica "Renomear".
+export interface RenamePreviewRow {
+  id: string
+  originalPath: string
+  originalName: string
+  newName: string | null
+  skipReason: string | null
+}
+
+export interface RenameSummary {
+  total: number
+  success: number
+  failed: number
+}

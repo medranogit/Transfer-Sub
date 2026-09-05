@@ -3,6 +3,9 @@ import type {
   AppConfig,
   LogEvent,
   MkvToolsStatus,
+  RenameFields,
+  RenamePreviewRow,
+  RenameSummary,
   ScanResult,
   SubtitleEvent,
   SyncPrepareResult,
@@ -43,6 +46,11 @@ const api = {
 
   loadTransferLog: (): Promise<TransferLogEntry[]> => ipcRenderer.invoke('transferLog:load'),
   clearTransferLog: (): Promise<void> => ipcRenderer.invoke('transferLog:clear'),
+
+  previewRename: (folder: string, fields: RenameFields): Promise<RenamePreviewRow[]> =>
+    ipcRenderer.invoke('rename:preview', { folder, fields }),
+
+  applyRename: (rows: RenamePreviewRow[]): Promise<RenameSummary> => ipcRenderer.invoke('rename:apply', rows),
 
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)

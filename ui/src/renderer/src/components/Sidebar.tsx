@@ -3,13 +3,21 @@
 // Historico e Configuracoes como paginas proprias.
 import type { ReactNode } from 'react'
 import styled from 'styled-components'
-import { ClearOutlined, HistoryOutlined, SettingOutlined, SwapOutlined, TranslationOutlined } from '@ant-design/icons'
+import {
+  ClearOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  SettingOutlined,
+  SwapOutlined,
+  TranslationOutlined
+} from '@ant-design/icons'
 
-export type ViewId = 'transfer' | 'clean' | 'history' | 'settings'
+export type ViewId = 'transfer' | 'clean' | 'rename' | 'history' | 'settings'
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: ReactNode }[] = [
   { id: 'transfer', label: 'Transferir Legenda', icon: <SwapOutlined /> },
   { id: 'clean', label: 'Limpeza', icon: <ClearOutlined /> },
+  { id: 'rename', label: 'Renomeador', icon: <EditOutlined /> },
   { id: 'history', label: 'Historico', icon: <HistoryOutlined /> },
   { id: 'settings', label: 'Configuracoes', icon: <SettingOutlined /> }
 ]

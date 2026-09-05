@@ -9,6 +9,7 @@ import type { TransferLogEntry } from '@shared/types'
 import { theme } from '../theme'
 import { Button, Col, Row, SectionTitle } from '../ui/primitives'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
 import { StatusBadge } from './StatusBadge'
 
 // 100 por pagina - o arquivo pode ter ate 5000 entradas (MAX_LOG_ENTRIES em
@@ -29,61 +30,6 @@ function adjustmentLabel(entry: TransferLogEntry): string {
   if (entry.appliedOffsetMs) return `${entry.appliedOffsetMs > 0 ? '+' : ''}${entry.appliedOffsetMs}ms`
   return '-'
 }
-
-const TableWrap = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  border: 1px solid ${(p) => p.theme.colors.border};
-  border-radius: ${(p) => p.theme.radius.md};
-`
-
-const Table = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12.5px;
-`
-
-const Thead = styled.thead`
-  position: sticky;
-  top: 0;
-  background: ${(p) => p.theme.colors.panelAlt};
-
-  th {
-    text-align: left;
-    padding: 8px 10px;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: ${(p) => p.theme.colors.textMuted};
-    border-bottom: 1px solid ${(p) => p.theme.colors.border};
-    white-space: nowrap;
-  }
-`
-
-const Tr = styled.tr`
-  &:hover td {
-    background: ${(p) => p.theme.colors.panelAlt};
-  }
-`
-
-const Td = styled.td`
-  padding: 7px 10px;
-  border-bottom: 1px solid ${(p) => p.theme.colors.border};
-  vertical-align: top;
-`
-
-const Mono = styled.span`
-  font-family: ${(p) => p.theme.font.mono};
-  font-size: 11.5px;
-  color: ${(p) => p.theme.colors.textMuted};
-`
-
-const EmptyState = styled.div`
-  padding: 40px;
-  text-align: center;
-  color: ${(p) => p.theme.colors.textMuted};
-`
 
 const Footer = styled.div`
   display: flex;

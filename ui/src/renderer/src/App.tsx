@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
-import type { EpisodeRow, LogEvent, MkvToolsStatus, NamingConfig, RowStatus } from '@shared/types'
+import type {
+  EpisodeRow,
+  LogEvent,
+  MkvToolsStatus,
+  NamingConfig,
+  RenameFields,
+  RenamePreviewRow,
+  RowStatus
+} from '@shared/types'
 import { theme } from './theme'
 import { GlobalStyle } from './GlobalStyle'
 import { Sidebar } from './components/Sidebar'
 import type { ViewId } from './components/Sidebar'
 import { WorkflowView } from './components/WorkflowView'
+import { RenameView } from './components/RenameView'
 import { HistoryView } from './components/HistoryView'
 import { SettingsView } from './components/SettingsView'
 import { SyncModal } from './components/SyncModal'
@@ -45,6 +54,7 @@ const Title = styled.h1`
 const VIEW_TITLES: Record<ViewId, string> = {
   transfer: 'Transferir Legenda',
   clean: 'Limpeza',
+  rename: 'Renomeador',
   history: 'Historico',
   settings: 'Configuracoes'
 }
@@ -81,6 +91,12 @@ function AppContent() {
     tagEnabled: false,
     tagWord: 'limpo'
   })
+
+  const [renameFolder, setRenameFolder] = useState('')
+  const [renameFields, setRenameFields] = useState<RenameFields>({ prefixText: '', season: 1, suffixText: '' })
+  const [renameRows, setRenameRows] = useState<RenamePreviewRow[]>([])
+  const [renameScanning, setRenameScanning] = useState(false)
+  const [renaming, setRenaming] = useState(false)
 
   const cleanOnly = view === 'clean'
 
@@ -200,6 +216,46 @@ function AppContent() {
     } finally {
       setScanning(false)
       setAborting(false)
+    }
+  }
+
+  async function handleRenameScan() {
+    if (!renameFolder) {
+      pushLog('Selecione a pasta com os arquivos a renomear.', 'error')
+      return
+    }
+    if (!Number.isFinite(renameFields.season) || renameFields.season < 0) {
+      pushLog('Informe uma temporada valida.', 'error')
+      return
+    }
+    setRenameScanning(true)
+    try {
+      const result = await window.api.previewRename(renameFolder, renameFields)
+      setRenameRows(result)
+      const ready = result.filter((r) => r.newName).length
+      pushLog(`Pre-visualizacao gerada: ${ready}/${result.length} prontos para renomear.`, ready ? 'success' : 'warn')
+    } catch (err) {
+      pushLog(`Erro ao escanear: ${(err as Error).message}`, 'error')
+    } finally {
+      setRenameScanning(false)
+    }
+  }
+
+  async function handleRenameApply() {
+    const targets = renameRows.filter((r) => r.newName)
+    if (targets.length === 0) {
+      pushLog('Nenhum arquivo pronto para renomear.', 'error')
+      return
+    }
+    setRenaming(true)
+    try {
+      const summary = await window.api.applyRename(targets)
+      pushLog(`Renomeacao concluida: ${summary.success}/${summary.total} com sucesso.`, summary.failed ? 'warn' : 'success')
+      setRenameRows([])
+    } catch (err) {
+      pushLog(`Erro ao renomear: ${(err as Error).message}`, 'error')
+    } finally {
+      setRenaming(false)
     }
   }
 
@@ -364,6 +420,21 @@ function AppContent() {
             onApplyTrackToAll={handleApplyTrackToAll}
             onOpenSync={setSyncRowId}
             progressPct={progressPct}
+            logs={logs}
+          />
+        )}
+
+        {view === 'rename' && (
+          <RenameView
+            folder={renameFolder}
+            onFolderChange={setRenameFolder}
+            fields={renameFields}
+            onFieldsChange={setRenameFields}
+            rows={renameRows}
+            scanning={renameScanning}
+            renaming={renaming}
+            onScan={handleRenameScan}
+            onApply={handleRenameApply}
             logs={logs}
           />
         )}

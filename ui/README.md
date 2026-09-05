@@ -4,7 +4,7 @@ Janela desktop nativa em React/TypeScript. É o único front-end do projeto —
 a versão anterior em Tkinter/Python foi removida.
 
 A navegação principal é um menu lateral (`components/Sidebar.tsx`, ícones do
-[`@ant-design/icons`](https://ant.design/components/icon)) com quatro
+[`@ant-design/icons`](https://ant.design/components/icon)) com cinco
 páginas:
 
 - **Transferir Legenda** — casa episódios entre uma pasta de origem (com
@@ -12,16 +12,21 @@ páginas:
 - **Limpeza** — não transfere nada; escaneia só uma pasta e permite
   manter apenas uma faixa de legenda (removendo as demais) e/ou remover a
   dublagem em inglês de cada arquivo.
+- **Renomeador** — renomeia em lote os vídeos de uma pasta a partir de 3
+  campos (texto inicial, temporada, texto final; o episódio é detectado por
+  arquivo), pra trocar rapidamente o padrão de nome de uma leva de arquivos
+  sem editar um por um.
 - **Histórico** — todas as transferências/limpezas já feitas, persistidas em
   `transfer-log.json` (sobrevive a reinícios do app).
-- **Configurações** — hoje só o status/localização do MKVToolNix; é o lugar
-  certo pra qualquer preferência global futura (as opções atuais, tipo
+- **Configurações** — status/localização do MKVToolNix e como o app nomeia
+  o arquivo de saída (assinatura da fansub + marcação livre, por modo); é o
+  lugar certo pra qualquer preferência global futura (as opções atuais, tipo
   remover áudio, são por operação e ficam nas páginas de Transferir/Limpar).
 
 Trocar entre Transferir Legenda e Limpeza limpa a lista escaneada
-(para evitar rodar uma ação com dados da tela anterior) e fica bloqueado
-durante um escaneamento/transferência em andamento; Histórico e
-Configurações navegam livremente a qualquer momento.
+(para evitar rodar uma ação com dados da tela anterior) e o menu inteiro fica
+bloqueado durante um escaneamento/transferência/limpeza em andamento;
+Renomeador, Histórico e Configurações navegam livremente fora disso.
 
 A lógica de negócio roda inteira no processo principal do Electron (Node.js),
 separada em duas camadas:
@@ -38,15 +43,23 @@ separada em duas camadas:
   - `subtitleTiming.ts` — converte texto `MM:SS,mmm` em milissegundos,
     encontra o instante da primeira legenda num arquivo `.ass`/`.ssa`/`.srt`
     e parseia todas as falas (`parseSubtitleEvents`) para a tela de sync.
+  - `renamePattern.ts` — gera o novo nome de um arquivo a partir dos 3
+    campos do Renomeador (texto inicial/temporada/texto final), usando
+    `episodeMatcher.findEpisode` pra descobrir o episódio.
 - `src/main/infra/` — tudo que toca o mundo exterior: localizar o
   MKVToolNix, listar arquivos de vídeo, chamar `mkvmerge`/`mkvextract`
   (`mkvProcess.ts`), persistir a configuração (`configStore.ts`), gravar o
-  log de transferências (`transferLog.ts`) e permitir abortar uma operação
-  em andamento matando o processo atual (`cancellation.ts`).
+  log de transferências (`transferLog.ts`), renomear um arquivo no disco
+  (`fileRename.ts`) e permitir abortar uma operação em andamento matando o
+  processo atual (`cancellation.ts`).
 - `src/main/workflow.ts` — orquestra domain + infra nos casos de uso que o
   processo principal expõe via IPC: `scanFolders`/`transferRows` (modo
   Transferir), `scanForClean`/`cleanRows` (modo Limpar) e
   `prepareSync`/`getTrackEvents` (dados para o modal de sincronização).
+- `src/main/renamer.ts` — caso de uso do Renomeador: `previewRename` lista os
+  vídeos da pasta e calcula o novo nome de cada um (marcando conflito quando
+  dois arquivos gerariam o mesmo nome), `applyRename` executa a renomeação
+  linha a linha.
 - `src/main/index.ts` — a única camada que conhece Electron/IPC; registra os
   handlers e cria a janela.
 
@@ -55,12 +68,12 @@ A janela (React) só fala com o processo principal via IPC
 fica em `src/renderer/src/`, dividido por responsabilidade: `App.tsx` é só o
 orquestrador (estado + handlers, decide qual página mostrar); `theme.ts`/
 `GlobalStyle.ts` cuidam do tema; `ui/` guarda primitivas genéricas
-reaproveitáveis (`Button`, `Row`, `Chip`, `Checkbox`, `ConfirmDialog`...);
-`components/` tem um arquivo por peça de UI com estado/lógica própria —
-inclui as quatro páginas da Sidebar (`WorkflowView` usada tanto por
-Transferir quanto por Limpar, `HistoryView`, `SettingsView`) e peças menores
-(`EpisodeTable`, `SyncModal`, `LogPanel`...); `utils/` guarda funções puras
-de formatação (legenda/timing, som de conclusão).
+reaproveitáveis (`Button`, `Row`, `Chip`, `Checkbox`, `ConfirmDialog`,
+`Table`...); `components/` tem um arquivo por peça de UI com estado/lógica
+própria — inclui as cinco páginas da Sidebar (`WorkflowView` usada tanto por
+Transferir quanto por Limpar, `RenameView`, `HistoryView`, `SettingsView`) e
+peças menores (`EpisodeTable`, `SyncModal`, `LogPanel`...); `utils/` guarda
+funções puras de formatação (legenda/timing, som de conclusão).
 
 ## Rodando em desenvolvimento
 
@@ -204,6 +217,28 @@ pasta de saída é igual à de destino (ex: reprocessar um arquivo já
 assinado), o `workflow.ts` recusa a operação nesse caso (`samePath`) em vez
 de deixar o `mkvmerge` tentar ler e escrever o mesmo arquivo ao mesmo
 tempo — o que corromperia o vídeo original.
+
+## Renomeador
+
+Página separada (`components/RenameView.tsx`) pra renomear em lote os vídeos
+de uma pasta a partir de 3 campos simples — **texto inicial**, **temporada**
+e **texto final** (ex: `[DKB] Benriya Saitou-san, Isekai ni Iku` / `1` /
+`BD HEVC 1080P`). Fluxo igual ao das outras páginas (escanear → tabela de
+pré-visualização → aplicar):
+
+- O episódio é detectado automaticamente em cada arquivo via
+  `episodeMatcher.findEpisode`; a temporada informada vale pra pasta inteira
+  (não é detectada por arquivo). Nome final:
+  `{texto inicial} - S{temporada}E{episódio} - {texto final}` (partes vazias
+  são omitidas), com os números sempre em 2 dígitos (`01`, `11`...).
+- Arquivo sem episódio detectável no nome original é marcado como "não
+  detectado" e fica de fora da renomeação (não trava a pasta inteira).
+- Dois arquivos que gerariam o mesmo novo nome são marcados como conflito em
+  vez de aplicados (renomear ambos pro mesmo nome perderia um dos dois).
+- A extensão do arquivo original (`.mkv`, `.ass`...) é sempre preservada; só
+  a base do nome muda.
+- Só considera vídeos (`infra/videoFiles.ts`, mesmo filtro usado pelo resto
+  do app) — não mexe em legendas/outros arquivos soltos na pasta.
 
 ## Log de transferências
 
