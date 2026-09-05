@@ -35,7 +35,13 @@ export interface EpisodeRow {
 export interface ScanResult {
   rows: EpisodeRow[]
   warnings: string[]
+  // Episodios encontrados na origem sem par correspondente no destino (nao
+  // "nao identifiquei episodio" - esses ja entram em warnings - mas "achei o
+  // episodio, so nao tem arquivo do outro lado com o mesmo numero").
   unmatchedSource: string[]
+  // true quando o usuario clicou "Abortar" antes de escanear todos os
+  // arquivos - rows/warnings/unmatchedSource refletem so o que rodou.
+  aborted: boolean
 }
 
 export type RowStatus = 'idle' | 'extracting' | 'muxing' | 'done' | 'error'
@@ -78,6 +84,9 @@ export interface TransferSummary {
   total: number
   success: number
   failed: number
+  // true quando o usuario clicou "Abortar" antes de processar todas as
+  // linhas - "total" continua sendo a selecao original, nao so o que rodou.
+  aborted: boolean
 }
 
 // Uma linha de legenda ja parseada (timestamp + texto limpo), usada pela

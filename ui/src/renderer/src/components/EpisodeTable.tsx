@@ -1,5 +1,5 @@
 import styled from 'styled-components'
-import { ClockCircleFilled, SyncOutlined } from '@ant-design/icons'
+import { ClockCircleFilled, CopyOutlined, SyncOutlined } from '@ant-design/icons'
 import type { EpisodeRow, RowStatus } from '@shared/types'
 import { Button, Row } from '../ui/primitives'
 import { Checkbox } from '../ui/Checkbox'
@@ -101,7 +101,8 @@ export function EpisodeTable({
   onToggleSelect,
   onToggleSelectAll,
   onTrackChange,
-  onOpenSync
+  onOpenSync,
+  onApplyTrackToAll
 }: {
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
@@ -111,6 +112,7 @@ export function EpisodeTable({
   onToggleSelectAll: () => void
   onTrackChange: (rowId: string, trackId: number | null) => void
   onOpenSync: (rowId: string) => void
+  onApplyTrackToAll?: () => void
 }) {
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
 
@@ -124,7 +126,22 @@ export function EpisodeTable({
             </th>
             <th style={{ width: 90 }}>Episodio</th>
             {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
-            <th>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</th>
+            <th>
+              <Row $gap={8} style={{ alignItems: 'center' }}>
+                <span>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</span>
+                {cleanOnly && rows.length > 1 && onApplyTrackToAll && (
+                  <Button
+                    type="button"
+                    $variant="ghost"
+                    onClick={onApplyTrackToAll}
+                    title="Aplica a faixa selecionada na 1a linha para todas as outras (so onde ela existir)"
+                    style={{ textTransform: 'none', fontWeight: 400, padding: '2px 8px' }}
+                  >
+                    <CopyOutlined /> Aplicar a todos
+                  </Button>
+                )}
+              </Row>
+            </th>
             {!cleanOnly && <th>Arquivo destino</th>}
             {!cleanOnly && <th style={{ width: 150 }}>Sincronizacao</th>}
             <th style={{ width: 110 }}>Status</th>

@@ -3,6 +3,7 @@ import { join } from 'path'
 import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
 import { loadTransferLog } from './infra/transferLog'
+import { CancellationToken } from './infra/cancellation'
 import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, transferRows } from './workflow'
 import type { AppConfig, MkvToolsStatus, TransferRequest } from '@shared/types'
 
@@ -11,6 +12,9 @@ const WINDOW_WIDTH = 1600
 const WINDOW_HEIGHT = 1000
 
 let mainWindow: BrowserWindow | null = null
+// So uma transferencia/limpeza roda por vez (o botao fica desabilitado
+// enquanto isso) - guarda o token da operacao atual pro botao "Abortar".
+let activeToken: CancellationToken | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -94,9 +98,22 @@ app.whenReady().then(() => {
     if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
       throw new Error('MKVToolNix nao localizado.')
     }
-    return scanFolders(status.mkvmergePath, status.mkvextractPath, sourceDir, destDir, (log) => {
-      mainWindow?.webContents.send('log', log)
-    })
+    const token = new CancellationToken()
+    activeToken = token
+    try {
+      return await scanFolders(
+        status.mkvmergePath,
+        status.mkvextractPath,
+        sourceDir,
+        destDir,
+        (log) => {
+          mainWindow?.webContents.send('log', log)
+        },
+        token
+      )
+    } finally {
+      if (activeToken === token) activeToken = null
+    }
   })
 
   ipcMain.handle('scan:clean', async (_e, { folder }: { folder: string }) => {
@@ -104,9 +121,20 @@ app.whenReady().then(() => {
     if (!status.found || !status.mkvmergePath) {
       throw new Error('MKVToolNix nao localizado.')
     }
-    return scanForClean(status.mkvmergePath, folder, (log) => {
-      mainWindow?.webContents.send('log', log)
-    })
+    const token = new CancellationToken()
+    activeToken = token
+    try {
+      return await scanForClean(
+        status.mkvmergePath,
+        folder,
+        (log) => {
+          mainWindow?.webContents.send('log', log)
+        },
+        token
+      )
+    } finally {
+      if (activeToken === token) activeToken = null
+    }
   })
 
   ipcMain.handle('transfer:run', async (_e, request: TransferRequest) => {
@@ -114,20 +142,31 @@ app.whenReady().then(() => {
     if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
       throw new Error('MKVToolNix nao localizado.')
     }
-    return transferRows(
-      status.mkvmergePath,
-      status.mkvextractPath,
-      request.rows,
-      request.outputDir,
-      request.removeEnglishAudio,
-      request.removeExtraSubtitles,
-      (rowId, statusValue, message) => {
-        mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
-      },
-      (log) => {
-        mainWindow?.webContents.send('log', log)
-      }
-    )
+    const token = new CancellationToken()
+    activeToken = token
+    try {
+      return await transferRows(
+        status.mkvmergePath,
+        status.mkvextractPath,
+        request.rows,
+        request.outputDir,
+        request.removeEnglishAudio,
+        request.removeExtraSubtitles,
+        (rowId, statusValue, message) => {
+          mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
+        },
+        (log) => {
+          mainWindow?.webContents.send('log', log)
+        },
+        token
+      )
+    } finally {
+      if (activeToken === token) activeToken = null
+    }
+  })
+
+  ipcMain.handle('operation:abort', () => {
+    activeToken?.abort()
   })
 
   ipcMain.handle(
@@ -159,18 +198,25 @@ app.whenReady().then(() => {
     if (!status.found || !status.mkvmergePath) {
       throw new Error('MKVToolNix nao localizado.')
     }
-    return cleanRows(
-      status.mkvmergePath,
-      request.rows,
-      request.outputDir,
-      request.removeEnglishAudio,
-      (rowId, statusValue, message) => {
-        mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
-      },
-      (log) => {
-        mainWindow?.webContents.send('log', log)
-      }
-    )
+    const token = new CancellationToken()
+    activeToken = token
+    try {
+      return await cleanRows(
+        status.mkvmergePath,
+        request.rows,
+        request.outputDir,
+        request.removeEnglishAudio,
+        (rowId, statusValue, message) => {
+          mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
+        },
+        (log) => {
+          mainWindow?.webContents.send('log', log)
+        },
+        token
+      )
+    } finally {
+      if (activeToken === token) activeToken = null
+    }
   })
 
   createWindow()

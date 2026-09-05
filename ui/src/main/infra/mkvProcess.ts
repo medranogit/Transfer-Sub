@@ -3,9 +3,11 @@
 // faixa encontrada (isAss / isPtBr).
 import { join, parse } from 'path'
 import { execFile } from 'child_process'
+import type { ChildProcess } from 'child_process'
 import { promisify } from 'util'
 import type { SubtitleTrack } from '@shared/types'
 import { isPtBrTrack } from '../domain/subtitleLanguage'
+import { CancellationToken, OperationAbortedError } from './cancellation'
 
 const execFileAsync = promisify(execFile)
 
@@ -14,18 +16,42 @@ const execFileAsync = promisify(execFile)
 // (crash, falta de memoria, antivirus interferindo) o Node nao preenche
 // `code` (fica undefined) - sem tratar esse caso como falha, o app registrava
 // "concluido" mesmo sem gerar o arquivo de saida.
-async function runMkvTool(execPath: string, args: string[]): Promise<void> {
-  try {
-    await execFileAsync(execPath, args, { maxBuffer: 32 * 1024 * 1024 })
-  } catch (err) {
-    const execErr = err as { code?: number; signal?: string; stderr?: string; stdout?: string }
-    if (execErr.code === 1) return
-    throw new Error(
-      execErr.signal
-        ? `processo encerrado inesperadamente (sinal ${execErr.signal})`
-        : execErr.stderr?.trim() || execErr.stdout?.trim() || 'mkvmerge falhou'
+//
+// Usa execFile "cru" (nao a versao promisificada) pra ter acesso ao
+// ChildProcess assim que ele e criado - e o que permite o botao "Abortar"
+// matar o mkvmerge/mkvextract em andamento (via CancellationToken).
+async function runMkvTool(execPath: string, args: string[], token?: CancellationToken): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child: ChildProcess = execFile(
+      execPath,
+      args,
+      { maxBuffer: 32 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        token?.untrackProcess(child)
+        if (!err) {
+          resolve()
+          return
+        }
+        if (token?.aborted) {
+          reject(new OperationAbortedError())
+          return
+        }
+        const execErr = err as unknown as { code?: number; signal?: string }
+        if (execErr.code === 1) {
+          resolve()
+          return
+        }
+        reject(
+          new Error(
+            execErr.signal
+              ? `processo encerrado inesperadamente (sinal ${execErr.signal})`
+              : stderr?.trim() || stdout?.trim() || 'mkvmerge falhou'
+          )
+        )
+      }
     )
-  }
+    token?.trackProcess(child)
+  })
 }
 
 const ASS_CODEC_IDS = new Set(['S_TEXT/ASS', 'S_TEXT/SSA'])
@@ -161,7 +187,8 @@ export async function muxSubtitleInto(
   keepAudioTrackIds?: number[],
   clearDefaultSubtitleTrackIds?: number[],
   attachments?: ExtractedAttachment[],
-  removeExtraSubtitles = false
+  removeExtraSubtitles = false,
+  token?: CancellationToken
 ): Promise<void> {
   const args = ['-o', outputFile]
   if (keepAudioTrackIds) {
@@ -198,16 +225,21 @@ export async function muxSubtitleInto(
   }
   args.push(subtitleFile)
 
-  await runMkvTool(mkvmergePath, args)
+  await runMkvTool(mkvmergePath, args, token)
 }
 
 // A fansub original quase sempre marca o nome com "[Tag]" no inicio (ex:
-// "[Judas] Nome do episodio"). Em vez de so acrescentar um sufixo
-// " [legendado]", assina ao lado da tag original (ex: "[TS - Judas] Nome do
-// episodio"), igual como fansubs costumam colaborar entre si.
+// "[Judas] Nome do episodio"). Em vez de acrescentar um sufixo tipo
+// " [legendado]"/" [limpo]", assina ao lado da tag original (ex: "[TS -
+// Judas] Nome do episodio"), igual como fansubs costumam colaborar entre si -
+// usado tanto no modo Transferir quanto no Limpar.
 const FANSUB_TAG = /^\[([^\]]+)\]/
+// Ja assinado (ex: rodando Limpar sobre um arquivo que o proprio app gerou
+// antes) - nao assina de novo, senao vira "[TS - TS - Tag]".
+const ALREADY_SIGNED = /^\[TS(?:\s*-\s*[^\]]+)?\]/
 
 function withTransferSubSignature(name: string): string {
+  if (ALREADY_SIGNED.test(name)) return name
   return FANSUB_TAG.test(name) ? name.replace(FANSUB_TAG, '[TS - $1]') : `[TS] ${name}`
 }
 
@@ -227,7 +259,8 @@ export async function cleanTracksInto(
   sourceFile: string,
   outputFile: string,
   keepSubtitleTrackId: number | null,
-  keepAudioTrackIds?: number[]
+  keepAudioTrackIds?: number[],
+  token?: CancellationToken
 ): Promise<void> {
   const args = ['-o', outputFile]
   if (keepAudioTrackIds) {
@@ -239,12 +272,12 @@ export async function cleanTracksInto(
   }
   args.push(sourceFile)
 
-  await runMkvTool(mkvmergePath, args)
+  await runMkvTool(mkvmergePath, args, token)
 }
 
-// Mesmo esquema de nome fixo (sobrescreve por nome) do resolveOutputPath,
-// mas com sufixo proprio para nao colidir com o modo transferencia.
+// Mesmo esquema de nome fixo (sobrescreve por nome) e mesma assinatura do
+// resolveOutputPath - ver withTransferSubSignature.
 export function resolveCleanOutputPath(sourceFile: string, outputFolder: string): string {
-  const base = parse(sourceFile).name + ' [limpo]'
+  const base = withTransferSubSignature(parse(sourceFile).name)
   return join(outputFolder, `${base}.mkv`)
 }

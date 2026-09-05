@@ -66,7 +66,7 @@ export const buttonBase = css`
   }
 `
 
-export const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'ghost' }>`
+export const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'ghost' | 'danger' }>`
   ${buttonBase}
   ${(p) =>
     p.$variant === 'primary' &&
@@ -89,6 +89,13 @@ export const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'ghos
       color: ${p.theme.colors.textMuted};
       padding: 6px 12px;
       font-weight: 500;
+    `}
+  ${(p) =>
+    p.$variant === 'danger' &&
+    css`
+      background: color-mix(in srgb, ${p.theme.colors.danger} 16%, transparent);
+      border-color: ${p.theme.colors.danger};
+      color: ${p.theme.colors.danger};
     `}
 `
 

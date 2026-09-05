@@ -33,6 +33,8 @@ const api = {
 
   clean: (request: TransferRequest): Promise<TransferSummary> => ipcRenderer.invoke('clean:run', request),
 
+  abortOperation: (): Promise<void> => ipcRenderer.invoke('operation:abort'),
+
   prepareSync: (sourcePath: string, sourceTrackId: number, destPath: string): Promise<SyncPrepareResult> =>
     ipcRenderer.invoke('sync:prepare', { sourcePath, sourceTrackId, destPath }),
 

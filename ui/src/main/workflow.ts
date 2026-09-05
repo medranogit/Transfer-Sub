@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { mkdtemp, readFile, rm } from 'fs/promises'
-import { join, basename } from 'path'
+import { join, basename, resolve } from 'path'
 import { episodeKey, findEpisode } from './domain/episodeMatcher'
 import {
   guessPtBrFromContent,
@@ -31,6 +31,7 @@ import {
   subtitleExtension
 } from './infra/mkvProcess'
 import { appendTransferLog } from './infra/transferLog'
+import { CancellationToken, OperationAbortedError } from './infra/cancellation'
 import type {
   EpisodeRow,
   LogEvent,
@@ -43,6 +44,16 @@ import type {
 } from '@shared/types'
 
 type LogFn = (event: LogEvent) => void
+
+// mkvmerge nao suporta ler e escrever no mesmo arquivo ao mesmo tempo -
+// com a assinatura "[TS - Tag]" sendo idempotente (nao assina de novo se o
+// arquivo ja foi processado antes), rodar a mesma operacao 2x sem trocar a
+// pasta de saida faria o output bater com o proprio arquivo de entrada.
+// Comparacao normalizada (resolve + minusculo) pois no Windows o path nao
+// diferencia maiusculas/minusculas.
+function samePath(a: string, b: string): boolean {
+  return resolve(a).toLowerCase() === resolve(b).toLowerCase()
+}
 
 // Quando nenhuma faixa foi reconhecida como PT-BR por idioma/nome, tenta
 // como ultimo recurso extrair cada faixa e olhar o proprio texto - fansubs
@@ -84,7 +95,8 @@ export async function scanFolders(
   mkvextractPath: string,
   sourceDir: string,
   destDir: string,
-  onLog: LogFn
+  onLog: LogFn,
+  token?: CancellationToken
 ): Promise<ScanResult> {
   const sourceFiles = listVideoFiles(sourceDir)
   const destFiles = listVideoFiles(destDir)
@@ -137,6 +149,8 @@ export async function scanFolders(
   const matchedSourceFiles = new Set<string>()
 
   for (const episode of episodes) {
+    if (token?.aborted) break
+
     const pair = pickPair(sourceByEpisode.get(episode)!, destByEpisode.get(episode)!)
     if (!pair) continue
     const [source, dest] = pair
@@ -182,9 +196,15 @@ export async function scanFolders(
     .filter((c) => !matchedSourceFiles.has(c.file))
     .map((c) => basename(c.file))
 
-  onLog({ level: 'info', message: `Encontrados ${rows.length} episodios casados.` })
+  const aborted = token?.aborted ?? false
+  onLog({
+    level: 'info',
+    message: aborted
+      ? `Escaneamento abortado: ${rows.length} episodios casados antes de parar.`
+      : `Encontrados ${rows.length} episodios casados.`
+  })
 
-  return { rows, warnings, unmatchedSource }
+  return { rows, warnings, unmatchedSource, aborted }
 }
 
 // Modo "apenas limpar": nao ha par origem/destino, cada arquivo da pasta
@@ -192,12 +212,19 @@ export async function scanFolders(
 // legenda usa as proprias faixas do arquivo; selectedTrackId comeca em
 // null (mantem todas as legendas) - o usuario escolhe manualmente qual
 // faixa manter quando quiser remover as demais.
-export async function scanForClean(mkvmergePath: string, folder: string, onLog: LogFn): Promise<ScanResult> {
+export async function scanForClean(
+  mkvmergePath: string,
+  folder: string,
+  onLog: LogFn,
+  token?: CancellationToken
+): Promise<ScanResult> {
   const files = listVideoFiles(folder)
   const rows: EpisodeRow[] = []
   const warnings: string[] = []
 
   for (const file of files) {
+    if (token?.aborted) break
+
     let tracks: SubtitleTrack[]
     try {
       tracks = await probeSubtitleTracks(mkvmergePath, file)
@@ -223,9 +250,15 @@ export async function scanForClean(mkvmergePath: string, folder: string, onLog: 
     })
   }
 
-  onLog({ level: 'info', message: `Encontrados ${rows.length} arquivos na pasta.` })
+  const aborted = token?.aborted ?? false
+  onLog({
+    level: 'info',
+    message: aborted
+      ? `Escaneamento abortado: ${rows.length} arquivos lidos antes de parar.`
+      : `Encontrados ${rows.length} arquivos na pasta.`
+  })
 
-  return { rows, warnings, unmatchedSource: [] }
+  return { rows, warnings, unmatchedSource: [], aborted }
 }
 
 // Se removeEnglishAudio estiver ligado, devolve a lista de IDs de faixas de
@@ -336,12 +369,15 @@ export async function transferRows(
   removeEnglishAudio: boolean,
   removeExtraSubtitles: boolean,
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
-  onLog: LogFn
+  onLog: LogFn,
+  token?: CancellationToken
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
 
   for (const row of rows) {
+    if (token?.aborted) break
+
     const track = row.tracks.find((t) => t.trackId === row.selectedTrackId)
     if (!track) {
       onProgress(row.id, 'error', 'Nenhuma faixa selecionada')
@@ -354,6 +390,16 @@ export async function transferRows(
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-'))
     const outputFile = resolveOutputPath(row.destPath, outputDir)
+    if (samePath(outputFile, row.destPath)) {
+      failed += 1
+      onProgress(row.id, 'error', 'Pasta de saida igual a de destino geraria o mesmo nome de arquivo')
+      onLog({
+        level: 'error',
+        message: `[${row.episodeKey}] pasta de saida resultaria no mesmo arquivo do destino (${basename(outputFile)}) - escolha uma pasta de saida diferente`
+      })
+      await rm(tmpDir, { recursive: true, force: true })
+      continue
+    }
     try {
       const extension = subtitleExtension(track.codecId)
       const subPath = join(tmpDir, `sub${extension}`)
@@ -420,7 +466,8 @@ export async function transferRows(
         keepAudioTrackIds,
         destSubtitleTrackIds,
         attachments,
-        removeExtraSubtitles
+        removeExtraSubtitles,
+        token
       )
 
       onProgress(row.id, 'done')
@@ -440,6 +487,15 @@ export async function transferRows(
         status: 'done'
       })
     } catch (err) {
+      if (err instanceof OperationAbortedError) {
+        // Mata o arquivo de saida parcial (mkvmerge morto no meio da escrita
+        // deixa um .mkv truncado/invalido) - melhor esforco, sem travar o
+        // abort se a exclusao falhar por qualquer motivo.
+        await rm(outputFile, { force: true }).catch(() => {})
+        onProgress(row.id, 'idle')
+        onLog({ level: 'warn', message: `[${row.episodeKey}] abortado pelo usuario` })
+        break
+      }
       failed += 1
       const message = (err as Error).message
       onProgress(row.id, 'error', message)
@@ -463,13 +519,16 @@ export async function transferRows(
     }
   }
 
+  const aborted = token?.aborted ?? false
   const total = rows.length
   onLog({
-    level: failed ? 'warn' : 'success',
-    message: `Transferencia concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+    level: aborted ? 'warn' : failed ? 'warn' : 'success',
+    message: aborted
+      ? `Transferencia abortada: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
+      : `Transferencia concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 
-  return { total, success, failed }
+  return { total, success, failed, aborted }
 }
 
 // Modo "apenas limpar": remuxa cada arquivo (row.destPath) filtrando faixas -
@@ -481,13 +540,25 @@ export async function cleanRows(
   outputDir: string,
   removeEnglishAudio: boolean,
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
-  onLog: LogFn
+  onLog: LogFn,
+  token?: CancellationToken
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
 
   for (const row of rows) {
+    if (token?.aborted) break
+
     const outputFile = resolveCleanOutputPath(row.destPath, outputDir)
+    if (samePath(outputFile, row.destPath)) {
+      failed += 1
+      onProgress(row.id, 'error', 'Pasta de saida igual a de destino geraria o mesmo nome de arquivo')
+      onLog({
+        level: 'error',
+        message: `[${row.episodeKey}] pasta de saida resultaria no mesmo arquivo do destino (${basename(outputFile)}) - escolha uma pasta de saida diferente`
+      })
+      continue
+    }
     onProgress(row.id, 'muxing')
 
     try {
@@ -508,7 +579,7 @@ export async function cleanRows(
         message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}`
       })
 
-      await cleanTracksInto(mkvmergePath, row.destPath, outputFile, row.selectedTrackId, keepAudioTrackIds)
+      await cleanTracksInto(mkvmergePath, row.destPath, outputFile, row.selectedTrackId, keepAudioTrackIds, token)
 
       onProgress(row.id, 'done')
       success += 1
@@ -527,6 +598,12 @@ export async function cleanRows(
         status: 'done'
       })
     } catch (err) {
+      if (err instanceof OperationAbortedError) {
+        await rm(outputFile, { force: true }).catch(() => {})
+        onProgress(row.id, 'idle')
+        onLog({ level: 'warn', message: `[${row.episodeKey}] abortado pelo usuario` })
+        break
+      }
       failed += 1
       const message = (err as Error).message
       onProgress(row.id, 'error', message)
@@ -548,13 +625,16 @@ export async function cleanRows(
     }
   }
 
+  const aborted = token?.aborted ?? false
   const total = rows.length
   onLog({
-    level: failed ? 'warn' : 'success',
-    message: `Limpeza concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+    level: aborted ? 'warn' : failed ? 'warn' : 'success',
+    message: aborted
+      ? `Limpeza abortada: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
+      : `Limpeza concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 
-  return { total, success, failed }
+  return { total, success, failed, aborted }
 }
 
 // Extrai uma faixa de legenda e devolve suas falas ja parseadas (timestamp +

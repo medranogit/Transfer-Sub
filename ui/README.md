@@ -18,7 +18,12 @@ A lógica de negócio roda inteira no processo principal do Electron (Node.js),
 separada em duas camadas:
 
 - `src/main/domain/` — regras puras, sem I/O:
-  - `episodeMatcher.ts` — identifica episódio pelo nome do arquivo.
+  - `episodeMatcher.ts` — identifica episódio pelo nome do arquivo. Casa
+    origem/destino pelo **número do episódio**; a temporada só desempata
+    quando há mais de um arquivo com o mesmo número de um lado (pasta com
+    temporadas misturadas) — releases de fansub raramente incluem a
+    temporada no nome, então exigir que os dois lados concordassem nisso
+    deixava de casar episódios legítimos.
   - `subtitleLanguage.ts` — reconhece/prioriza legenda PT-BR.
   - `audioLanguage.ts` — reconhece faixas de áudio em inglês.
   - `subtitleTiming.ts` — converte texto `MM:SS,mmm` em milissegundos,
@@ -26,8 +31,9 @@ separada em duas camadas:
     e parseia todas as falas (`parseSubtitleEvents`) para a tela de sync.
 - `src/main/infra/` — tudo que toca o mundo exterior: localizar o
   MKVToolNix, listar arquivos de vídeo, chamar `mkvmerge`/`mkvextract`
-  (`mkvProcess.ts`), persistir a configuração (`configStore.ts`) e gravar o
-  log de transferências (`transferLog.ts`).
+  (`mkvProcess.ts`), persistir a configuração (`configStore.ts`), gravar o
+  log de transferências (`transferLog.ts`) e permitir abortar uma operação
+  em andamento matando o processo atual (`cancellation.ts`).
 - `src/main/workflow.ts` — orquestra domain + infra nos casos de uso que o
   processo principal expõe via IPC: `scanFolders`/`transferRows` (modo
   Transferir), `scanForClean`/`cleanRows` (modo Limpar) e
@@ -151,18 +157,34 @@ se mais opções forem adicionadas no futuro.
   Transferir) — remove as legendas que já existiam no arquivo de destino no
   resultado final, mantendo apenas a faixa transferida.
 
+## Abortar uma transferência/limpeza em andamento
+
+O botão **Abortar** aparece ao lado de "Transferir/Limpar selecionados"
+enquanto uma operação roda. Ele mata o processo `mkvmerge` do episódio atual
+na hora (`infra/cancellation.ts`) e para de processar os episódios
+restantes; o arquivo de saída parcial (truncado pela morte do processo) é
+apagado automaticamente. Os episódios já concluídos antes do abort
+permanecem intactos.
+
 ## Não sobrescreve com duplicados
 
 O nome do arquivo de saída é fixo por episódio/arquivo, então rodar de novo
 sobre o mesmo arquivo sobrescreve o resultado anterior em vez de criar `(1)`,
 `(2)` etc. — a identificação é só pelo nome do arquivo de origem.
 
-- **Modo Transferir**: assina ao lado da tag da fansub original, em vez de
-  só acrescentar um sufixo — `[Judas] Nome do episodio.mkv` vira
-  `[TS - Judas] Nome do episodio.mkv` (`resolveOutputPath` em
-  `infra/mkvProcess.ts`). Sem tag reconhecida no nome original, usa
-  `[TS] Nome do episodio.mkv`.
-- **Modo Limpar**: mantém o sufixo `Nome [limpo].mkv`.
+Nos dois modos (Transferir e Limpar), em vez de acrescentar um sufixo tipo
+`[legendado]`/`[limpo]`, o app assina ao lado da tag da fansub original —
+`[Judas] Nome do episodio.mkv` vira `[TS - Judas] Nome do episodio.mkv`
+(`withTransferSubSignature`/`resolveOutputPath`/`resolveCleanOutputPath` em
+`infra/mkvProcess.ts`). Sem tag reconhecida no nome original, usa
+`[TS] Nome do episodio.mkv`. Se o arquivo já tiver sido processado antes (já
+começa com `[TS...]`), a assinatura não é duplicada.
+
+Como a saída pode acabar com o mesmo nome do arquivo de entrada quando a
+pasta de saída é igual à de destino (ex: reprocessar um arquivo já
+assinado), o `workflow.ts` recusa a operação nesse caso (`samePath`) em vez
+de deixar o `mkvmerge` tentar ler e escrever o mesmo arquivo ao mesmo
+tempo — o que corromperia o vídeo original.
 
 ## Log de transferências
 

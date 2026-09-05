@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
-import { CheckOutlined, HistoryOutlined } from '@ant-design/icons'
+import { CheckOutlined, HistoryOutlined, StopOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus } from '@shared/types'
 import { theme } from './theme'
 import { GlobalStyle } from './GlobalStyle'
@@ -12,6 +12,7 @@ import { ModeToggle } from './components/ModeToggle'
 import { EpisodeTable } from './components/EpisodeTable'
 import { SyncModal } from './components/SyncModal'
 import { HistoryModal } from './components/HistoryModal'
+import { NotificationsMenu } from './components/NotificationsMenu'
 import { playCompletionSound } from './utils/completionSound'
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ const Shell = styled.div`
 
 const Header = styled.header`
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
 `
 
@@ -82,9 +83,12 @@ function AppContent() {
   const [statuses, setStatuses] = useState<Record<string, RowStatus>>({})
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [logs, setLogs] = useState<LogEvent[]>([])
+  const [scanWarnings, setScanWarnings] = useState<string[]>([])
+  const [unmatchedSource, setUnmatchedSource] = useState<string[]>([])
 
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
+  const [aborting, setAborting] = useState(false)
   const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
   const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
   const [cleanOnly, setCleanOnly] = useState(false)
@@ -160,21 +164,40 @@ function AppContent() {
     setRows([])
     setStatuses({})
     setSelectedIds(new Set())
+    setScanWarnings([])
+    setUnmatchedSource([])
     try {
       const result = cleanOnly ? await window.api.scanClean(destDir) : await window.api.scan(sourceDir, destDir)
       setRows(result.rows)
       setSelectedIds(new Set(result.rows.map((r) => r.id)))
       setStatuses(Object.fromEntries(result.rows.map((r) => [r.id, 'idle' as RowStatus])))
+      setScanWarnings(result.warnings)
+      setUnmatchedSource(result.unmatchedSource)
       result.warnings.forEach((w) => pushLog(w, 'warn'))
+      if (result.aborted) pushLog('Escaneamento abortado antes de terminar.', 'warn')
     } catch (err) {
       pushLog(`Erro ao escanear: ${(err as Error).message}`, 'error')
     } finally {
       setScanning(false)
+      setAborting(false)
     }
   }
 
   function handleTrackChange(rowId: string, trackId: number | null) {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, selectedTrackId: trackId } : r)))
+  }
+
+  // So no modo Limpar: copia a faixa escolhida na 1a linha pras demais, pra
+  // evitar selecionar a mesma faixa manualmente episodio por episodio
+  // quando todos vem do mesmo release (mesma estrutura de faixas).
+  function handleApplyTrackToAll() {
+    const template = rows[0]?.selectedTrackId ?? null
+    setRows((prev) =>
+      prev.map((r) => {
+        if (template === null) return { ...r, selectedTrackId: null }
+        return r.tracks.some((t) => t.trackId === template) ? { ...r, selectedTrackId: template } : r
+      })
+    )
   }
 
   function handleFirstLineTargetChange(rowId: string, firstLineTargetText: string) {
@@ -254,13 +277,24 @@ function AppContent() {
         removeExtraSubtitles: !cleanOnly && removeExtraSubtitles
       }
       const summary = cleanOnly ? await window.api.clean(request) : await window.api.transfer(request)
-      pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`, summary.failed ? 'warn' : 'success')
+      if (summary.aborted) {
+        pushLog(`Abortado: ${summary.success}/${summary.total} processados antes de parar.`, 'warn')
+      } else {
+        pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`, summary.failed ? 'warn' : 'success')
+      }
     } catch (err) {
       pushLog(`Erro: ${(err as Error).message}`, 'error')
     } finally {
       setTransferring(false)
+      setAborting(false)
       playCompletionSound()
     }
+  }
+
+  function handleAbort() {
+    setAborting(true)
+    window.api.abortOperation()
+    pushLog('Abortando... interrompendo o episodio atual e cancelando os restantes.', 'warn')
   }
 
   const progressPct = useMemo(() => {
@@ -275,8 +309,8 @@ function AppContent() {
   return (
     <Shell>
       <Header>
-        <Title>Transfer Sub</Title>
         <Row $gap={14}>
+          <Title>Transfer Sub</Title>
           <Button type="button" $variant="ghost" onClick={() => setShowHistory(true)}>
             <HistoryOutlined /> Historico
           </Button>
@@ -284,6 +318,7 @@ function AppContent() {
             {mkvStatus.found ? `MKVToolNix: ${mkvStatus.mkvmergePath}` : 'MKVToolNix nao localizado'}
           </MkvStatusText>
         </Row>
+        <NotificationsMenu warnings={scanWarnings} unmatchedSource={unmatchedSource} />
       </Header>
 
       <ConfigPanel>
@@ -336,6 +371,11 @@ function AppContent() {
                   ? 'Limpar selecionados'
                   : 'Transferir selecionados'}
             </Button>
+            {(transferring || scanning) && (
+              <Button type="button" $variant="danger" onClick={handleAbort} disabled={aborting}>
+                <StopOutlined /> {aborting ? 'Abortando...' : 'Abortar'}
+              </Button>
+            )}
           </Row>
           <Row $gap={8}>
             <Button $variant="ghost" onClick={handleChooseMkvDir}>
@@ -363,6 +403,7 @@ function AppContent() {
           onToggleSelectAll={handleToggleSelectAll}
           onTrackChange={handleTrackChange}
           onOpenSync={setSyncRowId}
+          onApplyTrackToAll={handleApplyTrackToAll}
         />
       </Col>
 
