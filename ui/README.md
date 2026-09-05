@@ -266,7 +266,14 @@ adição do deslocamento manual/Sincronizar. A página **Histórico** da Sidebar
 página) e tem um botão **Apagar histórico** que zera o arquivo
 (`clearTransferLog` em `infra/transferLog.ts`) — com dupla confirmação
 (`ui/ConfirmDialog.tsx`, reutilizável: exige marcar uma caixinha antes de
-liberar o botão de confirmar) já que é uma ação irreversível.
+liberar o botão de confirmar) já que é uma ação irreversível. A primeira
+coluna ("Tipo") identifica qual operação gerou a entrada — Transferir
+Legenda/Limpeza/Renomeador, via `TransferLogEntry.kind` — gravado por
+`transferRows`/`cleanRows`/`renamer.ts` desde que o campo passou a existir;
+entradas antigas (sem `kind`) caem no palpite `resolveKind` (mesmo
+arquivo de origem e destino = Limpeza, senão Transferir — o Renomeador só
+existe desde que esse campo já estava presente, então não entra nesse
+palpite).
 
 ## Estrutura
 

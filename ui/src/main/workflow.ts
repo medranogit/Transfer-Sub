@@ -477,6 +477,7 @@ export async function transferRows(
       onLog({ level: 'success', message: `[${row.episodeKey}] concluido: ${basename(outputFile)}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
+        kind: 'transfer',
         episodeKey: row.episodeKey,
         sourceFile: row.sourcePath,
         destFile: row.destPath,
@@ -504,6 +505,7 @@ export async function transferRows(
       onLog({ level: 'error', message: `[${row.episodeKey}] ERRO: ${message}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
+        kind: 'transfer',
         episodeKey: row.episodeKey,
         sourceFile: row.sourcePath,
         destFile: row.destPath,
@@ -589,6 +591,7 @@ export async function cleanRows(
       onLog({ level: 'success', message: `[${row.episodeKey}] concluido: ${basename(outputFile)}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
+        kind: 'clean',
         episodeKey: row.episodeKey,
         sourceFile: row.sourcePath,
         destFile: row.destPath,
@@ -613,6 +616,7 @@ export async function cleanRows(
       onLog({ level: 'error', message: `[${row.episodeKey}] ERRO: ${message}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
+        kind: 'clean',
         episodeKey: row.episodeKey,
         sourceFile: row.sourcePath,
         destFile: row.destPath,

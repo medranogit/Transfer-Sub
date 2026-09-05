@@ -31,6 +31,33 @@ function adjustmentLabel(entry: TransferLogEntry): string {
   return '-'
 }
 
+const KIND_LABELS: Record<NonNullable<TransferLogEntry['kind']>, string> = {
+  transfer: 'Transferir Legenda',
+  clean: 'Limpeza',
+  rename: 'Renomeador'
+}
+
+// Entradas gravadas antes do campo "kind" existir nao tem como saber se
+// eram Transferir ou Limpeza - so o Renomeador surgiu depois desse campo, e
+// so ele reusa sourceFile === destFile (mesmo esquema que Limpeza ja usava
+// pra "sem pasta de destino separada"), entao o palpite fica so entre esses
+// dois pra entradas antigas.
+function resolveKind(entry: TransferLogEntry): NonNullable<TransferLogEntry['kind']> {
+  return entry.kind ?? (entry.sourceFile === entry.destFile ? 'clean' : 'transfer')
+}
+
+const KindTag = styled.span<{ $kind: NonNullable<TransferLogEntry['kind']> }>`
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: ${(p) =>
+    ({
+      transfer: p.theme.colors.accent,
+      clean: p.theme.colors.info,
+      rename: p.theme.colors.warning
+    })[p.$kind]};
+`
+
 const Footer = styled.div`
   display: flex;
   align-items: center;
@@ -121,6 +148,7 @@ export function HistoryView() {
           <Table>
             <Thead>
               <tr>
+                <th>Tipo</th>
                 <th>Data/hora</th>
                 <th>Episodio</th>
                 <th>Faixa</th>
@@ -132,6 +160,9 @@ export function HistoryView() {
             <tbody>
               {pageEntries.map((entry, i) => (
                 <Tr key={page * PAGE_SIZE + i}>
+                  <Td>
+                    <KindTag $kind={resolveKind(entry)}>{KIND_LABELS[resolveKind(entry)]}</KindTag>
+                  </Td>
                   <Td>
                     <Mono>{formatTimestamp(entry.timestamp)}</Mono>
                   </Td>

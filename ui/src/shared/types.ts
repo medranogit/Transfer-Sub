@@ -119,10 +119,13 @@ export interface SyncPrepareResult {
   suggestedEnTrackId: number | null
 }
 
-// Uma entrada do historico persistido em transfer-log.json - cobre tanto
-// transferencias quanto limpezas, de qualquer sessao anterior do app.
+// Uma entrada do historico persistido em transfer-log.json - cobre
+// transferencias, limpezas e renomeacoes, de qualquer sessao anterior do
+// app. "kind" e opcional pra nao quebrar a leitura de entradas gravadas
+// antes desse campo existir - ver HistoryView.resolveKind pro fallback.
 export interface TransferLogEntry {
   timestamp: string
+  kind?: 'transfer' | 'clean' | 'rename'
   episodeKey: string
   sourceFile: string
   destFile: string

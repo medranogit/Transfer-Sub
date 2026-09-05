@@ -62,6 +62,7 @@ export async function applyRename(rows: RenamePreviewRow[], onLog: LogFn): Promi
       onLog({ level: 'success', message: `${row.originalName} -> ${row.newName}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
+        kind: 'rename',
         episodeKey: row.episodeKey ?? row.originalName,
         sourceFile: row.originalPath,
         destFile: row.originalPath,
@@ -79,6 +80,7 @@ export async function applyRename(rows: RenamePreviewRow[], onLog: LogFn): Promi
       onLog({ level: 'error', message: `${row.originalName}: ${message}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
+        kind: 'rename',
         episodeKey: row.episodeKey ?? row.originalName,
         sourceFile: row.originalPath,
         destFile: row.originalPath,
