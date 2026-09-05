@@ -729,13 +729,17 @@ function SyncModal({
   onClose,
   onApply,
   onFirstLineTargetChange,
-  onManualOffsetChange
+  onManualOffsetChange,
+  preferredEnTrackId,
+  onEnTrackChosen
 }: {
   row: EpisodeRow
   onClose: () => void
   onApply: (offsetMs: number) => void
   onFirstLineTargetChange: (value: string) => void
   onManualOffsetChange: (value: string) => void
+  preferredEnTrackId: number | null
+  onEnTrackChosen: (trackId: number) => void
 }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -757,9 +761,16 @@ function SyncModal({
         if (cancelled) return
         setPtEvents(result.ptEvents)
         setDestTracks(result.destTracks)
-        setEnTrackId(result.suggestedEnTrackId)
-        if (result.suggestedEnTrackId !== null) {
-          const events = await window.api.getTrackEvents(row.destPath, result.suggestedEnTrackId)
+        // Preferir a faixa em ingles escolhida manualmente num episodio anterior
+        // (mesma temporada normalmente mantem a mesma estrutura de faixas) - so
+        // cai pro palpite automatico se essa faixa nao existir neste episodio.
+        const preferred =
+          preferredEnTrackId !== null && result.destTracks.some((t) => t.trackId === preferredEnTrackId)
+            ? preferredEnTrackId
+            : result.suggestedEnTrackId
+        setEnTrackId(preferred)
+        if (preferred !== null) {
+          const events = await window.api.getTrackEvents(row.destPath, preferred)
           if (!cancelled) setEnEvents(events)
         }
       })
@@ -777,6 +788,7 @@ function SyncModal({
 
   function handleEnTrackChange(trackId: number) {
     setEnTrackId(trackId)
+    onEnTrackChosen(trackId)
     setSelectedEnIndex(null)
     setLoadingEnEvents(true)
     window.api
@@ -1102,6 +1114,7 @@ function AppContent() {
   const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
   const [cleanOnly, setCleanOnly] = useState(false)
   const [syncRowId, setSyncRowId] = useState<string | null>(null)
+  const [preferredEnTrackId, setPreferredEnTrackId] = useState<number | null>(null)
 
   useEffect(() => {
     window.api.loadConfig().then((config) => {
@@ -1404,6 +1417,8 @@ function AppContent() {
               onApply={(offsetMs) => handleApplySync(syncRow.id, offsetMs)}
               onFirstLineTargetChange={(value) => handleFirstLineTargetChange(syncRow.id, value)}
               onManualOffsetChange={(value) => handleManualOffsetChange(syncRow.id, value)}
+              preferredEnTrackId={preferredEnTrackId}
+              onEnTrackChosen={setPreferredEnTrackId}
             />
           ) : null
         })()}
