@@ -35,17 +35,29 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
   faixa.
 - 🇧🇷 **Seleção automática de PT-BR** — se uma faixa tiver código de idioma `por`/`pt`/`pt-br`/`pob`
   ou o nome contiver palavras como `portugues`, `brasil`, `brazilian`, ela já vem pré-selecionada.
-  Qualquer outra faixa continua disponível para trocar manualmente.
+  Qualquer outra faixa continua disponível para trocar manualmente. Se nenhuma faixa bater por
+  idioma/nome, o app vasculha o conteúdo de cada legenda em busca de palavras características do
+  português e sinaliza no dropdown (`⚠ pode ser PT-BR`) — útil quando o fansub rotulou a faixa com
+  o idioma errado.
+- 🖋️ **Preserva as fontes da legenda** — copia as fontes customizadas (attachments) anexadas ao
+  arquivo de origem, evitando que a legenda ASS perca a formatação por falta da fonte no destino.
+- 🏷️ **Renomeia a faixa transferida** — a legenda PT-BR transferida vira `PortuguesBr - TransferSub`
+  com idioma indeterminado (`und`), pra identificar facilmente no player sem repetir "[Português]"
+  no nome que já é autoexplicativo.
 - 🎧 **Remove dublagem em inglês** (opcional, ligado por padrão) — mantém só o áudio japonês do
   arquivo final.
 - 🧹 **Modo limpar** — mantém apenas a legenda escolhida (removendo as demais) e/ou tira a dublagem
-  em inglês de uma pasta inteira, sem precisar de uma pasta de origem separada.
-- ⏱️ **Ajuste de timing** — no modo Transferir, informe o instante (`MM:SS,mmm`) em que a primeira
-  fala deve aparecer no vídeo de destino; o resto da legenda é deslocado automaticamente.
+  em inglês de uma pasta inteira, sem precisar de uma pasta de origem separada. No modo Transferir
+  há a mesma opção ("Limpar legendas do destino, deixando só a transferida").
+- ⏱️ **Três formas de ajustar o timing** — informe o instante (`MM:SS,mmm`) em que a primeira fala
+  deve aparecer, ou um deslocamento manual em milissegundos, ou use **Sincronizar** para comparar
+  lado a lado a legenda em inglês do destino com a PT-BR da origem, clicar na mesma fala nos dois
+  lados e deixar o app calcular o deslocamento.
 - 🧩 **Não sobrescreve com duplicados** — o resultado é sempre salvo com nome fixo por
   episódio/arquivo (`Nome [legendado].mkv` ou `Nome [limpo].mkv`); rodar de novo substitui o
   anterior em vez de criar `(1)`, `(2)`, etc.
-- 📊 Log e barra de progresso em tempo real, com histórico salvo em `transfer-log.json`.
+- 📊 Log colorido em tempo real (info/sucesso/aviso/erro), som de conclusão e histórico salvo em
+  `transfer-log.json`.
 
 ## Instalação e uso
 
@@ -64,8 +76,10 @@ npm run dev
    (arquivos que vão receber a legenda).
 2. Clique em **Escanear pastas** — a tabela mostra cada episódio casado, a faixa de legenda
    detectada (com destaque quando for PT-BR) e o status.
-3. Ajuste a faixa de qualquer linha pelo dropdown, se quiser outro idioma, e o instante da primeira
-   fala se quiser corrigir o timing.
+3. Ajuste a faixa de qualquer linha pelo dropdown, se quiser outro idioma. Se precisar corrigir o
+   timing, clique em **Sincronizar** — ali dá pra digitar o instante da primeira fala ou um
+   deslocamento em ms, ou comparar a legenda em inglês do destino com a PT-BR da origem e deixar o
+   app calcular o deslocamento.
 4. Clique em **Transferir selecionados**.
 
 **Modo Apenas limpar:**
@@ -94,7 +108,13 @@ ui/src/
     workflow.ts casos de uso (escanear/transferir, escanear/limpar) orquestrando domain + infra
     index.ts    único ponto que conhece Electron/IPC
   preload/      ponte contextBridge exposta como window.api
-  renderer/     UI em React — App.tsx é um único arquivo com tema, estilos e todos os componentes
+  renderer/     UI em React, dividida por responsabilidade:
+                App.tsx        orquestrador (estado + handlers), monta a tela
+                theme.ts        tema (cores/spacing) + tipagem do styled-components
+                ui/             primitivas genericas reaproveitaveis (Button, Row, Chip...)
+                components/     um arquivo por peca com estado/logica propria (EpisodeTable,
+                                SyncModal, LogPanel...)
+                utils/          funcoes puras (formatacao de legenda/timing, som de conclusao)
   shared/       tipos TypeScript compartilhados entre as camadas
 ```
 

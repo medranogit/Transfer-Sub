@@ -21,23 +21,28 @@ separada em duas camadas:
   - `episodeMatcher.ts` — identifica episódio pelo nome do arquivo.
   - `subtitleLanguage.ts` — reconhece/prioriza legenda PT-BR.
   - `audioLanguage.ts` — reconhece faixas de áudio em inglês.
-  - `subtitleTiming.ts` — converte texto `MM:SS,mmm` em milissegundos e
-    encontra o instante da primeira legenda num arquivo `.ass`/`.ssa`/`.srt`.
+  - `subtitleTiming.ts` — converte texto `MM:SS,mmm` em milissegundos,
+    encontra o instante da primeira legenda num arquivo `.ass`/`.ssa`/`.srt`
+    e parseia todas as falas (`parseSubtitleEvents`) para a tela de sync.
 - `src/main/infra/` — tudo que toca o mundo exterior: localizar o
   MKVToolNix, listar arquivos de vídeo, chamar `mkvmerge`/`mkvextract`
   (`mkvProcess.ts`), persistir a configuração (`configStore.ts`) e gravar o
   log de transferências (`transferLog.ts`).
 - `src/main/workflow.ts` — orquestra domain + infra nos casos de uso que o
   processo principal expõe via IPC: `scanFolders`/`transferRows` (modo
-  Transferir) e `scanForClean`/`cleanRows` (modo Limpar).
+  Transferir), `scanForClean`/`cleanRows` (modo Limpar) e
+  `prepareSync`/`getTrackEvents` (dados para o modal de sincronização).
 - `src/main/index.ts` — a única camada que conhece Electron/IPC; registra os
   handlers e cria a janela.
 
 A janela (React) só fala com o processo principal via IPC
-(`src/preload/index.ts`), nunca chama o MKVToolNix diretamente. Todo o
-front-end (tema, estilos globais, componentes styled-components e o `App`)
-vive em um único arquivo, `src/renderer/src/App.tsx` — de propósito, para
-não espalhar a UI em muitos arquivos pequenos.
+(`src/preload/index.ts`), nunca chama o MKVToolNix diretamente. O front-end
+fica em `src/renderer/src/`, dividido por responsabilidade: `App.tsx` é só o
+orquestrador (estado + handlers da tela); `theme.ts`/`GlobalStyle.ts` cuidam
+do tema; `ui/` guarda primitivas genéricas reaproveitáveis (`Button`, `Row`,
+`Chip`...); `components/` tem um arquivo por peça de UI com estado/lógica
+própria (`EpisodeTable`, `SyncModal`, `LogPanel`...); `utils/` guarda funções
+puras de formatação (legenda/timing, som de conclusão).
 
 ## Rodando em desenvolvimento
 
@@ -80,22 +85,71 @@ cada linha para trocar manualmente. No modo "Apenas limpar" o dropdown
 também tem a opção "Manter todas as legendas" (padrão), já que ali a ideia é
 opt-in: só remove faixas quando você escolhe uma específica.
 
-## Ajustar o instante da primeira legenda
+Quando nenhuma faixa é reconhecida como PT-BR por idioma/nome, `scanFolders`
+extrai cada faixa e usa `guessPtBrFromContent` (mesmo arquivo) para procurar,
+no texto, palavras bem características do português (evitando as que também
+existem em espanhol/italiano) e a terminação `-ção`/`-ções`. Se achar, marca
+a faixa com `isPtBrGuess` e loga um aviso — a UI mostra `⚠ pode ser PT-BR` no
+dropdown, mas não bloqueia nada, é só um alerta pra conferir.
 
-No modo Transferir, a coluna "1ª fala em" aceita um horário no formato
-`MM:SS,mmm` (ex.: `06:39,566`) — o campo já formata sozinho enquanto você
-digita só números. Quando preenchido, o app calcula a diferença entre esse
-horário e o instante da primeira legenda no arquivo original e aplica um
-`--sync` no `mkvmerge` para deslocar toda a legenda por esse valor. Deixe em
-branco para manter o timing original.
+## Fontes anexadas (attachments)
 
-## Remover dublagem em inglês
+Legendas ASS costumam depender de fontes customizadas anexadas ao `.mkv` de
+origem (fansubs sempre embutem as delas). Sem levar essas fontes junto, a
+legenda transferida perde a formatação porque o player cai numa fonte
+genérica. `transferRows` copia os attachments do arquivo de origem para o
+final via `--attach-file`/`--attachment-name`/`--attachment-mime-type`.
 
-O checkbox "Remover dublagem em inglês" (marcado por padrão) vale para os
-dois modos. Antes de gerar o arquivo final, o app lê as faixas de áudio do
-vídeo e, se houver alguma em inglês, remuxa mantendo só as demais — a menos
-que isso zere todas as faixas de áudio, caso em que mantém tudo por
-segurança (com aviso no log).
+## Nome e idioma da faixa transferida
+
+A faixa PT-BR transferida é renomeada para `PortuguesBr - TransferSub`
+(`resolveTransferTrackName` em `subtitleLanguage.ts`) e vai com idioma `und`
+(indeterminado) em vez do idioma original (`resolveTransferLanguage`) —
+alguns players completam o nome da faixa com "- [Idioma]" sempre que há um
+código de idioma reconhecido, e como o nome já deixa claro que é português,
+isso evita a redundância. Faixas que não são PT-BR mantêm nome e idioma
+originais.
+
+## Ajustar o timing da legenda
+
+O botão **Sincronizar** de cada linha (só habilitado depois de escolher uma
+faixa) abre um modal com três formas de ajustar o timing, todas mutuamente
+exclusivas entre si (preencher uma limpa as outras):
+
+- **1ª fala em** — horário no formato `MM:SS,mmm` (ex.: `06:39,566`; o campo
+  formata sozinho enquanto você digita só números) em que a primeira legenda
+  deve aparecer no vídeo de destino. O app calcula a diferença entre esse
+  horário e o instante da primeira legenda no arquivo original.
+- **Atraso/adiantamento (ms)** — um valor direto em milissegundos; positivo
+  atrasa, negativo (com `-` na frente) adianta.
+- **Sincronizar automaticamente** — o modal mostra duas colunas com scroll
+  próprio: a legenda em inglês do arquivo de destino (auto-detectada por
+  código de idioma, com fallback manual se houver mais de uma ou nenhuma) e
+  a PT-BR da origem. Clique na mesma fala nos dois lados e o botão "Usar
+  este deslocamento" calcula a diferença em ms e preenche o campo de
+  deslocamento manual. A faixa em inglês escolhida manualmente fica lembrada
+  para os próximos episódios da mesma sessão (`preferredEnTrackId` em
+  `App.tsx`), já que geralmente a estrutura de faixas se repete na
+  temporada.
+
+Qualquer valor calculado vira um `--sync` no `mkvmerge` para deslocar toda a
+legenda. Deixe todos os campos em branco para manter o timing original.
+
+## Chips de opções
+
+As opções booleanas (remover dublagem, limpar legendas extras) aparecem como
+chips clicáveis (`ui/Chip.ts`) em vez de checkbox tradicional: ficam verdes
+quando ativas, neutras quando não — e a linha quebra sozinha (`flex-wrap`)
+se mais opções forem adicionadas no futuro.
+
+- **"Remover dublagem em inglês do destino"** (ativado por padrão, vale para
+  os dois modos) — antes de gerar o arquivo final, o app lê as faixas de
+  áudio do vídeo e, se houver alguma em inglês, remuxa mantendo só as
+  demais — a menos que isso zere todas as faixas de áudio, caso em que
+  mantém tudo por segurança (com aviso no log).
+- **"Limpar legendas do destino, deixando só a transferida"** (só no modo
+  Transferir) — remove as legendas que já existiam no arquivo de destino no
+  resultado final, mantendo apenas a faixa transferida.
 
 ## Não sobrescreve com duplicados
 
@@ -106,10 +160,19 @@ etc. — a identificação é só pelo nome do arquivo de origem.
 
 ## Log de transferências
 
-Cada execução (sucesso ou erro) grava uma entrada em `transfer-log.json`,
-na raiz do projeto (mesma pasta do `package.json`/`README.md`) em
-desenvolvimento, ou ao lado do executável quando empacotado — nunca dentro
-da pasta de saída escolhida pelo usuário.
+O painel de log na tela (`components/LogPanel.tsx`) colore cada linha por
+nível (`info`/`success`/`warn`/`error`) com um ícone e um leve tingimento de
+fundo, e um som de conclusão minimalista (`utils/completionSound.ts`, via
+Web Audio API) toca ao terminar uma transferência ou limpeza.
+
+Além disso, cada execução (sucesso ou erro) grava uma entrada em
+`transfer-log.json`, na raiz do projeto (mesma pasta do
+`package.json`/`README.md`) em desenvolvimento, ou ao lado do executável
+quando empacotado — nunca dentro da pasta de saída escolhida pelo usuário.
+Esse arquivo é só histórico de execuções passadas: o formato de cada entrada
+(`trackId`, `language`, `trackName`, `appliedOffsetMs`...) já cobre qualquer
+um dos três métodos de ajuste de timing, então não precisou mudar com a
+adição do deslocamento manual/Sincronizar.
 
 ## Estrutura
 
@@ -127,6 +190,15 @@ src/
                 scanForClean/cleanRows (Limpar)
     index.ts    entrypoint do Electron + handlers IPC
   preload/      ponte contextBridge exposta como window.api
-  renderer/     app React de arquivo unico (App.tsx) + main.tsx (bootstrap)
+  renderer/     app React + main.tsx (bootstrap):
+                App.tsx           orquestrador (estado + handlers), monta a tela
+                theme.ts          tema (cores/spacing) + tipagem do styled-components
+                GlobalStyle.ts    estilos globais (scrollbar, reset, fonte)
+                ui/               primitivas genericas: primitives.ts (Button, Row, Col,
+                                  Panel, Label, Input, SectionTitle), Chip.ts
+                components/       FolderField, StatusBadge, LogPanel, ModeToggle,
+                                  EpisodeTable, SyncModal — cada um com seu proprio estado
+                utils/            subtitleDisplay.ts (formatacao de legenda/timing),
+                                  completionSound.ts
   shared/       tipos TypeScript compartilhados entre main/preload/renderer
 ```
