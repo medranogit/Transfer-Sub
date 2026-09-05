@@ -358,6 +358,7 @@ export async function transferRows(
 
       onProgress(row.id, 'done')
       success += 1
+      onLog({ level: 'success', message: `[${row.episodeKey}] concluido: ${basename(outputFile)}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
         episodeKey: row.episodeKey,
@@ -397,7 +398,7 @@ export async function transferRows(
 
   const total = rows.length
   onLog({
-    level: 'info',
+    level: failed ? 'warn' : 'success',
     message: `Transferencia concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 
@@ -444,6 +445,7 @@ export async function cleanRows(
 
       onProgress(row.id, 'done')
       success += 1
+      onLog({ level: 'success', message: `[${row.episodeKey}] concluido: ${basename(outputFile)}` })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
         episodeKey: row.episodeKey,
@@ -481,7 +483,7 @@ export async function cleanRows(
 
   const total = rows.length
   onLog({
-    level: 'info',
+    level: failed ? 'warn' : 'success',
     message: `Limpeza concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 

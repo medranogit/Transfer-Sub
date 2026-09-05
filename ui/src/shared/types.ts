@@ -42,7 +42,7 @@ export interface TransferProgressEvent {
 }
 
 export interface LogEvent {
-  level: 'info' | 'warn' | 'error'
+  level: 'info' | 'success' | 'warn' | 'error'
   message: string
 }
 

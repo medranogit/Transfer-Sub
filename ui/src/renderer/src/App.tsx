@@ -265,20 +265,48 @@ const LogWrap = styled.div`
   background: ${(p) => p.theme.colors.panelAlt};
   border-radius: ${(p) => p.theme.radius.md};
   border: 1px solid ${(p) => p.theme.colors.border};
-  padding: 8px 12px;
+  padding: 6px;
   font-family: ${(p) => p.theme.font.mono};
   font-size: 11.5px;
-  line-height: 1.6;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 `
 
+const LOG_COLOR: Record<LogEvent['level'], keyof typeof theme.colors> = {
+  info: 'info',
+  success: 'success',
+  warn: 'warning',
+  error: 'danger'
+}
+
+const LOG_ICON: Record<LogEvent['level'], string> = {
+  info: 'ℹ',
+  success: '✓',
+  warn: '⚠',
+  error: '✕'
+}
+
 const LogLine = styled.div<{ $level: LogEvent['level'] }>`
-  color: ${(p) =>
-    p.$level === 'error'
-      ? p.theme.colors.danger
-      : p.$level === 'warn'
-        ? p.theme.colors.warning
-        : p.theme.colors.textMuted};
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: ${(p) => p.theme.radius.sm};
+  color: ${(p) => (p.$level === 'info' ? p.theme.colors.textMuted : p.theme.colors[LOG_COLOR[p.$level]])};
+  background: ${(p) =>
+    p.$level === 'info'
+      ? 'transparent'
+      : `color-mix(in srgb, ${p.theme.colors[LOG_COLOR[p.$level]]} 10%, transparent)`};
   white-space: pre-wrap;
+`
+
+const LogIcon = styled.span`
+  flex-shrink: 0;
+  font-weight: 700;
+  width: 12px;
+  text-align: center;
 `
 
 function LogPanel({ entries }: { entries: LogEvent[] }) {
@@ -293,7 +321,8 @@ function LogPanel({ entries }: { entries: LogEvent[] }) {
       {entries.length === 0 && <LogLine $level="info">Aguardando...</LogLine>}
       {entries.map((entry, i) => (
         <LogLine key={i} $level={entry.level}>
-          {entry.message}
+          <LogIcon>{LOG_ICON[entry.level]}</LogIcon>
+          <span>{entry.message}</span>
         </LogLine>
       ))}
     </LogWrap>
@@ -680,10 +709,43 @@ const ModeOption = styled.button<{ $active: boolean }>`
     font-size: 14px;
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
     color: ${(p) => (p.$active ? '#10121a' : p.theme.colors.text)};
   }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: ${(p) => (p.$active ? 1 : 0.45)};
+  }
 `
+
+// Toque minimalista de conclusao (dois tons curtos em sequencia), gerado via
+// Web Audio API - evita depender de um arquivo de audio embutido no app.
+function playCompletionSound(): void {
+  try {
+    const ctx = new AudioContext()
+    const now = ctx.currentTime
+    ;[
+      { freq: 880, start: 0 },
+      { freq: 1320, start: 0.1 }
+    ].forEach(({ freq, start }) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(freq, now + start)
+      gain.gain.setValueAtTime(0.0001, now + start)
+      gain.gain.exponentialRampToValueAtTime(0.2, now + start + 0.015)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.22)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start(now + start)
+      osc.stop(now + start + 0.25)
+    })
+    setTimeout(() => ctx.close(), 500)
+  } catch {
+    // ambiente sem suporte a Web Audio - ignora, som e so um extra
+  }
+}
 
 function AppContent() {
   const [sourceDir, setSourceDir] = useState('')
@@ -726,6 +788,7 @@ function AppContent() {
 
   function handleModeChange(next: boolean) {
     if (next === cleanOnly) return
+    if (scanning || transferring) return
     setCleanOnly(next)
     setRows([])
     setStatuses({})
@@ -824,11 +887,15 @@ function AppContent() {
         removeExtraSubtitles: !cleanOnly && removeExtraSubtitles
       }
       const summary = cleanOnly ? await window.api.clean(request) : await window.api.transfer(request)
-      pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`)
+      pushLog(
+        `Concluido: ${summary.success}/${summary.total} com sucesso.`,
+        summary.failed ? 'warn' : 'success'
+      )
     } catch (err) {
       pushLog(`Erro: ${(err as Error).message}`, 'error')
     } finally {
       setTransferring(false)
+      playCompletionSound()
     }
   }
 
@@ -856,7 +923,12 @@ function AppContent() {
               type="button"
               $active={!cleanOnly}
               onClick={() => handleModeChange(false)}
-              title="Copia a legenda da pasta de origem para os arquivos correspondentes da pasta de destino"
+              disabled={scanning || transferring}
+              title={
+                scanning || transferring
+                  ? 'Aguarde a operacao atual terminar para trocar de modo'
+                  : 'Copia a legenda da pasta de origem para os arquivos correspondentes da pasta de destino'
+              }
             >
               <SwapOutlined />
               Transferir legenda
@@ -865,7 +937,12 @@ function AppContent() {
               type="button"
               $active={cleanOnly}
               onClick={() => handleModeChange(true)}
-              title="So trata os arquivos da pasta de destino: remove legendas extras e/ou dublagem, sem transferir nada"
+              disabled={scanning || transferring}
+              title={
+                scanning || transferring
+                  ? 'Aguarde a operacao atual terminar para trocar de modo'
+                  : 'So trata os arquivos da pasta de destino: remove legendas extras e/ou dublagem, sem transferir nada'
+              }
             >
               <ClearOutlined />
               Apenas limpar
