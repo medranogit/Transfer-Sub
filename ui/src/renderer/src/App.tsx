@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { createGlobalStyle, css, ThemeProvider } from 'styled-components'
-import { ClearOutlined, SwapOutlined, SyncOutlined } from '@ant-design/icons'
+import { CheckOutlined, ClearOutlined, ClockCircleFilled, SwapOutlined, SyncOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus, SubtitleEvent, SubtitleTrack } from '@shared/types'
 
 // ---------------------------------------------------------------------------
@@ -124,6 +124,9 @@ const Input = styled.input`
 `
 
 const buttonBase = css`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border-radius: ${(p) => p.theme.radius.sm};
   padding: 8px 16px;
   border: 1px solid transparent;
@@ -131,6 +134,10 @@ const buttonBase = css`
   font-weight: 600;
   transition: filter 0.15s ease, opacity 0.15s ease;
   white-space: nowrap;
+
+  svg {
+    font-size: 13px;
+  }
 
   &:hover:not(:disabled) {
     filter: brightness(1.1);
@@ -165,22 +172,6 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'ghost' }>`
       padding: 6px 12px;
       font-weight: 500;
     `}
-`
-
-const IconButton = styled.button`
-  ${buttonBase}
-  padding: 5px 7px;
-  background: ${(p) => p.theme.colors.panelAlt};
-  border-color: ${(p) => p.theme.colors.border};
-  color: ${(p) => p.theme.colors.textMuted};
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-
-  svg {
-    font-size: 13px;
-  }
 `
 
 const SectionTitle = styled.h2`
@@ -423,6 +414,12 @@ const PtBrGuessTag = styled.span`
   font-size: 10.5px;
 `
 
+const SyncStatusIcon = styled(ClockCircleFilled)`
+  color: ${(p) => p.theme.colors.accent};
+  font-size: 13px;
+  flex-shrink: 0;
+`
+
 const NoSubtitle = styled.span`
   color: ${(p) => p.theme.colors.textFaint};
   font-style: italic;
@@ -474,6 +471,12 @@ function trackLabel(track: SubtitleTrack): string {
   return `#${track.trackId} [${track.language}]${name}`
 }
 
+function syncAdjustmentLabel(row: EpisodeRow): string | null {
+  if (row.manualOffsetText) return `Ajuste: ${row.manualOffsetText}ms`
+  if (row.firstLineTargetText) return `1a fala: ${row.firstLineTargetText}`
+  return null
+}
+
 function EpisodeTable({
   rows,
   statuses,
@@ -482,8 +485,6 @@ function EpisodeTable({
   onToggleSelect,
   onToggleSelectAll,
   onTrackChange,
-  onFirstLineTargetChange,
-  onManualOffsetChange,
   onOpenSync
 }: {
   rows: EpisodeRow[]
@@ -493,8 +494,6 @@ function EpisodeTable({
   onToggleSelect: (id: string) => void
   onToggleSelectAll: () => void
   onTrackChange: (rowId: string, trackId: number | null) => void
-  onFirstLineTargetChange: (rowId: string, value: string) => void
-  onManualOffsetChange: (rowId: string, value: string) => void
   onOpenSync: (rowId: string) => void
 }) {
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
@@ -511,22 +510,7 @@ function EpisodeTable({
             {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
             <th>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</th>
             {!cleanOnly && <th>Arquivo destino</th>}
-            {!cleanOnly && (
-              <th
-                style={{ width: 130 }}
-                title='Instante em que a primeira legenda deve aparecer no video de destino, formato MM:SS,mmm (ex: 06:39,566). O resto da legenda e deslocado automaticamente. Preencha isso OU "Atraso/adiantamento", nao os dois.'
-              >
-                1a fala em
-              </th>
-            )}
-            {!cleanOnly && (
-              <th
-                style={{ width: 130 }}
-                title='Desloca a legenda inteira em milissegundos: valor positivo atrasa (ex: 500), com "-" na frente adianta (ex: -500). Preencha isso OU "1a fala em", nao os dois.'
-              >
-                Atraso/adiant. (ms)
-              </th>
-            )}
+            {!cleanOnly && <th style={{ width: 150 }}>Sincronizacao</th>}
             <th style={{ width: 110 }}>Status</th>
           </tr>
         </Thead>
@@ -582,35 +566,17 @@ function EpisodeTable({
                 )}
                 {!cleanOnly && (
                   <Td>
-                    <TimingInput
-                      type="text"
-                      placeholder="06:39,566"
-                      value={row.firstLineTargetText}
-                      disabled={row.manualOffsetText !== ''}
-                      onChange={(e) => onFirstLineTargetChange(row.id, maskTimeInput(e.target.value))}
-                      title="Instante (MM:SS,mmm) em que a primeira legenda deve aparecer. Vazio = timing original."
-                    />
-                  </Td>
-                )}
-                {!cleanOnly && (
-                  <Td>
-                    <Row $gap={6}>
-                      <TimingInput
-                        type="text"
-                        placeholder="500 ou -500"
-                        value={row.manualOffsetText}
-                        disabled={row.firstLineTargetText !== ''}
-                        onChange={(e) => onManualOffsetChange(row.id, maskOffsetInput(e.target.value))}
-                        title='Desloca a legenda em ms: positivo atrasa, "-" na frente adianta. Vazio = sem deslocamento manual.'
-                      />
-                      <IconButton
+                    <Row $gap={8}>
+                      {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
+                      <Button
                         type="button"
+                        $variant="secondary"
                         onClick={() => onOpenSync(row.id)}
                         disabled={row.selectedTrackId === null}
-                        title="Sincronizar automaticamente comparando com a legenda em ingles do destino"
+                        title="Ajustar o timing da legenda transferida (sincronizar com a legenda em ingles, definir a 1a fala ou um deslocamento manual)"
                       >
-                        <SyncOutlined />
-                      </IconButton>
+                        <SyncOutlined /> Sincronizar
+                      </Button>
                     </Row>
                   </Td>
                 )}
@@ -761,11 +727,15 @@ const ModalFooter = styled.div`
 function SyncModal({
   row,
   onClose,
-  onApply
+  onApply,
+  onFirstLineTargetChange,
+  onManualOffsetChange
 }: {
   row: EpisodeRow
   onClose: () => void
   onApply: (offsetMs: number) => void
+  onFirstLineTargetChange: (value: string) => void
+  onManualOffsetChange: (value: string) => void
 }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -824,11 +794,36 @@ function SyncModal({
     <Overlay onClick={onClose}>
       <ModalBox onClick={(e) => e.stopPropagation()}>
         <ModalHeader>
-          <ModalTitle>Sincronizar automaticamente - {row.episodeKey}</ModalTitle>
+          <ModalTitle>Sincronizar legenda - {row.episodeKey}</ModalTitle>
           <Button $variant="ghost" onClick={onClose}>
             Fechar
           </Button>
         </ModalHeader>
+
+        <Row $gap={20}>
+          <Col $gap={4}>
+            <Label>1a fala em</Label>
+            <TimingInput
+              type="text"
+              placeholder="06:39,566"
+              value={row.firstLineTargetText}
+              disabled={row.manualOffsetText !== ''}
+              onChange={(e) => onFirstLineTargetChange(maskTimeInput(e.target.value))}
+              title="Instante (MM:SS,mmm) em que a primeira legenda deve aparecer. Vazio = timing original."
+            />
+          </Col>
+          <Col $gap={4}>
+            <Label>Atraso/adiant. (ms)</Label>
+            <TimingInput
+              type="text"
+              placeholder="500 ou -500"
+              value={row.manualOffsetText}
+              disabled={row.firstLineTargetText !== ''}
+              onChange={(e) => onManualOffsetChange(maskOffsetInput(e.target.value))}
+              title='Desloca a legenda em ms: positivo atrasa, "-" na frente adianta. Vazio = sem deslocamento manual.'
+            />
+          </Col>
+        </Row>
 
         {loading && <div>Carregando falas...</div>}
         {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
@@ -836,7 +831,7 @@ function SyncModal({
         {!loading && !error && destTracks.length === 0 && (
           <div style={{ color: theme.colors.warning }}>
             O arquivo de destino nao tem nenhuma legenda para usar como referencia - nao e possivel
-            sincronizar automaticamente neste episodio. Use o deslocamento manual ou "1a fala em".
+            sincronizar automaticamente neste episodio. Use os campos acima.
           </div>
         )}
 
@@ -907,14 +902,17 @@ function SyncModal({
           </>
         )}
 
-        <ModalFooter>
-          <Button $variant="secondary" onClick={onClose}>
-            Cancelar
-          </Button>
-          <Button $variant="primary" disabled={offsetMs === null} onClick={() => offsetMs !== null && onApply(offsetMs)}>
-            Aplicar deslocamento
-          </Button>
-        </ModalFooter>
+        {!loading && !error && destTracks.length > 0 && (
+          <ModalFooter>
+            <Button
+              $variant="primary"
+              disabled={offsetMs === null}
+              onClick={() => offsetMs !== null && onApply(offsetMs)}
+            >
+              Usar este deslocamento
+            </Button>
+          </ModalFooter>
+        )}
       </ModalBox>
     </Overlay>
   )
@@ -978,66 +976,47 @@ const ProgressFill = styled.div<{ $pct: number }>`
   transition: width 0.2s ease;
 `
 
-const CheckboxInput = styled.input`
-  appearance: none;
-  -webkit-appearance: none;
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  border-radius: 5px;
-  border: 1px solid ${(p) => p.theme.colors.borderLight};
-  background: ${(p) => p.theme.colors.panelAlt};
-  display: inline-grid;
-  place-content: center;
+const ChipRow = styled.div`
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 2px 0;
+`
+
+const Chip = styled.button<{ $active: boolean }>`
+  flex: 1;
+  min-width: 200px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: ${(p) => p.theme.radius.sm};
+  border: 1px solid ${(p) => (p.$active ? p.theme.colors.success : p.theme.colors.border)};
+  background: ${(p) =>
+    p.$active ? `color-mix(in srgb, ${p.theme.colors.success} 14%, transparent)` : p.theme.colors.panelAlt};
+  color: ${(p) => (p.$active ? p.theme.colors.success : p.theme.colors.textMuted)};
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
   cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 
-  &::after {
-    content: '';
-    width: 9px;
-    height: 9px;
-    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
-    transform: scale(0);
-    transition: transform 0.12s ease-in;
-    background: #10121a;
-  }
-
-  &:checked {
-    background: ${(p) => p.theme.colors.accent};
-    border-color: ${(p) => p.theme.colors.accent};
-  }
-
-  &:checked::after {
-    transform: scale(1);
+  svg {
+    font-size: 13px;
+    flex-shrink: 0;
   }
 
   &:hover {
-    border-color: ${(p) => p.theme.colors.accent};
+    border-color: ${(p) => (p.$active ? p.theme.colors.success : p.theme.colors.borderLight)};
+    color: ${(p) => (p.$active ? p.theme.colors.success : p.theme.colors.text)};
   }
 
   &:focus-visible {
     outline: 2px solid ${(p) => p.theme.colors.accent};
     outline-offset: 2px;
   }
-`
-
-const CheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12.5px;
-  color: ${(p) => p.theme.colors.text};
-  cursor: pointer;
-  user-select: none;
-`
-
-const OptionsRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 22px;
-  flex-wrap: wrap;
-  padding: 2px 0;
 `
 
 const ModeSwitch = styled.div`
@@ -1232,7 +1211,6 @@ function AppContent() {
   function handleApplySync(rowId: string, offsetMs: number) {
     const row = rows.find((r) => r.id === rowId)
     handleManualOffsetChange(rowId, String(offsetMs))
-    setSyncRowId(null)
     if (row) pushLog(`[${row.episodeKey}] deslocamento de ${offsetMs}ms aplicado via auto-sync`, 'success')
   }
 
@@ -1346,29 +1324,26 @@ function AppContent() {
         />
         <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={setOutputDir} />
 
-        <OptionsRow>
-          <CheckboxLabel>
-            <CheckboxInput
-              type="checkbox"
-              checked={removeEnglishAudio}
-              onChange={(e) => setRemoveEnglishAudio(e.target.checked)}
-            />
+        <ChipRow>
+          <Chip
+            type="button"
+            $active={removeEnglishAudio}
+            onClick={() => setRemoveEnglishAudio(!removeEnglishAudio)}
+          >
+            {removeEnglishAudio && <CheckOutlined />}
             Remover dublagem em ingles do destino (manter so o audio japones)
-          </CheckboxLabel>
-        </OptionsRow>
-
-        {!cleanOnly && (
-          <OptionsRow>
-            <CheckboxLabel>
-              <CheckboxInput
-                type="checkbox"
-                checked={removeExtraSubtitles}
-                onChange={(e) => setRemoveExtraSubtitles(e.target.checked)}
-              />
+          </Chip>
+          {!cleanOnly && (
+            <Chip
+              type="button"
+              $active={removeExtraSubtitles}
+              onClick={() => setRemoveExtraSubtitles(!removeExtraSubtitles)}
+            >
+              {removeExtraSubtitles && <CheckOutlined />}
               Limpar legendas do destino, deixando so a transferida
-            </CheckboxLabel>
-          </OptionsRow>
-        )}
+            </Chip>
+          )}
+        </ChipRow>
 
         <ToolbarRow>
           <Row $gap={8}>
@@ -1410,8 +1385,6 @@ function AppContent() {
           onToggleSelect={handleToggleSelect}
           onToggleSelectAll={handleToggleSelectAll}
           onTrackChange={handleTrackChange}
-          onFirstLineTargetChange={handleFirstLineTargetChange}
-          onManualOffsetChange={handleManualOffsetChange}
           onOpenSync={setSyncRowId}
         />
       </Col>
@@ -1429,6 +1402,8 @@ function AppContent() {
               row={syncRow}
               onClose={() => setSyncRowId(null)}
               onApply={(offsetMs) => handleApplySync(syncRow.id, offsetMs)}
+              onFirstLineTargetChange={(value) => handleFirstLineTargetChange(syncRow.id, value)}
+              onManualOffsetChange={(value) => handleManualOffsetChange(syncRow.id, value)}
             />
           ) : null
         })()}
