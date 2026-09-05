@@ -7,6 +7,15 @@ export function trackLabel(track: SubtitleTrack): string {
   return `#${track.trackId} [${track.language}]${name}`
 }
 
+// PGS/VobSub (S_HDMV/PGS, S_VOBSUB) sao legendas de imagem (bitmaps, sem
+// texto codificado) - comuns em releases de Blu-ray. Nao da pra extrair
+// falas delas pro auto-sync, so formatos baseados em texto (ASS/SSA/SRT).
+const TEXT_SUBTITLE_CODECS = new Set(['S_TEXT/ASS', 'S_TEXT/SSA', 'S_TEXT/UTF8'])
+
+export function isTextSubtitleCodec(codecId: string): boolean {
+  return TEXT_SUBTITLE_CODECS.has(codecId)
+}
+
 // Resumo curto do ajuste de timing configurado numa linha, para exibir como
 // indicador na tabela. Null quando a linha nao tem nenhum ajuste.
 export function syncAdjustmentLabel(row: EpisodeRow): string | null {

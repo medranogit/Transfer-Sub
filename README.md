@@ -54,8 +54,9 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
   lado a lado a legenda em inglês do destino com a PT-BR da origem, clicar na mesma fala nos dois
   lados e deixar o app calcular o deslocamento.
 - 🧩 **Não sobrescreve com duplicados** — o resultado é sempre salvo com nome fixo por
-  episódio/arquivo (`Nome [legendado].mkv` ou `Nome [limpo].mkv`); rodar de novo substitui o
-  anterior em vez de criar `(1)`, `(2)`, etc.
+  episódio/arquivo (assina `[TS - Tag]` ao lado da tag da fansub original no modo Transferir, ou
+  `Nome [limpo].mkv` no modo Limpar); rodar de novo substitui o anterior em vez de criar `(1)`,
+  `(2)`, etc.
 - 📊 Log colorido em tempo real (info/sucesso/aviso/erro), som de conclusão e histórico salvo em
   `transfer-log.json`.
 

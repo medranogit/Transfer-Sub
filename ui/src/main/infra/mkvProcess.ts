@@ -201,11 +201,21 @@ export async function muxSubtitleInto(
   await runMkvTool(mkvmergePath, args)
 }
 
+// A fansub original quase sempre marca o nome com "[Tag]" no inicio (ex:
+// "[Judas] Nome do episodio"). Em vez de so acrescentar um sufixo
+// " [legendado]", assina ao lado da tag original (ex: "[TS - Judas] Nome do
+// episodio"), igual como fansubs costumam colaborar entre si.
+const FANSUB_TAG = /^\[([^\]]+)\]/
+
+function withTransferSubSignature(name: string): string {
+  return FANSUB_TAG.test(name) ? name.replace(FANSUB_TAG, '[TS - $1]') : `[TS] ${name}`
+}
+
 // Nome fixo por episodio (sem sufixo de contador): se ja existir um arquivo
 // com esse nome na pasta de saida, o mkvmerge sobrescreve - nao criamos
 // duplicados "(1)", "(2)", etc.
 export function resolveOutputPath(destVideo: string, outputFolder: string): string {
-  const base = parse(destVideo).name + ' [legendado]'
+  const base = withTransferSubSignature(parse(destVideo).name)
   return join(outputFolder, `${base}.mkv`)
 }
 

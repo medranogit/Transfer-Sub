@@ -153,10 +153,16 @@ se mais opções forem adicionadas no futuro.
 
 ## Não sobrescreve com duplicados
 
-O nome do arquivo de saída é fixo por episódio/arquivo — `Nome [legendado].mkv`
-no modo Transferir, `Nome [limpo].mkv` no modo Limpar. Rodar de novo sobre o
-mesmo arquivo sobrescreve o resultado anterior em vez de criar `(1)`, `(2)`
-etc. — a identificação é só pelo nome do arquivo de origem.
+O nome do arquivo de saída é fixo por episódio/arquivo, então rodar de novo
+sobre o mesmo arquivo sobrescreve o resultado anterior em vez de criar `(1)`,
+`(2)` etc. — a identificação é só pelo nome do arquivo de origem.
+
+- **Modo Transferir**: assina ao lado da tag da fansub original, em vez de
+  só acrescentar um sufixo — `[Judas] Nome do episodio.mkv` vira
+  `[TS - Judas] Nome do episodio.mkv` (`resolveOutputPath` em
+  `infra/mkvProcess.ts`). Sem tag reconhecida no nome original, usa
+  `[TS] Nome do episodio.mkv`.
+- **Modo Limpar**: mantém o sufixo `Nome [limpo].mkv`.
 
 ## Log de transferências
 
@@ -167,12 +173,17 @@ Web Audio API) toca ao terminar uma transferência ou limpeza.
 
 Além disso, cada execução (sucesso ou erro) grava uma entrada em
 `transfer-log.json`, na raiz do projeto (mesma pasta do
-`package.json`/`README.md`) em desenvolvimento, ou ao lado do executável
-quando empacotado — nunca dentro da pasta de saída escolhida pelo usuário.
+`package.json`/`README.md`) em desenvolvimento, ou na pasta de dados do
+usuário (`app.getPath('userData')`, mesmo lugar de `config.json`) quando
+empacotado — nunca dentro da pasta de saída escolhida pelo usuário, e nunca
+dentro da pasta de instalação (o instalador roda o desinstalador da versão
+anterior antes de atualizar, o que apagaria qualquer arquivo solto ali).
 Esse arquivo é só histórico de execuções passadas: o formato de cada entrada
 (`trackId`, `language`, `trackName`, `appliedOffsetMs`...) já cobre qualquer
 um dos três métodos de ajuste de timing, então não precisou mudar com a
-adição do deslocamento manual/Sincronizar.
+adição do deslocamento manual/Sincronizar. A tela cheia de histórico
+(`components/HistoryModal.tsx`, botão "Histórico" no cabeçalho) lê esse
+arquivo com paginação (100 por página).
 
 ## Estrutura
 

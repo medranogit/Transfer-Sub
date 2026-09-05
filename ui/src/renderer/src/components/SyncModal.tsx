@@ -8,7 +8,14 @@ import styled from 'styled-components'
 import type { EpisodeRow, SubtitleEvent, SubtitleTrack } from '@shared/types'
 import { theme } from '../theme'
 import { Button, Col, Label, Panel, Row } from '../ui/primitives'
-import { formatEventTime, maskOffsetInput, maskTimeInput, trackLabel } from '../utils/subtitleDisplay'
+import {
+  formatEventTime,
+  isTextSubtitleCodec,
+  maskOffsetInput,
+  maskTimeInput,
+  trackLabel
+} from '../utils/subtitleDisplay'
+import { useEscapeToClose } from '../utils/useEscapeToClose'
 
 const Overlay = styled.div`
   position: fixed;
@@ -178,6 +185,8 @@ export function SyncModal({
   const [selectedEnIndex, setSelectedEnIndex] = useState<number | null>(null)
   const [selectedPtIndex, setSelectedPtIndex] = useState<number | null>(null)
 
+  useEscapeToClose(onClose)
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -228,6 +237,9 @@ export function SyncModal({
   const selectedEn = selectedEnIndex !== null ? enEvents[selectedEnIndex] : null
   const selectedPt = selectedPtIndex !== null ? ptEvents[selectedPtIndex] : null
   const offsetMs = selectedEn && selectedPt ? selectedEn.startMs - selectedPt.startMs : null
+
+  const enTrack = destTracks.find((t) => t.trackId === enTrackId)
+  const enTrackIsImageBased = enTrack !== undefined && !isTextSubtitleCodec(enTrack.codecId)
 
   return (
     <Overlay onClick={onClose}>
@@ -291,53 +303,65 @@ export function SyncModal({
               )}
             </FieldRow>
 
-            <ColumnsRow>
-              <Column>
-                <ColumnHeader $accent={theme.colors.info}>Ingles ({enEvents.length})</ColumnHeader>
-                <ColumnList>
-                  {loadingEnEvents && <div style={{ padding: 10 }}>Carregando...</div>}
-                  {!loadingEnEvents &&
-                    enEvents.map((evt, i) => (
-                      <ColumnItem
-                        key={i}
-                        type="button"
-                        $selected={selectedEnIndex === i}
-                        $accent={theme.colors.info}
-                        onClick={() => setSelectedEnIndex(i)}
-                      >
-                        <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
-                        <span>{evt.text}</span>
-                      </ColumnItem>
-                    ))}
-                </ColumnList>
-              </Column>
+            {enTrackIsImageBased && (
+              <div style={{ color: theme.colors.warning }}>
+                Esta faixa e uma legenda de imagem (PGS/VobSub, comum em releases de Blu-ray) - nao
+                tem texto codificado pra comparar. Escolha uma faixa de texto (ASS/SSA/SRT) acima
+                para usar o auto-sync, ou ajuste manualmente pelos campos no topo.
+              </div>
+            )}
 
-              <Column>
-                <ColumnHeader $accent={theme.colors.success}>PT-BR ({ptEvents.length})</ColumnHeader>
-                <ColumnList>
-                  {ptEvents.map((evt, i) => (
-                    <ColumnItem
-                      key={i}
-                      type="button"
-                      $selected={selectedPtIndex === i}
-                      $accent={theme.colors.success}
-                      onClick={() => setSelectedPtIndex(i)}
-                    >
-                      <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
-                      <span>{evt.text}</span>
-                    </ColumnItem>
-                  ))}
-                </ColumnList>
-              </Column>
-            </ColumnsRow>
+            {!enTrackIsImageBased && (
+              <>
+                <ColumnsRow>
+                  <Column>
+                    <ColumnHeader $accent={theme.colors.info}>Ingles ({enEvents.length})</ColumnHeader>
+                    <ColumnList>
+                      {loadingEnEvents && <div style={{ padding: 10 }}>Carregando...</div>}
+                      {!loadingEnEvents &&
+                        enEvents.map((evt, i) => (
+                          <ColumnItem
+                            key={i}
+                            type="button"
+                            $selected={selectedEnIndex === i}
+                            $accent={theme.colors.info}
+                            onClick={() => setSelectedEnIndex(i)}
+                          >
+                            <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
+                            <span>{evt.text}</span>
+                          </ColumnItem>
+                        ))}
+                    </ColumnList>
+                  </Column>
 
-            <OffsetPreview>
-              {offsetMs !== null
-                ? `Deslocamento calculado: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms (${
-                    offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'
-                  } a legenda)`
-                : 'Selecione uma fala em cada coluna para calcular o deslocamento'}
-            </OffsetPreview>
+                  <Column>
+                    <ColumnHeader $accent={theme.colors.success}>PT-BR ({ptEvents.length})</ColumnHeader>
+                    <ColumnList>
+                      {ptEvents.map((evt, i) => (
+                        <ColumnItem
+                          key={i}
+                          type="button"
+                          $selected={selectedPtIndex === i}
+                          $accent={theme.colors.success}
+                          onClick={() => setSelectedPtIndex(i)}
+                        >
+                          <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
+                          <span>{evt.text}</span>
+                        </ColumnItem>
+                      ))}
+                    </ColumnList>
+                  </Column>
+                </ColumnsRow>
+
+                <OffsetPreview>
+                  {offsetMs !== null
+                    ? `Deslocamento calculado: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms (${
+                        offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'
+                      } a legenda)`
+                    : 'Selecione uma fala em cada coluna para calcular o deslocamento'}
+                </OffsetPreview>
+              </>
+            )}
           </>
         )}
 

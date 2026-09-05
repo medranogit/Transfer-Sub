@@ -1,13 +1,18 @@
 // Tela cheia com o historico persistido em transfer-log.json (sobrevive a
 // reinicios do app) - deixa ver transferencias/limpezas de sessoes
 // anteriores, nao so o log da sessao atual (LogPanel, que e so em memoria).
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
-import { CloseOutlined, ReloadOutlined } from '@ant-design/icons'
+import { CloseOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
 import type { TransferLogEntry } from '@shared/types'
 import { theme } from '../theme'
 import { Button } from '../ui/primitives'
+import { useEscapeToClose } from '../utils/useEscapeToClose'
 import { StatusBadge } from './StatusBadge'
+
+// 100 por pagina - o arquivo pode ter ate 5000 entradas (MAX_LOG_ENTRIES em
+// transferLog.ts), renderizar tudo de uma vez deixaria a tabela pesada.
+const PAGE_SIZE = 100
 
 function fileName(path: string): string {
   return path.split(/[/\\]/).pop() ?? path
@@ -118,14 +123,27 @@ const EmptyState = styled.div`
   color: ${(p) => p.theme.colors.textMuted};
 `
 
+const Footer = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: 12px;
+  color: ${(p) => p.theme.colors.textMuted};
+`
+
 export function HistoryModal({ onClose }: { onClose: () => void }) {
   const [entries, setEntries] = useState<TransferLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+
+  useEscapeToClose(onClose)
 
   function load() {
     setLoading(true)
     setError(null)
+    setPage(0)
     window.api
       .loadTransferLog()
       .then(setEntries)
@@ -134,6 +152,12 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
   }
 
   useEffect(load, [])
+
+  const pageCount = Math.max(1, Math.ceil(entries.length / PAGE_SIZE))
+  const pageEntries = useMemo(
+    () => entries.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),
+    [entries, page]
+  )
 
   return (
     <Overlay onClick={onClose}>
@@ -170,8 +194,8 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
                 </tr>
               </Thead>
               <tbody>
-                {entries.map((entry, i) => (
-                  <Tr key={i}>
+                {pageEntries.map((entry, i) => (
+                  <Tr key={page * PAGE_SIZE + i}>
                     <Td>
                       <Mono>{formatTimestamp(entry.timestamp)}</Mono>
                     </Td>
@@ -193,6 +217,30 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
               </tbody>
             </Table>
           </TableWrap>
+        )}
+
+        {!loading && !error && entries.length > 0 && (
+          <Footer>
+            <Button
+              type="button"
+              $variant="ghost"
+              disabled={page === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+            >
+              <LeftOutlined /> Anterior
+            </Button>
+            <span>
+              Pagina {page + 1} de {pageCount}
+            </span>
+            <Button
+              type="button"
+              $variant="ghost"
+              disabled={page >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+            >
+              Proxima <RightOutlined />
+            </Button>
+          </Footer>
         )}
       </Box>
     </Overlay>

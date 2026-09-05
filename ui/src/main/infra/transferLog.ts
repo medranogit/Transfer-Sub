@@ -1,9 +1,12 @@
-// Infraestrutura: log em JSON de cada transferencia, gravado dentro do
-// projeto (mesma pasta do README/package.json), nao na pasta de destino
-// escolhida pelo usuario - entradas acumuladas entre execucoes.
+// Infraestrutura: log em JSON de cada transferencia. Em desenvolvimento fica
+// na raiz do projeto (conveniente pra inspecionar); empacotado fica na pasta
+// de dados do usuario (mesma de config.json) - NUNCA na pasta de instalacao,
+// pois o instalador roda o desinstalador da versao anterior antes de
+// atualizar, o que apaga qualquer arquivo solto ali (foi o que aconteceu:
+// o log ficava ao lado do .exe e sumiu numa atualizacao).
 import { app } from 'electron'
 import { readFile, writeFile } from 'fs/promises'
-import { dirname, join } from 'path'
+import { join } from 'path'
 import type { TransferLogEntry } from '@shared/types'
 
 const LOG_FILE_NAME = 'transfer-log.json'
@@ -11,11 +14,8 @@ const LOG_FILE_NAME = 'transfer-log.json'
 // sempre num uso continuo por anos.
 const MAX_LOG_ENTRIES = 5000
 
-// Em desenvolvimento, app.getAppPath() aponta para a raiz do projeto (onde
-// ficam package.json e README.md). Empacotado, essa pasta vira o .asar
-// (somente leitura), entao usamos a pasta do executavel instalado.
 function logPath(): string {
-  const dir = app.isPackaged ? dirname(app.getPath('exe')) : app.getAppPath()
+  const dir = app.isPackaged ? app.getPath('userData') : app.getAppPath()
   return join(dir, LOG_FILE_NAME)
 }
 
