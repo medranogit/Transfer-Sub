@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'path'
 import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
-import { cleanRows, scanForClean, scanFolders, transferRows } from './workflow'
+import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, transferRows } from './workflow'
 import type { AppConfig, MkvToolsStatus, TransferRequest } from '@shared/types'
 
 // Tamanho inicial da janela do app - ajuste aqui.
@@ -119,6 +119,28 @@ app.whenReady().then(() => {
         mainWindow?.webContents.send('log', log)
       }
     )
+  })
+
+  ipcMain.handle(
+    'sync:prepare',
+    async (
+      _e,
+      { sourcePath, sourceTrackId, destPath }: { sourcePath: string; sourceTrackId: number; destPath: string }
+    ) => {
+      const status = tryLocate(loadConfig().mkvToolNixDir)
+      if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
+        throw new Error('MKVToolNix nao localizado.')
+      }
+      return prepareSync(status.mkvmergePath, status.mkvextractPath, sourcePath, sourceTrackId, destPath)
+    }
+  )
+
+  ipcMain.handle('sync:trackEvents', async (_e, { filePath, trackId }: { filePath: string; trackId: number }) => {
+    const status = tryLocate(loadConfig().mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return getTrackEvents(status.mkvmergePath, status.mkvextractPath, filePath, trackId)
   })
 
   ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {

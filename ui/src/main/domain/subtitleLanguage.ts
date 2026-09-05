@@ -118,8 +118,9 @@ const PT_CONTENT_WORDS = [
 const PT_SUFFIX_PATTERN = /\w+c(ao|oes)\b/g
 
 // Remove tags de formatacao do ASS/SSA ({\...}) e quebras de linha (\N)
-// pra nao poluir a contagem de palavras com codigo de estilo.
-function stripSubtitleMarkup(content: string): string {
+// pra nao poluir a contagem de palavras com codigo de estilo. Tambem usada
+// por subtitleTiming.ts para limpar o texto exibido na tela de auto-sync.
+export function stripSubtitleMarkup(content: string): string {
   return content.replace(/\{[^}]*\}/g, ' ').replace(/\\[Nn]/g, ' ')
 }
 

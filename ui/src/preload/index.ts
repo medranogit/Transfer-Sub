@@ -4,6 +4,8 @@ import type {
   LogEvent,
   MkvToolsStatus,
   ScanResult,
+  SubtitleEvent,
+  SyncPrepareResult,
   TransferProgressEvent,
   TransferRequest,
   TransferSummary
@@ -29,6 +31,12 @@ const api = {
     ipcRenderer.invoke('transfer:run', request),
 
   clean: (request: TransferRequest): Promise<TransferSummary> => ipcRenderer.invoke('clean:run', request),
+
+  prepareSync: (sourcePath: string, sourceTrackId: number, destPath: string): Promise<SyncPrepareResult> =>
+    ipcRenderer.invoke('sync:prepare', { sourcePath, sourceTrackId, destPath }),
+
+  getTrackEvents: (filePath: string, trackId: number): Promise<SubtitleEvent[]> =>
+    ipcRenderer.invoke('sync:trackEvents', { filePath, trackId }),
 
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)

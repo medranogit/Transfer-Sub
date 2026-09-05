@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { createGlobalStyle, css, ThemeProvider } from 'styled-components'
-import { ClearOutlined, SwapOutlined } from '@ant-design/icons'
-import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus, SubtitleTrack } from '@shared/types'
+import { ClearOutlined, SwapOutlined, SyncOutlined } from '@ant-design/icons'
+import type { EpisodeRow, LogEvent, MkvToolsStatus, RowStatus, SubtitleEvent, SubtitleTrack } from '@shared/types'
 
 // ---------------------------------------------------------------------------
 // Theme
@@ -165,6 +165,22 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' | 'ghost' }>`
       padding: 6px 12px;
       font-weight: 500;
     `}
+`
+
+const IconButton = styled.button`
+  ${buttonBase}
+  padding: 5px 7px;
+  background: ${(p) => p.theme.colors.panelAlt};
+  border-color: ${(p) => p.theme.colors.border};
+  color: ${(p) => p.theme.colors.textMuted};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  svg {
+    font-size: 13px;
+  }
 `
 
 const SectionTitle = styled.h2`
@@ -467,7 +483,8 @@ function EpisodeTable({
   onToggleSelectAll,
   onTrackChange,
   onFirstLineTargetChange,
-  onManualOffsetChange
+  onManualOffsetChange,
+  onOpenSync
 }: {
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
@@ -478,6 +495,7 @@ function EpisodeTable({
   onTrackChange: (rowId: string, trackId: number | null) => void
   onFirstLineTargetChange: (rowId: string, value: string) => void
   onManualOffsetChange: (rowId: string, value: string) => void
+  onOpenSync: (rowId: string) => void
 }) {
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
 
@@ -576,14 +594,24 @@ function EpisodeTable({
                 )}
                 {!cleanOnly && (
                   <Td>
-                    <TimingInput
-                      type="text"
-                      placeholder="500 ou -500"
-                      value={row.manualOffsetText}
-                      disabled={row.firstLineTargetText !== ''}
-                      onChange={(e) => onManualOffsetChange(row.id, maskOffsetInput(e.target.value))}
-                      title='Desloca a legenda em ms: positivo atrasa, "-" na frente adianta. Vazio = sem deslocamento manual.'
-                    />
+                    <Row $gap={6}>
+                      <TimingInput
+                        type="text"
+                        placeholder="500 ou -500"
+                        value={row.manualOffsetText}
+                        disabled={row.firstLineTargetText !== ''}
+                        onChange={(e) => onManualOffsetChange(row.id, maskOffsetInput(e.target.value))}
+                        title='Desloca a legenda em ms: positivo atrasa, "-" na frente adianta. Vazio = sem deslocamento manual.'
+                      />
+                      <IconButton
+                        type="button"
+                        onClick={() => onOpenSync(row.id)}
+                        disabled={row.selectedTrackId === null}
+                        title="Sincronizar automaticamente comparando com a legenda em ingles do destino"
+                      >
+                        <SyncOutlined />
+                      </IconButton>
+                    </Row>
                   </Td>
                 )}
                 <Td>
@@ -595,6 +623,300 @@ function EpisodeTable({
         </tbody>
       </Table>
     </TableWrap>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// SyncModal - auto-sync manual: duas colunas com as falas (ingles do
+// destino e ptbr da origem), cada uma com scroll proprio. Clica numa fala de
+// cada lado pra marcar o par "mesma fala nos dois idiomas" e calcular o
+// deslocamento em ms.
+// ---------------------------------------------------------------------------
+
+function formatEventTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+const Overlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+`
+
+const ModalBox = styled(Panel)`
+  width: min(900px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+`
+
+const ModalHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+`
+
+const ModalTitle = styled.h3`
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+`
+
+const FieldRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: ${(p) => p.theme.colors.textMuted};
+`
+
+const Select = styled.select`
+  background: ${(p) => p.theme.colors.panelAlt};
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.sm};
+  padding: 5px 8px;
+  color: ${(p) => p.theme.colors.text};
+  flex: 1;
+`
+
+const ColumnsRow = styled.div`
+  display: flex;
+  gap: 12px;
+  min-height: 0;
+`
+
+const Column = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+const ColumnHeader = styled.div<{ $accent: string }>`
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: ${(p) => p.$accent};
+`
+
+const ColumnList = styled.div`
+  height: 360px;
+  overflow-y: auto;
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.md};
+  background: ${(p) => p.theme.colors.panelAlt};
+`
+
+const ColumnItem = styled.button<{ $selected: boolean; $accent: string }>`
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  border-left: 3px solid ${(p) => (p.$selected ? p.$accent : 'transparent')};
+  background: ${(p) => (p.$selected ? `color-mix(in srgb, ${p.$accent} 16%, transparent)` : 'transparent')};
+  color: ${(p) => (p.$selected ? p.theme.colors.text : p.theme.colors.textMuted)};
+  font-size: 12px;
+  line-height: 1.4;
+  cursor: pointer;
+
+  &:hover {
+    background: ${(p) =>
+      p.$selected ? `color-mix(in srgb, ${p.$accent} 22%, transparent)` : p.theme.colors.panel};
+  }
+`
+
+const ItemTime = styled.span`
+  flex-shrink: 0;
+  font-family: ${(p) => p.theme.font.mono};
+  font-size: 10.5px;
+  color: ${(p) => p.theme.colors.textFaint};
+  padding-top: 1px;
+`
+
+const OffsetPreview = styled.div`
+  font-size: 12.5px;
+  color: ${(p) => p.theme.colors.text};
+  text-align: center;
+`
+
+const ModalFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`
+
+function SyncModal({
+  row,
+  onClose,
+  onApply
+}: {
+  row: EpisodeRow
+  onClose: () => void
+  onApply: (offsetMs: number) => void
+}) {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [ptEvents, setPtEvents] = useState<SubtitleEvent[]>([])
+  const [destTracks, setDestTracks] = useState<SubtitleTrack[]>([])
+  const [enTrackId, setEnTrackId] = useState<number | null>(null)
+  const [enEvents, setEnEvents] = useState<SubtitleEvent[]>([])
+  const [loadingEnEvents, setLoadingEnEvents] = useState(false)
+  const [selectedEnIndex, setSelectedEnIndex] = useState<number | null>(null)
+  const [selectedPtIndex, setSelectedPtIndex] = useState<number | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    window.api
+      .prepareSync(row.sourcePath, row.selectedTrackId as number, row.destPath)
+      .then(async (result) => {
+        if (cancelled) return
+        setPtEvents(result.ptEvents)
+        setDestTracks(result.destTracks)
+        setEnTrackId(result.suggestedEnTrackId)
+        if (result.suggestedEnTrackId !== null) {
+          const events = await window.api.getTrackEvents(row.destPath, result.suggestedEnTrackId)
+          if (!cancelled) setEnEvents(events)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setError((err as Error).message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.id])
+
+  function handleEnTrackChange(trackId: number) {
+    setEnTrackId(trackId)
+    setSelectedEnIndex(null)
+    setLoadingEnEvents(true)
+    window.api
+      .getTrackEvents(row.destPath, trackId)
+      .then(setEnEvents)
+      .catch((err) => setError((err as Error).message))
+      .finally(() => setLoadingEnEvents(false))
+  }
+
+  const selectedEn = selectedEnIndex !== null ? enEvents[selectedEnIndex] : null
+  const selectedPt = selectedPtIndex !== null ? ptEvents[selectedPtIndex] : null
+  const offsetMs = selectedEn && selectedPt ? selectedEn.startMs - selectedPt.startMs : null
+
+  return (
+    <Overlay onClick={onClose}>
+      <ModalBox onClick={(e) => e.stopPropagation()}>
+        <ModalHeader>
+          <ModalTitle>Sincronizar automaticamente - {row.episodeKey}</ModalTitle>
+          <Button $variant="ghost" onClick={onClose}>
+            Fechar
+          </Button>
+        </ModalHeader>
+
+        {loading && <div>Carregando falas...</div>}
+        {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
+
+        {!loading && !error && destTracks.length === 0 && (
+          <div style={{ color: theme.colors.warning }}>
+            O arquivo de destino nao tem nenhuma legenda para usar como referencia - nao e possivel
+            sincronizar automaticamente neste episodio. Use o deslocamento manual ou "1a fala em".
+          </div>
+        )}
+
+        {!loading && !error && destTracks.length > 0 && (
+          <>
+            <FieldRow>
+              Legenda em ingles (destino):
+              <Select value={enTrackId ?? ''} onChange={(e) => handleEnTrackChange(Number(e.target.value))}>
+                {enTrackId === null && <option value="">Selecione a faixa...</option>}
+                {destTracks.map((t) => (
+                  <option key={t.trackId} value={t.trackId}>
+                    {trackLabel(t)}
+                  </option>
+                ))}
+              </Select>
+              {enTrackId === null && (
+                <span style={{ color: theme.colors.warning }}>Nao detectei automaticamente - escolha a faixa</span>
+              )}
+            </FieldRow>
+
+            <ColumnsRow>
+              <Column>
+                <ColumnHeader $accent={theme.colors.info}>Ingles ({enEvents.length})</ColumnHeader>
+                <ColumnList>
+                  {loadingEnEvents && <div style={{ padding: 10 }}>Carregando...</div>}
+                  {!loadingEnEvents &&
+                    enEvents.map((evt, i) => (
+                      <ColumnItem
+                        key={i}
+                        type="button"
+                        $selected={selectedEnIndex === i}
+                        $accent={theme.colors.info}
+                        onClick={() => setSelectedEnIndex(i)}
+                      >
+                        <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
+                        <span>{evt.text}</span>
+                      </ColumnItem>
+                    ))}
+                </ColumnList>
+              </Column>
+
+              <Column>
+                <ColumnHeader $accent={theme.colors.success}>PT-BR ({ptEvents.length})</ColumnHeader>
+                <ColumnList>
+                  {ptEvents.map((evt, i) => (
+                    <ColumnItem
+                      key={i}
+                      type="button"
+                      $selected={selectedPtIndex === i}
+                      $accent={theme.colors.success}
+                      onClick={() => setSelectedPtIndex(i)}
+                    >
+                      <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
+                      <span>{evt.text}</span>
+                    </ColumnItem>
+                  ))}
+                </ColumnList>
+              </Column>
+            </ColumnsRow>
+
+            <OffsetPreview>
+              {offsetMs !== null
+                ? `Deslocamento calculado: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms (${
+                    offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'
+                  } a legenda)`
+                : 'Selecione uma fala em cada coluna para calcular o deslocamento'}
+            </OffsetPreview>
+          </>
+        )}
+
+        <ModalFooter>
+          <Button $variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button $variant="primary" disabled={offsetMs === null} onClick={() => offsetMs !== null && onApply(offsetMs)}>
+            Aplicar deslocamento
+          </Button>
+        </ModalFooter>
+      </ModalBox>
+    </Overlay>
   )
 }
 
@@ -800,6 +1122,7 @@ function AppContent() {
   const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
   const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
   const [cleanOnly, setCleanOnly] = useState(false)
+  const [syncRowId, setSyncRowId] = useState<string | null>(null)
 
   useEffect(() => {
     window.api.loadConfig().then((config) => {
@@ -904,6 +1227,13 @@ function AppContent() {
           : r
       )
     )
+  }
+
+  function handleApplySync(rowId: string, offsetMs: number) {
+    const row = rows.find((r) => r.id === rowId)
+    handleManualOffsetChange(rowId, String(offsetMs))
+    setSyncRowId(null)
+    if (row) pushLog(`[${row.episodeKey}] deslocamento de ${offsetMs}ms aplicado via auto-sync`, 'success')
   }
 
   function handleToggleSelect(id: string) {
@@ -1082,6 +1412,7 @@ function AppContent() {
           onTrackChange={handleTrackChange}
           onFirstLineTargetChange={handleFirstLineTargetChange}
           onManualOffsetChange={handleManualOffsetChange}
+          onOpenSync={setSyncRowId}
         />
       </Col>
 
@@ -1089,6 +1420,18 @@ function AppContent() {
         <SectionTitle>Log</SectionTitle>
         <LogPanel entries={logs} />
       </Col>
+
+      {syncRowId &&
+        (() => {
+          const syncRow = rows.find((r) => r.id === syncRowId)
+          return syncRow ? (
+            <SyncModal
+              row={syncRow}
+              onClose={() => setSyncRowId(null)}
+              onApply={(offsetMs) => handleApplySync(syncRow.id, offsetMs)}
+            />
+          ) : null
+        })()}
     </Shell>
   )
 }

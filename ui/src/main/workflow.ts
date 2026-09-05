@@ -10,7 +10,12 @@ import {
   resolveTransferTrackName
 } from './domain/subtitleLanguage'
 import { isEnglishAudio } from './domain/audioLanguage'
-import { formatMsAsTimeCode, parseFirstEventStartMs, parseTimeCodeToMs } from './domain/subtitleTiming'
+import {
+  formatMsAsTimeCode,
+  parseFirstEventStartMs,
+  parseSubtitleEvents,
+  parseTimeCodeToMs
+} from './domain/subtitleTiming'
 import { listVideoFiles } from './infra/videoFiles'
 import {
   cleanTracksInto,
@@ -25,7 +30,16 @@ import {
   subtitleExtension
 } from './infra/mkvProcess'
 import { appendTransferLog } from './infra/transferLog'
-import type { EpisodeRow, LogEvent, RowStatus, ScanResult, SubtitleTrack, TransferSummary } from '@shared/types'
+import type {
+  EpisodeRow,
+  LogEvent,
+  RowStatus,
+  ScanResult,
+  SubtitleEvent,
+  SubtitleTrack,
+  SyncPrepareResult,
+  TransferSummary
+} from '@shared/types'
 
 type LogFn = (event: LogEvent) => void
 
@@ -514,4 +528,58 @@ export async function cleanRows(
   })
 
   return { total, success, failed }
+}
+
+// Extrai uma faixa de legenda e devolve suas falas ja parseadas (timestamp +
+// texto), para a tela de auto-sync manual (escolher visualmente a "mesma
+// fala" em ingles e ptbr).
+async function extractSubtitleEvents(
+  mkvextractPath: string,
+  filePath: string,
+  track: SubtitleTrack
+): Promise<SubtitleEvent[]> {
+  const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-events-'))
+  try {
+    const extension = subtitleExtension(track.codecId)
+    const tmpPath = join(tmpDir, `evt${extension}`)
+    await extractSubtitle(mkvextractPath, filePath, track.trackId, tmpPath)
+    const content = await readFile(tmpPath, 'utf-8')
+    return parseSubtitleEvents(content, extension)
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true })
+  }
+}
+
+// Monta os dados iniciais da tela de auto-sync manual: as falas da legenda
+// ptbr ja escolhida na linha (origem) e a lista de faixas de legenda do
+// destino, com um palpite de qual delas e a legenda em ingles (por codigo de
+// idioma) para pre-selecionar o lado ingles.
+export async function prepareSync(
+  mkvmergePath: string,
+  mkvextractPath: string,
+  sourcePath: string,
+  sourceTrackId: number,
+  destPath: string
+): Promise<SyncPrepareResult> {
+  const sourceTracks = await probeSubtitleTracks(mkvmergePath, sourcePath)
+  const ptTrack = sourceTracks.find((t) => t.trackId === sourceTrackId)
+  const ptEvents = ptTrack ? await extractSubtitleEvents(mkvextractPath, sourcePath, ptTrack) : []
+
+  const destTracks = await probeSubtitleTracks(mkvmergePath, destPath)
+  const suggested = destTracks.find((t) => isEnglishAudio(t.language))
+
+  return { ptEvents, destTracks, suggestedEnTrackId: suggested?.trackId ?? null }
+}
+
+// Devolve as falas de uma faixa de legenda especifica - usado pela tela de
+// auto-sync manual quando o usuario troca a faixa em ingles sugerida.
+export async function getTrackEvents(
+  mkvmergePath: string,
+  mkvextractPath: string,
+  filePath: string,
+  trackId: number
+): Promise<SubtitleEvent[]> {
+  const tracks = await probeSubtitleTracks(mkvmergePath, filePath)
+  const track = tracks.find((t) => t.trackId === trackId)
+  return track ? extractSubtitleEvents(mkvextractPath, filePath, track) : []
 }

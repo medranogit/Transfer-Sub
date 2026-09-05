@@ -79,3 +79,18 @@ export interface TransferSummary {
   success: number
   failed: number
 }
+
+// Uma linha de legenda ja parseada (timestamp + texto limpo), usada pela
+// tela de auto-sync manual (escolher a "mesma fala" em ingles e ptbr).
+export interface SubtitleEvent {
+  startMs: number
+  text: string
+}
+
+export interface SyncPrepareResult {
+  ptEvents: SubtitleEvent[]
+  destTracks: SubtitleTrack[]
+  // Faixa do destino que parece ser a legenda em ingles (por codigo de
+  // idioma). Null quando nenhuma faixa bateu - o usuario escolhe manualmente.
+  suggestedEnTrackId: number | null
+}
