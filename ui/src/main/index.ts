@@ -5,12 +5,16 @@ import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocat
 import { cleanRows, scanForClean, scanFolders, transferRows } from './workflow'
 import type { AppConfig, MkvToolsStatus, TransferRequest } from '@shared/types'
 
+// Tamanho inicial da janela do app - ajuste aqui.
+const WINDOW_WIDTH = 1600
+const WINDOW_HEIGHT = 1000
+
 let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 760,
+    width: WINDOW_WIDTH,
+    height: WINDOW_HEIGHT,
     minWidth: 900,
     minHeight: 560,
     show: false,
@@ -107,6 +111,7 @@ app.whenReady().then(() => {
       request.rows,
       request.outputDir,
       request.removeEnglishAudio,
+      request.removeExtraSubtitles,
       (rowId, statusValue, message) => {
         mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
       },

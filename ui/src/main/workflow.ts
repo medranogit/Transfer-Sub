@@ -3,14 +3,21 @@ import { tmpdir } from 'os'
 import { mkdtemp, readFile, rm } from 'fs/promises'
 import { join, basename } from 'path'
 import { episodeKey, findEpisode } from './domain/episodeMatcher'
-import { guessPtBrFromContent, pickBestTrackIndex } from './domain/subtitleLanguage'
+import {
+  guessPtBrFromContent,
+  pickBestTrackIndex,
+  resolveTransferLanguage,
+  resolveTransferTrackName
+} from './domain/subtitleLanguage'
 import { isEnglishAudio } from './domain/audioLanguage'
 import { formatMsAsTimeCode, parseFirstEventStartMs, parseTimeCodeToMs } from './domain/subtitleTiming'
 import { listVideoFiles } from './infra/videoFiles'
 import {
   cleanTracksInto,
+  extractAttachments,
   extractSubtitle,
   muxSubtitleInto,
+  probeAttachments,
   probeAudioTracks,
   probeSubtitleTracks,
   resolveCleanOutputPath,
@@ -262,6 +269,7 @@ export async function transferRows(
   rows: EpisodeRow[],
   outputDir: string,
   removeEnglishAudio: boolean,
+  removeExtraSubtitles: boolean,
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn
 ): Promise<TransferSummary> {
@@ -286,6 +294,20 @@ export async function transferRows(
       const subPath = join(tmpDir, `sub${extension}`)
       await extractSubtitle(mkvextractPath, row.sourcePath, track.trackId, subPath)
 
+      // Legendas ASS costumam depender de fontes customizadas anexadas ao
+      // mkv de origem - sem levar essas fontes junto, a legenda transferida
+      // perde a formatacao (o player cai pra uma fonte generica).
+      let attachments: Awaited<ReturnType<typeof extractAttachments>> = []
+      try {
+        const sourceAttachments = await probeAttachments(mkvmergePath, row.sourcePath)
+        attachments = await extractAttachments(mkvextractPath, row.sourcePath, sourceAttachments, tmpDir)
+      } catch (err) {
+        onLog({
+          level: 'warn',
+          message: `[${row.episodeKey}] falha ao copiar fontes anexadas: ${(err as Error).message}`
+        })
+      }
+
       const offsetMs = await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
 
       const keepAudioTrackIds = await resolveAudioTrackFilter(
@@ -298,20 +320,26 @@ export async function transferRows(
 
       // Legendas que ja existem no destino (ex: signs/songs de um raw) nao
       // podem continuar marcadas como padrao, senao o arquivo final fica
-      // com duas faixas de legenda "padrao" ao mesmo tempo.
+      // com duas faixas de legenda "padrao" ao mesmo tempo. So precisa
+      // disso quando elas vao ser mantidas - se removeExtraSubtitles esta
+      // ligado, elas nem entram no arquivo final.
       let destSubtitleTrackIds: number[] = []
-      try {
-        destSubtitleTrackIds = (await probeSubtitleTracks(mkvmergePath, row.destPath)).map((t) => t.trackId)
-      } catch {
-        destSubtitleTrackIds = []
+      if (!removeExtraSubtitles) {
+        try {
+          destSubtitleTrackIds = (await probeSubtitleTracks(mkvmergePath, row.destPath)).map((t) => t.trackId)
+        } catch {
+          destSubtitleTrackIds = []
+        }
       }
 
       onProgress(row.id, 'muxing')
       const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
       const audioInfo = keepAudioTrackIds ? ' (removendo audio em ingles)' : ''
+      const fontsInfo = attachments.length > 0 ? ` (com ${attachments.length} fonte(s) anexada(s))` : ''
+      const subsInfo = removeExtraSubtitles ? ' (removendo legendas extras do destino)' : ''
       onLog({
         level: 'info',
-        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}`
+        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${fontsInfo}${subsInfo}`
       })
 
       await muxSubtitleInto(
@@ -319,11 +347,13 @@ export async function transferRows(
         row.destPath,
         subPath,
         outputFile,
-        track.language,
-        track.trackName,
+        resolveTransferLanguage(track),
+        resolveTransferTrackName(track),
         offsetMs,
         keepAudioTrackIds,
-        destSubtitleTrackIds
+        destSubtitleTrackIds,
+        attachments,
+        removeExtraSubtitles
       )
 
       onProgress(row.id, 'done')

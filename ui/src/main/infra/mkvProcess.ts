@@ -86,6 +86,51 @@ export async function extractSubtitle(
   })
 }
 
+export interface SubtitleAttachment {
+  id: number
+  fileName: string
+  contentType: string
+}
+
+// Legendas ASS costumam depender de fontes customizadas anexadas ao mkv
+// original - sem elas, o player usa uma fonte generica e a legenda parece
+// "sem formatacao" mesmo com os estilos intactos no texto da legenda.
+export async function probeAttachments(mkvmergePath: string, videoFile: string): Promise<SubtitleAttachment[]> {
+  const { stdout } = await execFileAsync(mkvmergePath, ['-J', videoFile], {
+    maxBuffer: 32 * 1024 * 1024
+  })
+  const data = JSON.parse(stdout) as {
+    attachments?: { id: number; file_name: string; content_type: string }[]
+  }
+
+  return (data.attachments ?? []).map((a) => ({
+    id: a.id,
+    fileName: a.file_name,
+    contentType: a.content_type
+  }))
+}
+
+export interface ExtractedAttachment {
+  fileName: string
+  contentType: string
+  path: string
+}
+
+export async function extractAttachments(
+  mkvextractPath: string,
+  videoFile: string,
+  attachments: SubtitleAttachment[],
+  outDir: string
+): Promise<ExtractedAttachment[]> {
+  if (attachments.length === 0) return []
+
+  const withPath = attachments.map((a) => ({ ...a, path: join(outDir, `${a.id}_${a.fileName}`) }))
+  const specs = withPath.map((a) => `${a.id}:${a.path}`)
+  await execFileAsync(mkvextractPath, ['attachments', videoFile, ...specs], { maxBuffer: 32 * 1024 * 1024 })
+
+  return withPath.map(({ fileName, contentType, path }) => ({ fileName, contentType, path }))
+}
+
 export async function muxSubtitleInto(
   mkvmergePath: string,
   destVideo: string,
@@ -95,16 +140,29 @@ export async function muxSubtitleInto(
   trackName = '',
   offsetMs = 0,
   keepAudioTrackIds?: number[],
-  clearDefaultSubtitleTrackIds?: number[]
+  clearDefaultSubtitleTrackIds?: number[],
+  attachments?: ExtractedAttachment[],
+  removeExtraSubtitles = false
 ): Promise<void> {
   const args = ['-o', outputFile]
   if (keepAudioTrackIds) {
     args.push('--audio-tracks', keepAudioTrackIds.join(','))
   }
-  // Zera a flag "padrao" de legendas ja existentes no destino, para a
-  // legenda transferida ser a unica marcada como padrao no arquivo final.
-  clearDefaultSubtitleTrackIds?.forEach((trackId) => {
-    args.push('--default-track-flag', `${trackId}:no`)
+  if (removeExtraSubtitles) {
+    // Nao copia nenhuma legenda que ja existia no destino - so a
+    // transferida sobra no arquivo final.
+    args.push('--no-subtitles')
+  } else {
+    // Zera a flag "padrao" de legendas ja existentes no destino, para a
+    // legenda transferida ser a unica marcada como padrao no arquivo final.
+    clearDefaultSubtitleTrackIds?.forEach((trackId) => {
+      args.push('--default-track-flag', `${trackId}:no`)
+    })
+  }
+  // Leva junto as fontes anexadas da origem, senao a legenda perde a
+  // formatacao (o player cai pra uma fonte generica).
+  attachments?.forEach((a) => {
+    args.push('--attachment-name', a.fileName, '--attachment-mime-type', a.contentType, '--attach-file', a.path)
   })
   args.push(
     destVideo,

@@ -43,6 +43,26 @@ export function isPtBrTrack(language: string, trackName: string): boolean {
   })
 }
 
+// Nome padrao para a faixa de legenda PT-BR ao ser transferida - identifica
+// facilmente qual faixa foi adicionada pelo Transfer Sub em players que
+// listam o nome da faixa, em vez de manter o nome original (que varia de
+// fansub pra fansub, as vezes vazio).
+export const PT_BR_TRANSFER_TRACK_NAME = 'PortuguesBr - TransferSub'
+
+// So renomeia quando a faixa foi reconhecida como PT-BR (por idioma/nome ou
+// pelo palpite de conteudo) - outras faixas mantem o nome original.
+export function resolveTransferTrackName(track: SubtitleTrack): string {
+  return track.isPtBr || track.isPtBrGuess ? PT_BR_TRANSFER_TRACK_NAME : track.trackName
+}
+
+// Alguns players (ex: MPC) completam o menu de legendas com
+// "<nome da faixa> - [<idioma>]" sempre que a faixa tem um codigo de idioma
+// reconhecido. Como o nome ja deixa claro que e portugues, usamos "und"
+// (idioma indeterminado) pra esses players nao repetirem "[Portugues]".
+export function resolveTransferLanguage(track: SubtitleTrack): string {
+  return track.isPtBr || track.isPtBrGuess ? 'und' : track.language
+}
+
 export function pickBestTrackIndex(tracks: SubtitleTrack[]): number {
   if (tracks.length === 0) return -1
   let bestIndex = 0

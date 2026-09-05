@@ -63,6 +63,10 @@ export interface TransferRequest {
   rows: EpisodeRow[]
   outputDir: string
   removeEnglishAudio: boolean
+  // Remove as legendas que ja existiam no destino, deixando so a faixa
+  // transferida. So se aplica ao modo Transferir (o modo Limpar ja tem seu
+  // proprio controle por linha).
+  removeExtraSubtitles: boolean
 }
 
 export interface TransferSummary {

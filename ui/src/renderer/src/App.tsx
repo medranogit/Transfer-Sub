@@ -699,6 +699,7 @@ function AppContent() {
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
+  const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
   const [cleanOnly, setCleanOnly] = useState(false)
 
   useEffect(() => {
@@ -816,7 +817,12 @@ function AppContent() {
     await persistConfig()
     setTransferring(true)
     try {
-      const request = { rows: targets, outputDir: outputDir || destDir, removeEnglishAudio }
+      const request = {
+        rows: targets,
+        outputDir: outputDir || destDir,
+        removeEnglishAudio,
+        removeExtraSubtitles: !cleanOnly && removeExtraSubtitles
+      }
       const summary = cleanOnly ? await window.api.clean(request) : await window.api.transfer(request)
       pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`)
     } catch (err) {
@@ -890,6 +896,19 @@ function AppContent() {
             Remover dublagem em ingles do destino (manter so o audio japones)
           </CheckboxLabel>
         </OptionsRow>
+
+        {!cleanOnly && (
+          <OptionsRow>
+            <CheckboxLabel>
+              <CheckboxInput
+                type="checkbox"
+                checked={removeExtraSubtitles}
+                onChange={(e) => setRemoveExtraSubtitles(e.target.checked)}
+              />
+              Limpar legendas do destino, deixando so a transferida
+            </CheckboxLabel>
+          </OptionsRow>
+        )}
 
         <ToolbarRow>
           <Row $gap={8}>
