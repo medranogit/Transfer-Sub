@@ -216,3 +216,12 @@ export interface RenameSummary {
   success: number
   failed: number
 }
+
+// Uma sessao do app (do momento que abre ate fechar) com log gravado em
+// disco - ver infra/sessionLog.ts. "id" e o timestamp (ms) de quando o
+// processo comecou, usado tambem como nome do arquivo .txt.
+export interface SessionLogInfo {
+  id: string
+  label: string
+  current: boolean
+}

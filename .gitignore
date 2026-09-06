@@ -24,6 +24,10 @@
 # Log de transferencia gerado pelo app (dado de uso real, nao codigo)
 transfer-log.json
 
+# Log bruto de sessao gerado pelo app em modo dev (dado de uso real, nao
+# codigo) - empacotado fica na pasta de dados do usuario, nunca aqui.
+/ui/session-logs/
+
 # Sistema operacional (Windows/macOS)
 Thumbs.db
 ehthumbs.db

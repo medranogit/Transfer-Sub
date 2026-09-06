@@ -66,7 +66,8 @@ const FileName = styled.div`
 `
 
 const TrackSelect = styled.select`
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   max-width: 320px;
   background: ${(p) => p.theme.colors.panelAlt};
   border: 1px solid ${(p) => p.theme.colors.border};
@@ -78,7 +79,7 @@ const TrackSelect = styled.select`
 const PtBrIcon = styled(CheckCircleFilled)`
   color: ${(p) => p.theme.colors.success};
   font-size: 13px;
-  margin-left: 6px;
+  flex-shrink: 0;
 `
 
 const PtBrGuessTag = styled.span`
@@ -170,33 +171,34 @@ export function EpisodeTable({
                 </Td>
                 <Td>{row.episodeKey}</Td>
                 <Td onClick={(e) => e.stopPropagation()}>
-                  {row.tracks.length > 0 ? (
-                    <TrackSelect
-                      value={row.selectedTrackId ?? ''}
-                      onChange={(e) =>
-                        onTrackChange(row.id, e.target.value === '' ? null : Number(e.target.value))
-                      }
-                    >
-                      {cleanOnly && <option value="">Manter todas as legendas</option>}
-                      {row.tracks.map((t) => (
-                        <option key={t.trackId} value={t.trackId}>
-                          {trackLabel(t)}
-                          {t.isPtBr ? '  ★ PT-BR' : t.isPtBrGuess ? '  ⚠ pode ser PT-BR' : ''}
-                        </option>
-                      ))}
-                    </TrackSelect>
-                  ) : (
-                    <NoSubtitle>(nenhuma legenda encontrada)</NoSubtitle>
-                  )}
-                  {selectedTrack?.isPtBr && (
-                    <PtBrIcon title="Faixa em PT-BR (idioma/nome reconhecido) selecionada automaticamente" />
-                  )}
-                  {!selectedTrack?.isPtBr && selectedTrack?.isPtBrGuess && (
-                    <PtBrGuessTag title="Nenhuma faixa foi identificada como PT-BR por idioma/nome, mas o conteudo desta parece portugues - confira antes de transferir">
-                      {' '}
-                      ⚠ rotulada "{selectedTrack.language}", mas parece PT-BR
-                    </PtBrGuessTag>
-                  )}
+                  <Row $gap={6} style={{ flexWrap: 'wrap' }}>
+                    {row.tracks.length > 0 ? (
+                      <TrackSelect
+                        value={row.selectedTrackId ?? ''}
+                        onChange={(e) =>
+                          onTrackChange(row.id, e.target.value === '' ? null : Number(e.target.value))
+                        }
+                      >
+                        {cleanOnly && <option value="">Manter todas as legendas</option>}
+                        {row.tracks.map((t) => (
+                          <option key={t.trackId} value={t.trackId}>
+                            {trackLabel(t)}
+                            {t.isPtBr ? '  ★ PT-BR' : t.isPtBrGuess ? '  ⚠ pode ser PT-BR' : ''}
+                          </option>
+                        ))}
+                      </TrackSelect>
+                    ) : (
+                      <NoSubtitle>(nenhuma legenda encontrada)</NoSubtitle>
+                    )}
+                    {selectedTrack?.isPtBr && (
+                      <PtBrIcon title="Faixa em PT-BR (idioma/nome reconhecido) selecionada automaticamente" />
+                    )}
+                    {!selectedTrack?.isPtBr && selectedTrack?.isPtBrGuess && (
+                      <PtBrGuessTag title="Nenhuma faixa foi identificada como PT-BR por idioma/nome, mas o conteudo desta parece portugues - confira antes de transferir">
+                        ⚠ rotulada "{selectedTrack.language}", mas parece PT-BR
+                      </PtBrGuessTag>
+                    )}
+                  </Row>
                 </Td>
                 <Td>
                   <FileName title={row.sourceName}>{row.sourceName}</FileName>

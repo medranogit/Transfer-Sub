@@ -3,6 +3,7 @@ import { join } from 'path'
 import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
+import { appendSessionLog, listSessionLogs, pruneOldSessionLogs, readSessionLog } from './infra/sessionLog'
 import { CancellationToken } from './infra/cancellation'
 import {
   cleanRows,
@@ -16,7 +17,14 @@ import {
 } from './workflow'
 import { VIDEO_EXTS } from './infra/videoFiles'
 import { applyRename, previewRename, recomputeRename } from './renamer'
-import type { AppConfig, MkvToolsStatus, RenameFields, RenamePreviewRow, TransferRequest } from '@shared/types'
+import type {
+  AppConfig,
+  LogEvent,
+  MkvToolsStatus,
+  RenameFields,
+  RenamePreviewRow,
+  TransferRequest
+} from '@shared/types'
 
 // Tamanho inicial da janela do app - ajuste aqui.
 const WINDOW_WIDTH = 1750
@@ -26,6 +34,23 @@ let mainWindow: BrowserWindow | null = null
 // So uma transferencia/limpeza roda por vez (o botao fica desabilitado
 // enquanto isso) - guarda o token da operacao atual pro botao "Abortar".
 let activeToken: CancellationToken | null = null
+
+// So uma instancia do app por vez - abrir um segundo .exe enquanto o
+// primeiro ja esta rodando poderia gerar dois processos mexendo nos mesmos
+// arquivos (mkvpropedit, config.json, transfer-log.json) ao mesmo tempo.
+// A 2a instancia perde a corrida, nao ganha janela propria, e so foca a
+// janela da 1a antes de sair.
+const gotSingleInstanceLock = app.requestSingleInstanceLock()
+if (!gotSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.focus()
+    }
+  })
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -78,6 +103,7 @@ function tryLocate(configuredDir?: string): MkvToolsStatus {
   }
 }
 
+if (gotSingleInstanceLock) {
 app.whenReady().then(() => {
   ipcMain.handle('config:load', (): AppConfig => loadConfig())
   ipcMain.handle('config:save', (_e, config: AppConfig) => saveConfig(config))
@@ -248,6 +274,15 @@ app.whenReady().then(() => {
   ipcMain.handle('transferLog:load', () => loadTransferLog())
   ipcMain.handle('transferLog:clear', () => clearTransferLog())
 
+  // A UI e a unica origem de LogEvent (tanto os despachados pelo processo
+  // principal via canal 'log' quanto os gerados localmente na renderer, ex:
+  // validacoes) - ela reenvia cada um pra ca assim que aparece na tela, o
+  // que garante que o .txt da sessao bate exatamente com o que foi exibido.
+  ipcMain.handle('sessionLog:append', (_e, entry: LogEvent) => appendSessionLog(entry))
+  ipcMain.handle('sessionLog:list', () => listSessionLogs())
+  ipcMain.handle('sessionLog:read', (_e, id: string) => readSessionLog(id))
+  pruneOldSessionLogs().catch(() => {})
+
   ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {
     const config = loadConfig()
     const status = tryLocate(config.mkvToolNixDir)
@@ -318,3 +353,4 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+}

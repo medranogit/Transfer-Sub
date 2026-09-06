@@ -17,6 +17,7 @@ import type { ViewId } from './components/Sidebar'
 import { WorkflowView } from './components/WorkflowView'
 import { RenameView } from './components/RenameView'
 import { HistoryView } from './components/HistoryView'
+import { SessionLogView } from './components/SessionLogView'
 import { SettingsView } from './components/SettingsView'
 import { SyncModal } from './components/SyncModal'
 import { NotificationsMenu } from './components/NotificationsMenu'
@@ -59,6 +60,7 @@ const VIEW_TITLES: Record<ViewId, string> = {
   clean: 'Limpeza',
   rename: 'Renomeador',
   history: 'Historico',
+  sessionLog: 'Log da Sessao',
   settings: 'Configuracoes'
 }
 
@@ -140,7 +142,7 @@ function AppContent() {
       window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
     })
 
-    const offLog = window.api.onLog((event) => setLogs((prev) => [...prev, event]))
+    const offLog = window.api.onLog((event) => addLog(event))
     const offProgress = window.api.onTransferProgress(({ rowId, status }) => {
       setStatuses((prev) => ({ ...prev, [rowId]: status }))
     })
@@ -150,8 +152,18 @@ function AppContent() {
     }
   }, [])
 
+  // Unico ponto que adiciona ao log em tela (main via canal 'log', ou
+  // renderer via pushLog) - tambem reenvia pro processo principal gravar no
+  // .txt da sessao atual (ver infra/sessionLog.ts), garantindo que o arquivo
+  // bate exatamente com o que foi exibido, sem duplicar logica em dois
+  // lugares.
+  function addLog(event: LogEvent): void {
+    setLogs((prev) => [...prev, event])
+    window.api.appendSessionLog(event).catch(() => {})
+  }
+
   function pushLog(message: string, level: LogEvent['level'] = 'info') {
-    setLogs((prev) => [...prev, { level, message }])
+    addLog({ level, message })
   }
 
   function handleClearLog(): void {
@@ -608,6 +620,8 @@ function AppContent() {
         )}
 
         {view === 'history' && <HistoryView />}
+
+        {view === 'sessionLog' && <SessionLogView />}
 
         {view === 'settings' && (
           <SettingsView

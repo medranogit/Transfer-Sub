@@ -8,6 +8,7 @@ import type {
   RenamePreviewRow,
   RenameSummary,
   ScanResult,
+  SessionLogInfo,
   SubtitleEvent,
   SyncPrepareResult,
   TransferLogEntry,
@@ -57,6 +58,10 @@ const api = {
 
   loadTransferLog: (): Promise<TransferLogEntry[]> => ipcRenderer.invoke('transferLog:load'),
   clearTransferLog: (): Promise<void> => ipcRenderer.invoke('transferLog:clear'),
+
+  appendSessionLog: (entry: LogEvent): Promise<void> => ipcRenderer.invoke('sessionLog:append', entry),
+  listSessionLogs: (): Promise<SessionLogInfo[]> => ipcRenderer.invoke('sessionLog:list'),
+  readSessionLog: (id: string): Promise<string> => ipcRenderer.invoke('sessionLog:read', id),
 
   previewRename: (folder: string, fields: RenameFields): Promise<RenamePreviewResult> =>
     ipcRenderer.invoke('rename:preview', { folder, fields }),
