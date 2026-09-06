@@ -77,7 +77,7 @@ const Footer = styled.div`
   color: ${(p) => p.theme.colors.textMuted};
 `
 
-export function HistoryView() {
+export function HistoryView({ onError }: { onError: (message: string) => void }) {
   const [entries, setEntries] = useState<TransferLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -92,7 +92,11 @@ export function HistoryView() {
     window.api
       .loadTransferLog()
       .then(setEntries)
-      .catch((err) => setError((err as Error).message))
+      .catch((err) => {
+        const message = (err as Error).message
+        setError(message)
+        onError(`Falha ao carregar historico: ${message}`)
+      })
       .finally(() => setLoading(false))
   }
 
@@ -103,6 +107,8 @@ export function HistoryView() {
     try {
       await window.api.clearTransferLog()
       load()
+    } catch (err) {
+      onError(`Falha ao apagar historico: ${(err as Error).message}`)
     } finally {
       setClearing(false)
       setShowClearConfirm(false)

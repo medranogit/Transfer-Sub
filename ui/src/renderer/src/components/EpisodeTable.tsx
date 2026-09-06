@@ -138,6 +138,7 @@ export function EpisodeTable({
               <Checkbox checked={allSelected} onChange={onToggleSelectAll} title="Selecionar todos" />
             </th>
             <th style={{ width: 90 }}>Episodio</th>
+            {!cleanOnly && <th style={{ width: 150 }}>Sincronizacao</th>}
             <th>
               <Row $gap={8} style={{ alignItems: 'center' }}>
                 <span>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</span>
@@ -157,7 +158,6 @@ export function EpisodeTable({
             {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
             {!cleanOnly && <th style={{ width: 24 }} />}
             {!cleanOnly && <th>Arquivo destino</th>}
-            {!cleanOnly && <th style={{ width: 150 }}>Sincronizacao</th>}
             <th style={{ width: 110 }}>Status</th>
           </tr>
         </Thead>
@@ -170,6 +170,22 @@ export function EpisodeTable({
                   <Checkbox checked={selectedIds.has(row.id)} onChange={() => onToggleSelect(row.id)} />
                 </Td>
                 <Td>{row.episodeKey}</Td>
+                {!cleanOnly && (
+                  <Td onClick={(e) => e.stopPropagation()}>
+                    <Row $gap={8}>
+                      {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
+                      <Button
+                        type="button"
+                        $variant="secondary"
+                        onClick={() => onOpenSync(row.id)}
+                        disabled={row.selectedTrackId === null}
+                        title="Ajustar o timing da legenda transferida (sincronizar com a legenda em ingles, definir a 1a fala ou um deslocamento manual)"
+                      >
+                        <SyncOutlined /> Sincronizar
+                      </Button>
+                    </Row>
+                  </Td>
+                )}
                 <Td onClick={(e) => e.stopPropagation()}>
                   <Row $gap={6} style={{ flexWrap: 'wrap' }}>
                     {row.tracks.length > 0 ? (
@@ -211,22 +227,6 @@ export function EpisodeTable({
                 {!cleanOnly && (
                   <Td>
                     <FileName title={row.destName}>{row.destName}</FileName>
-                  </Td>
-                )}
-                {!cleanOnly && (
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    <Row $gap={8}>
-                      {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
-                      <Button
-                        type="button"
-                        $variant="secondary"
-                        onClick={() => onOpenSync(row.id)}
-                        disabled={row.selectedTrackId === null}
-                        title="Ajustar o timing da legenda transferida (sincronizar com a legenda em ingles, definir a 1a fala ou um deslocamento manual)"
-                      >
-                        <SyncOutlined /> Sincronizar
-                      </Button>
-                    </Row>
                   </Td>
                 )}
                 <Td>

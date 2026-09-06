@@ -172,7 +172,8 @@ export function SyncModal({
   onFirstLineTargetChange,
   onManualOffsetChange,
   preferredEnTrackId,
-  onEnTrackChosen
+  onEnTrackChosen,
+  onError
 }: {
   row: EpisodeRow
   onClose: () => void
@@ -181,6 +182,7 @@ export function SyncModal({
   onManualOffsetChange: (value: string) => void
   preferredEnTrackId: number | null
   onEnTrackChosen: (trackId: number) => void
+  onError: (message: string) => void
 }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -213,7 +215,9 @@ export function SyncModal({
         setEnEvents(result.enEvents)
       })
       .catch((err) => {
-        if (!cancelled) setError((err as Error).message)
+        const message = (err as Error).message
+        if (!cancelled) setError(message)
+        onError(`[${row.episodeKey}] falha ao preparar sincronizacao: ${message}`)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -232,7 +236,11 @@ export function SyncModal({
     window.api
       .getTrackEvents(row.destPath, trackId)
       .then(setEnEvents)
-      .catch((err) => setError((err as Error).message))
+      .catch((err) => {
+        const message = (err as Error).message
+        setError(message)
+        onError(`[${row.episodeKey}] falha ao carregar falas da faixa: ${message}`)
+      })
       .finally(() => setLoadingEnEvents(false))
   }
 

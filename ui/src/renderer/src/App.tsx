@@ -64,6 +64,16 @@ const VIEW_TITLES: Record<ViewId, string> = {
   settings: 'Configuracoes'
 }
 
+// Snapshot do resultado de um scan (Transferir ou Limpeza) - ver
+// transferSnapshot/cleanSnapshot em AppContent.
+interface WorkflowSnapshot {
+  rows: EpisodeRow[]
+  statuses: Record<string, RowStatus>
+  selectedIds: Set<string>
+  scanWarnings: string[]
+  unmatchedSource: string[]
+}
+
 function AppContent() {
   const [view, setView] = useState<ViewId>('transfer')
 
@@ -86,6 +96,11 @@ function AppContent() {
   const [logs, setLogs] = useState<LogEvent[]>([])
   const [scanWarnings, setScanWarnings] = useState<string[]>([])
   const [unmatchedSource, setUnmatchedSource] = useState<string[]>([])
+  // Guarda o ultimo scan de cada modo (Transferir/Limpeza) enquanto o
+  // usuario esta no outro - sem isso, trocar de aba e voltar perderia a
+  // tabela escaneada (os dois modos compartilham os mesmos estados acima).
+  const [transferSnapshot, setTransferSnapshot] = useState<WorkflowSnapshot | null>(null)
+  const [cleanSnapshot, setCleanSnapshot] = useState<WorkflowSnapshot | null>(null)
 
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
@@ -172,20 +187,32 @@ function AppContent() {
 
   // Com um escaneamento/transferencia/limpeza em andamento a Sidebar ja
   // desabilita todo o resto (so a aba ativa fica clicavel) - essa checagem e
-  // so uma segunda camada de protecao. Trocar entre Transferir Legenda <->
-  // Limpeza tambem invalida a tabela escaneada (o escaneamento de cada
-  // modo e diferente).
+  // so uma segunda camada de protecao. Transferir Legenda e Limpeza
+  // compartilham os mesmos estados (rows/statuses/...) porque so um dos dois
+  // fica visivel por vez - guarda o scan de QUALQUER modo ao sair dele e
+  // restaura ao entrar de novo nele, mesmo que o caminho passe por outras
+  // abas no meio (rename/historico/config/etc) - antes isso so acontecia
+  // numa troca DIRETA entre os dois modos, entao ir por uma 3a aba no meio
+  // perdia o scan (o snapshot nunca era salvo, ou era restaurado de um
+  // snapshot errado).
   function handleNavigate(next: ViewId) {
     if (next === view) return
     if (scanning || transferring) return
-    const isWorkflowSwitch = (next === 'transfer' || next === 'clean') && (view === 'transfer' || view === 'clean')
-    if (isWorkflowSwitch) {
-      setRows([])
-      setStatuses({})
-      setSelectedIds(new Set())
-      setScanWarnings([])
-      setUnmatchedSource([])
+
+    if (view === 'transfer' || view === 'clean') {
+      const outgoing: WorkflowSnapshot = { rows, statuses, selectedIds, scanWarnings, unmatchedSource }
+      if (view === 'transfer') setTransferSnapshot(outgoing)
+      else setCleanSnapshot(outgoing)
     }
+    if (next === 'transfer' || next === 'clean') {
+      const incoming = next === 'transfer' ? transferSnapshot : cleanSnapshot
+      setRows(incoming?.rows ?? [])
+      setStatuses(incoming?.statuses ?? {})
+      setSelectedIds(incoming?.selectedIds ?? new Set())
+      setScanWarnings(incoming?.scanWarnings ?? [])
+      setUnmatchedSource(incoming?.unmatchedSource ?? [])
+    }
+    pushLog(`Navegou de "${VIEW_TITLES[view]}" para "${VIEW_TITLES[next]}"`)
     setView(next)
   }
 
@@ -619,7 +646,7 @@ function AppContent() {
           />
         )}
 
-        {view === 'history' && <HistoryView />}
+        {view === 'history' && <HistoryView onError={(message) => pushLog(message, 'error')} />}
 
         {view === 'sessionLog' && <SessionLogView />}
 
@@ -650,6 +677,7 @@ function AppContent() {
           onManualOffsetChange={(value) => handleManualOffsetChange(syncRow.id, value)}
           preferredEnTrackId={preferredEnTrackId}
           onEnTrackChosen={setPreferredEnTrackId}
+          onError={(message) => pushLog(message, 'error')}
         />
       )}
 
