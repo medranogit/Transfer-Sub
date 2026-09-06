@@ -176,13 +176,25 @@ app.whenReady().then(() => {
     'sync:prepare',
     async (
       _e,
-      { sourcePath, sourceTrackId, destPath }: { sourcePath: string; sourceTrackId: number; destPath: string }
+      {
+        sourcePath,
+        sourceTrackId,
+        destPath,
+        preferredEnTrackId
+      }: { sourcePath: string; sourceTrackId: number; destPath: string; preferredEnTrackId: number | null }
     ) => {
       const status = tryLocate(loadConfig().mkvToolNixDir)
       if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
         throw new Error('MKVToolNix nao localizado.')
       }
-      return prepareSync(status.mkvmergePath, status.mkvextractPath, sourcePath, sourceTrackId, destPath)
+      return prepareSync(
+        status.mkvmergePath,
+        status.mkvextractPath,
+        sourcePath,
+        sourceTrackId,
+        destPath,
+        preferredEnTrackId
+      )
     }
   )
 

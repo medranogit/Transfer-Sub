@@ -39,8 +39,13 @@ const api = {
 
   abortOperation: (): Promise<void> => ipcRenderer.invoke('operation:abort'),
 
-  prepareSync: (sourcePath: string, sourceTrackId: number, destPath: string): Promise<SyncPrepareResult> =>
-    ipcRenderer.invoke('sync:prepare', { sourcePath, sourceTrackId, destPath }),
+  prepareSync: (
+    sourcePath: string,
+    sourceTrackId: number,
+    destPath: string,
+    preferredEnTrackId: number | null
+  ): Promise<SyncPrepareResult> =>
+    ipcRenderer.invoke('sync:prepare', { sourcePath, sourceTrackId, destPath, preferredEnTrackId }),
 
   getTrackEvents: (filePath: string, trackId: number): Promise<SubtitleEvent[]> =>
     ipcRenderer.invoke('sync:trackEvents', { filePath, trackId }),

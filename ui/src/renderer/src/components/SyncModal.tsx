@@ -192,23 +192,18 @@ export function SyncModal({
     setLoading(true)
     setError(null)
     window.api
-      .prepareSync(row.sourcePath, row.selectedTrackId as number, row.destPath)
-      .then(async (result) => {
+      .prepareSync(row.sourcePath, row.selectedTrackId as number, row.destPath, preferredEnTrackId)
+      .then((result) => {
         if (cancelled) return
         setPtEvents(result.ptEvents)
         setDestTracks(result.destTracks)
-        // Preferir a faixa em ingles escolhida manualmente num episodio anterior
-        // (mesma temporada normalmente mantem a mesma estrutura de faixas) - so
-        // cai pro palpite automatico se essa faixa nao existir neste episodio.
-        const preferred =
-          preferredEnTrackId !== null && result.destTracks.some((t) => t.trackId === preferredEnTrackId)
-            ? preferredEnTrackId
-            : result.suggestedEnTrackId
-        setEnTrackId(preferred)
-        if (preferred !== null) {
-          const events = await window.api.getTrackEvents(row.destPath, preferred)
-          if (!cancelled) setEnEvents(events)
-        }
+        // enEvents ja vem extraida da faixa escolhida (preferida de um episodio
+        // anterior, ou a sugerida) - o processo principal decidiu e ja extraiu
+        // em paralelo com a legenda de origem, entao nao precisa de uma segunda
+        // chamada (sync:trackEvents) so pra carregar a selecao inicial - isso
+        // que permite as duas cadeias rodarem de fato em paralelo.
+        setEnTrackId(result.chosenEnTrackId)
+        setEnEvents(result.enEvents)
       })
       .catch((err) => {
         if (!cancelled) setError((err as Error).message)

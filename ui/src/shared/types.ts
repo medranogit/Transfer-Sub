@@ -124,6 +124,14 @@ export interface SyncPrepareResult {
   // Faixa do destino que parece ser a legenda em ingles (por codigo de
   // idioma). Null quando nenhuma faixa bateu - o usuario escolhe manualmente.
   suggestedEnTrackId: number | null
+  // Faixa realmente usada pra ja extrair enEvents abaixo: a preferida (vinda
+  // de um episodio anterior), se ainda existir neste arquivo, senao a
+  // sugerida. Null quando nenhuma das duas existe - a UI fica sem selecao.
+  chosenEnTrackId: number | null
+  // Falas da faixa chosenEnTrackId, ja extraidas em paralelo com ptEvents no
+  // processo principal - evita uma segunda ida e volta (sync:trackEvents) so
+  // pra carregar a selecao inicial, o que impediria de fato paralelizar.
+  enEvents: SubtitleEvent[]
 }
 
 // Uma entrada do historico persistido em transfer-log.json - cobre

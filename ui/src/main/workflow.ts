@@ -665,24 +665,48 @@ async function extractSubtitleEvents(
 }
 
 // Monta os dados iniciais da tela de auto-sync manual: as falas da legenda
-// ptbr ja escolhida na linha (origem) e a lista de faixas de legenda do
-// destino, com um palpite de qual delas e a legenda em ingles (por codigo de
-// idioma) para pre-selecionar o lado ingles.
+// ptbr ja escolhida na linha (origem), a lista de faixas de legenda do
+// destino, e as falas ja extraidas da faixa em ingles (preferida de um
+// episodio anterior, ou a sugerida por idioma).
+//
+// O lado da origem (sondar + extrair a legenda ptbr) e o lado do destino
+// (sondar + extrair a legenda em ingles) nao dependem um do outro - rodar em
+// paralelo via Promise.all faz o tempo total ficar limitado pelo lado mais
+// lento, nao pela soma dos dois. A extracao do lado do destino ja acontece
+// aqui dentro (em vez de uma segunda chamada separada depois) porque so
+// assim ela roda de fato em paralelo com a da origem.
 export async function prepareSync(
   mkvmergePath: string,
   mkvextractPath: string,
   sourcePath: string,
   sourceTrackId: number,
-  destPath: string
+  destPath: string,
+  preferredEnTrackId: number | null
 ): Promise<SyncPrepareResult> {
-  const sourceTracks = await probeSubtitleTracks(mkvmergePath, sourcePath)
-  const ptTrack = sourceTracks.find((t) => t.trackId === sourceTrackId)
-  const ptEvents = ptTrack ? await extractSubtitleEvents(mkvextractPath, sourcePath, ptTrack) : []
+  const [ptEvents, destResult] = await Promise.all([
+    (async () => {
+      const sourceTracks = await probeSubtitleTracks(mkvmergePath, sourcePath)
+      const ptTrack = sourceTracks.find((t) => t.trackId === sourceTrackId)
+      return ptTrack ? extractSubtitleEvents(mkvextractPath, sourcePath, ptTrack) : []
+    })(),
+    (async () => {
+      const destTracks = await probeSubtitleTracks(mkvmergePath, destPath)
+      const suggested = destTracks.find((t) => isEnglishAudio(t.language))
+      const chosen =
+        preferredEnTrackId !== null && destTracks.some((t) => t.trackId === preferredEnTrackId)
+          ? destTracks.find((t) => t.trackId === preferredEnTrackId)!
+          : suggested
+      const enEvents = chosen ? await extractSubtitleEvents(mkvextractPath, destPath, chosen) : []
+      return {
+        destTracks,
+        suggestedEnTrackId: suggested?.trackId ?? null,
+        chosenEnTrackId: chosen?.trackId ?? null,
+        enEvents
+      }
+    })()
+  ])
 
-  const destTracks = await probeSubtitleTracks(mkvmergePath, destPath)
-  const suggested = destTracks.find((t) => isEnglishAudio(t.language))
-
-  return { ptEvents, destTracks, suggestedEnTrackId: suggested?.trackId ?? null }
+  return { ptEvents, ...destResult }
 }
 
 // Devolve as falas de uma faixa de legenda especifica - usado pela tela de
