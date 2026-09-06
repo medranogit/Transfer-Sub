@@ -9,17 +9,25 @@ páginas:
 
 - **Transferir Legenda** — casa episódios entre uma pasta de origem (com
   legenda) e uma de destino (sem legenda) e transfere a faixa escolhida.
+  Tem um alternador **Episódio / Filme** no topo: em Episódio funciona como
+  descrito acima (pastas inteiras, casamento por número de episódio); em
+  Filme os campos viram **seletor de arquivo** (um de origem, um de destino)
+  em vez de pasta, já que um filme não tem número de episódio pra casar
+  automaticamente.
 - **Limpeza** — não transfere nada; escaneia só uma pasta e permite
   manter apenas uma faixa de legenda (removendo as demais) e/ou remover a
   dublagem em inglês de cada arquivo.
-- **Renomeador** — renomeia em lote os vídeos de uma pasta a partir de 3
-  campos (texto inicial, temporada, texto final; o episódio é detectado por
-  arquivo), pra trocar rapidamente o padrão de nome de uma leva de arquivos
-  sem editar um por um.
-- **Histórico** — todas as transferências/limpezas já feitas, persistidas em
-  `transfer-log.json` (sobrevive a reinícios do app).
-- **Configurações** — status/localização do MKVToolNix e como o app nomeia
-  o arquivo de saída (assinatura da fansub + marcação livre, por modo); é o
+- **Renomeador** — renomeia em lote os vídeos de uma pasta a partir de 4
+  campos (fansub, nome do anime, temporada, tags; o episódio é detectado por
+  arquivo), com o mesmo alternador **Episódio / Filme** (em Filme o campo
+  Temporada some e o nome gerado não leva `S00E00`). Também tem um botão
+  separado pra **rotular em lote a faixa de legenda PT-BR já embutida** nos
+  `.mkv`/`.webm` da pasta (edição de metadado, sem remuxar nada).
+- **Histórico** — todas as transferências/limpezas/renomeações já feitas,
+  persistidas em `transfer-log.json` (sobrevive a reinícios do app).
+- **Configurações** — status/localização do MKVToolNix, marcação livre no
+  final do nome de saída (por modo), o nome dado à faixa de legenda quando
+  reconhecida como PT-BR, e as fansubs/tags conhecidas do Renomeador; é o
   lugar certo pra qualquer preferência global futura (as opções atuais, tipo
   remover áudio, são por operação e ficam nas páginas de Transferir/Limpar).
 
@@ -37,29 +45,41 @@ separada em duas camadas:
     quando há mais de um arquivo com o mesmo número de um lado (pasta com
     temporadas misturadas) — releases de fansub raramente incluem a
     temporada no nome, então exigir que os dois lados concordassem nisso
-    deixava de casar episódios legítimos.
-  - `subtitleLanguage.ts` — reconhece/prioriza legenda PT-BR.
+    deixava de casar episódios legítimos. `findEpisodeMatch` devolve também
+    a posição do episódio dentro do nome (tanto quando um padrão tipo
+    `S01E05` bate direto quanto no fallback de último-número-isolado — a
+    limpeza de ruído preserva o tamanho da string trocando cada trecho por
+    espaços, em vez de colapsar tudo, pra posição continuar batendo com o
+    nome original), usada pelo Renomeador pra cortar nome do anime e tags.
+  - `subtitleLanguage.ts` — reconhece/prioriza legenda PT-BR e resolve o
+    nome/idioma que a faixa recebe ao ser transferida.
   - `audioLanguage.ts` — reconhece faixas de áudio em inglês.
   - `subtitleTiming.ts` — converte texto `MM:SS,mmm` em milissegundos,
     encontra o instante da primeira legenda num arquivo `.ass`/`.ssa`/`.srt`
     e parseia todas as falas (`parseSubtitleEvents`) para a tela de sync.
-  - `renamePattern.ts` — gera o novo nome de um arquivo a partir dos 3
-    campos do Renomeador (texto inicial/temporada/texto final), usando
-    `episodeMatcher.findEpisode` pra descobrir o episódio.
+  - `renamePattern.ts` — gera o novo nome de um arquivo a partir dos 4
+    campos do Renomeador e detecta fansub/nome/temporada/tags a partir de um
+    arquivo de exemplo (`detectRenameFields`).
 - `src/main/infra/` — tudo que toca o mundo exterior: localizar o
-  MKVToolNix, listar arquivos de vídeo, chamar `mkvmerge`/`mkvextract`
-  (`mkvProcess.ts`), persistir a configuração (`configStore.ts`), gravar o
-  log de transferências (`transferLog.ts`), renomear um arquivo no disco
+  MKVToolNix (`mkvmerge`/`mkvextract`/`mkvpropedit`), listar arquivos de
+  vídeo, chamar `mkvmerge`/`mkvextract`/`mkvpropedit` (`mkvProcess.ts`),
+  persistir a configuração (`configStore.ts`), gravar o log de
+  transferências (`transferLog.ts`), renomear um arquivo no disco
   (`fileRename.ts`) e permitir abortar uma operação em andamento matando o
   processo atual (`cancellation.ts`).
 - `src/main/workflow.ts` — orquestra domain + infra nos casos de uso que o
   processo principal expõe via IPC: `scanFolders`/`transferRows` (modo
-  Transferir), `scanForClean`/`cleanRows` (modo Limpar) e
-  `prepareSync`/`getTrackEvents` (dados para o modal de sincronização).
+  Transferir), `scanMovie` (modo Filme do Transferir — escaneia um par de
+  arquivos já escolhidos em vez de pastas inteiras), `scanForClean`/
+  `cleanRows` (modo Limpar), `prepareSync`/`getTrackEvents` (dados para o
+  modal de sincronização) e `renameSubtitleTracks` (rotular em lote a faixa
+  PT-BR já embutida num `.mkv`/`.webm`, via `mkvpropedit`).
 - `src/main/renamer.ts` — caso de uso do Renomeador: `previewRename` lista os
-  vídeos da pasta e calcula o novo nome de cada um (marcando conflito quando
-  dois arquivos gerariam o mesmo nome), `applyRename` executa a renomeação
-  linha a linha.
+  vídeos da pasta, detecta fansub/nome/temporada/tags do primeiro arquivo (e
+  sobrescreve os campos a cada escaneamento) e calcula o novo nome de cada um
+  (marcando conflito quando dois arquivos gerariam o mesmo nome);
+  `recomputeRename` reaplica os campos atuais sem reler a pasta (botão
+  "Atualizar"); `applyRename` executa a renomeação linha a linha.
 - `src/main/index.ts` — a única camada que conhece Electron/IPC; registra os
   handlers e cria a janela.
 
@@ -69,11 +89,13 @@ fica em `src/renderer/src/`, dividido por responsabilidade: `App.tsx` é só o
 orquestrador (estado + handlers, decide qual página mostrar); `theme.ts`/
 `GlobalStyle.ts` cuidam do tema; `ui/` guarda primitivas genéricas
 reaproveitáveis (`Button`, `Row`, `Chip`, `Checkbox`, `ConfirmDialog`,
-`Table`...); `components/` tem um arquivo por peça de UI com estado/lógica
-própria — inclui as cinco páginas da Sidebar (`WorkflowView` usada tanto por
+`Table`, `EpisodeMovieToggle`, `SuggestInput`/`TagPickerInput`...);
+`components/` tem um arquivo por peça de UI com estado/lógica própria —
+inclui as cinco páginas da Sidebar (`WorkflowView` usada tanto por
 Transferir quanto por Limpar, `RenameView`, `HistoryView`, `SettingsView`) e
-peças menores (`EpisodeTable`, `SyncModal`, `LogPanel`...); `utils/` guarda
-funções puras de formatação (legenda/timing, som de conclusão).
+peças menores (`EpisodeTable`, `SyncModal`, `LogPanel`, `FolderField`,
+`FileField`...); `utils/` guarda funções puras de formatação
+(legenda/timing, som de conclusão/aviso).
 
 ## Rodando em desenvolvimento
 
@@ -84,7 +106,9 @@ npm run dev
 
 Isso abre a janela do app com hot-reload. Requer o MKVToolNix instalado
 (detectado automaticamente em `C:\Program Files\MKVToolNix`, ou configurável
-pela própria interface em "Localizar MKVToolNix...").
+pela própria interface em "Localizar MKVToolNix..."; o app precisa achar
+`mkvmerge.exe`, `mkvextract.exe` **e** `mkvpropedit.exe` juntos na mesma
+pasta).
 
 > Se você rodar isso de dentro de um terminal integrado do VS Code, a
 > variável de ambiente `ELECTRON_RUN_AS_NODE` pode vazar do processo do
@@ -116,12 +140,15 @@ cada linha para trocar manualmente. No modo "Apenas limpar" o dropdown
 também tem a opção "Manter todas as legendas" (padrão), já que ali a ideia é
 opt-in: só remove faixas quando você escolhe uma específica.
 
-Quando nenhuma faixa é reconhecida como PT-BR por idioma/nome, `scanFolders`
-extrai cada faixa e usa `guessPtBrFromContent` (mesmo arquivo) para procurar,
-no texto, palavras bem características do português (evitando as que também
+Quando nenhuma faixa é reconhecida como PT-BR por idioma/nome, o app extrai
+cada faixa e usa `guessPtBrFromContent` (mesmo arquivo) para procurar, no
+texto, palavras bem características do português (evitando as que também
 existem em espanhol/italiano) e a terminação `-ção`/`-ções`. Se achar, marca
 a faixa com `isPtBrGuess` e loga um aviso — a UI mostra `⚠ pode ser PT-BR` no
-dropdown, mas não bloqueia nada, é só um alerta pra conferir.
+dropdown, mas não bloqueia nada, é só um alerta pra conferir. Essa mesma
+detecção (idioma/nome, com o palpite por conteúdo como último recurso) é
+reaproveitada pelo escaneamento normal **e** pela rotulagem em lote de faixas
+do Renomeador (ver seção própria abaixo).
 
 ## Fontes anexadas (attachments)
 
@@ -133,13 +160,37 @@ final via `--attach-file`/`--attachment-name`/`--attachment-mime-type`.
 
 ## Nome e idioma da faixa transferida
 
-A faixa PT-BR transferida é renomeada para `PortuguesBr - TransferSub`
-(`resolveTransferTrackName` em `subtitleLanguage.ts`) e vai com idioma `und`
-(indeterminado) em vez do idioma original (`resolveTransferLanguage`) —
-alguns players completam o nome da faixa com "- [Idioma]" sempre que há um
-código de idioma reconhecido, e como o nome já deixa claro que é português,
-isso evita a redundância. Faixas que não são PT-BR mantêm nome e idioma
-originais.
+A faixa PT-BR transferida é renomeada para o valor configurado em
+Configurações → "Nome da faixa de legenda" (`AppConfig.ptBrTrackName`,
+padrão `Portugues BR` — `resolveTransferTrackName` em `subtitleLanguage.ts`)
+e vai com idioma `por` (`resolveTransferLanguage`), reforçando o idioma
+correto mesmo que a faixa original viesse rotulada como `und` ou com um
+código errado. Faixas que não são PT-BR mantêm nome e idioma originais.
+
+Esse mesmo nome/idioma pode ser aplicado **retroativamente** em arquivos
+`.mkv`/`.webm` que já tenham uma legenda embutida (transferidos antes de essa
+configuração existir, ou renomeados manualmente) — ver "Rotular faixa PT-BR"
+na seção do Renomeador.
+
+## Modo Filme (Transferir Legenda e Renomeador)
+
+Filmes não têm número de episódio pra casar/detectar automaticamente, então
+tanto o Transferir Legenda quanto o Renomeador têm um alternador
+**Episódio / Filme** (`ui/EpisodeMovieToggle.tsx`, sempre começa em
+Episódio, não persiste entre sessões):
+
+- **Transferir Legenda**: em Filme, os campos "Pasta de origem"/"Pasta de
+  destino" viram **"Arquivo de origem"/"Arquivo de destino"**
+  (`components/FileField.tsx`, com diálogo `dialog:chooseFile` filtrado por
+  extensão de vídeo) — você escolhe os dois arquivos direto em vez de pastas
+  inteiras. O botão vira "Preparar filme" e a tabela mostra uma única linha,
+  reaproveitando toda a lógica existente (detecção de faixa PT-BR, seleção
+  de faixa, sincronização manual, transferência) via `workflow.scanMovie`.
+  Os últimos arquivos escolhidos ficam salvos (`AppConfig.movieSourceFile`/
+  `movieDestFile`).
+- **Renomeador**: em Filme, o campo "Temporada" some e o nome gerado não
+  leva `S00E00` (vira só `[fansub] nome do filme - tags`) — ver seção do
+  Renomeador.
 
 ## Ajustar o timing da legenda
 
@@ -163,6 +214,11 @@ exclusivas entre si (preencher uma limpa as outras):
   `App.tsx`), já que geralmente a estrutura de faixas se repete na
   temporada.
 
+Ao abrir, o modal já busca em paralelo (`workflow.prepareSync`) a extração
+da legenda de origem e a sondagem + extração da legenda em inglês do
+destino — as duas cadeias não dependem uma da outra, então o tempo total
+fica limitado pela mais lenta, não pela soma das duas.
+
 Qualquer valor calculado vira um `--sync` no `mkvmerge` para deslocar toda a
 legenda. Deixe todos os campos em branco para manter o timing original.
 
@@ -170,17 +226,20 @@ legenda. Deixe todos os campos em branco para manter o timing original.
 
 As opções booleanas (remover dublagem, limpar legendas extras) aparecem como
 chips clicáveis (`ui/Chip.ts`) em vez de checkbox tradicional: ficam verdes
-quando ativas, neutras quando não — e a linha quebra sozinha (`flex-wrap`)
-se mais opções forem adicionadas no futuro.
+quando ativas, neutras quando não, com tamanho ajustado ao texto (não
+esticam pra preencher a linha) — e a linha quebra sozinha (`flex-wrap`) se
+mais opções forem adicionadas no futuro. Cada chip tem um `title` (tooltip
+nativo do navegador) com a explicação completa, já que o texto visível é
+propositalmente curto.
 
-- **"Remover dublagem em inglês do destino"** (ativado por padrão, vale para
-  os dois modos) — antes de gerar o arquivo final, o app lê as faixas de
-  áudio do vídeo e, se houver alguma em inglês, remuxa mantendo só as
-  demais — a menos que isso zere todas as faixas de áudio, caso em que
-  mantém tudo por segurança (com aviso no log).
-- **"Limpar legendas do destino, deixando só a transferida"** (só no modo
-  Transferir) — remove as legendas que já existiam no arquivo de destino no
-  resultado final, mantendo apenas a faixa transferida.
+- **"Remover dublagem em inglês"** (ativado por padrão, vale para os dois
+  modos) — antes de gerar o arquivo final, o app lê as faixas de áudio do
+  vídeo e, se houver alguma em inglês, remuxa mantendo só as demais — a
+  menos que isso zere todas as faixas de áudio, caso em que mantém tudo por
+  segurança (com aviso no log).
+- **"Limpar legendas do destino"** (só no modo Transferir) — remove as
+  legendas que já existiam no arquivo de destino no resultado final,
+  mantendo apenas a faixa transferida.
 
 ## Abortar uma operação em andamento
 
@@ -193,67 +252,82 @@ antes do abort permanecem intactos.
 
 ## Não sobrescreve com duplicados
 
-O nome do arquivo de saída é fixo por episódio/arquivo, então rodar de novo
-sobre o mesmo arquivo sobrescreve o resultado anterior em vez de criar `(1)`,
-`(2)` etc. — a identificação é só pelo nome do arquivo de origem.
+O nome do arquivo de saída é fixo por episódio/arquivo (o original,
+opcionalmente com uma marcação livre no final — ver Configurações), então
+rodar de novo sobre o mesmo arquivo sobrescreve o resultado anterior em vez
+de criar `(1)`, `(2)` etc. — a identificação é só pelo nome do arquivo de
+origem.
 
-Nos dois modos (Transferir e Limpar), por padrão o app assina ao lado da tag
-da fansub original em vez de acrescentar um sufixo tipo `[legendado]`/`[limpo]`
-— `[Judas] Nome do episodio.mkv` vira `[TS - Judas] Nome do episodio.mkv`
-(`withTransferSubSignature`/`resolveOutputPath`/`resolveCleanOutputPath` em
-`infra/mkvProcess.ts`). Sem tag reconhecida no nome original, usa
-`[TS] Nome do episodio.mkv`. Se o arquivo já tiver sido processado antes (já
-começa com `[TS...]`), a assinatura não é duplicada.
-
-Em Configurações dá pra ajustar isso por modo (Transferir/Limpeza), via
-`AppConfig.namingTransfer`/`namingClean` (`NamingConfig` em `shared/types.ts`):
-desligar a assinatura `[TS - Tag]` (`signatureEnabled`, ligada por padrão) e/ou
-ligar uma marcação extra no final do nome (`tagEnabled`/`tagWord`, ex.
-`[legendado]`/`[limpo]` — a palavra é livre, desligada por padrão). Ex. com os
-dois recursos juntos: `[TS - Judas] Nome do episodio [legendado].mkv`.
+Em Configurações dá pra ligar, por modo (Transferir/Limpeza), uma marcação
+extra no final do nome (`NamingConfig.tagEnabled`/`tagWord` em
+`shared/types.ts`, ex. `[legendado]`/`[limpo]` — a palavra é livre, desligada
+por padrão).
 
 Como a saída pode acabar com o mesmo nome do arquivo de entrada quando a
-pasta de saída é igual à de destino (ex: reprocessar um arquivo já
-assinado), o `workflow.ts` recusa a operação nesse caso (`samePath`) em vez
-de deixar o `mkvmerge` tentar ler e escrever o mesmo arquivo ao mesmo
-tempo — o que corromperia o vídeo original.
+pasta de saída é igual à de destino, o `workflow.ts` recusa a operação nesse
+caso (`samePath`) em vez de deixar o `mkvmerge` tentar ler e escrever o
+mesmo arquivo ao mesmo tempo — o que corromperia o vídeo original.
 
 ## Renomeador
 
 Página separada (`components/RenameView.tsx`) pra renomear em lote os vídeos
 de uma pasta a partir de 4 campos — **Fansub**, **Nome do anime**,
-**Temporada** e **Tags** (ex: `Judas` / `Black Clover` / `1` /
-`BD HEVC 1080p`). Fluxo igual ao das outras páginas (escanear → tabela de
-pré-visualização → aplicar), mais um botão **Atualizar**:
+**Temporada** (some no modo Filme) e **Tags** (ex: `Judas` / `Black Clover` /
+`1` / `BD HEVC 1080p`). Fluxo igual ao das outras páginas (escanear → tabela
+de pré-visualização → aplicar), mais dois botões extras — **Atualizar** e
+**Rotular faixa PT-BR**:
 
 - O episódio é detectado automaticamente em cada arquivo via
   `episodeMatcher.findEpisode`; fansub/nome/temporada/tags valem pra pasta
   inteira (não são detectados por arquivo, exceto o episódio). Nome final:
   `[fansub] nome do anime - S{temporada}E{episódio} - tags` (partes vazias
   são omitidas, sem colchete/traço sobrando), com os números sempre em 2
-  dígitos (`01`, `11`...) — `domain/renamePattern.ts`.
-- **Detecção automática**: no primeiro escaneamento de uma pasta (campos
-  ainda em branco), o app tenta identificar fansub (tag `[...]` no início do
-  primeiro arquivo), nome do anime (texto entre a tag e a marcação de
-  episódio) e temporada a partir de um arquivo de exemplo
-  (`detectRenameFields`) e já preenche os campos — nunca sobrescreve edição
-  manual do usuário (só dispara quando os 3 campos de texto estão vazios).
+  dígitos (`01`, `11`...) — `domain/renamePattern.ts`. No modo **Filme** não
+  há temporada/episódio: o nome vira `[fansub] nome do filme - tags` e não
+  exige detectar nenhum episódio no nome original (diferente do modo
+  Episódio, onde a ausência de episódio detectado bloqueia a linha).
+- **Detecção automática**: a **cada** "Escanear pasta" (não só na primeira
+  vez), o app tenta identificar fansub (tag `[...]` no início do primeiro
+  arquivo), nome do anime, temporada e tags a partir de um arquivo de
+  exemplo (`detectRenameFields`) e **sobrescreve** os campos com o que
+  encontrar — mesmo que você tenha editado manualmente antes. Nome/tags são
+  o texto antes/depois da marcação de episódio (funciona tanto quando um
+  padrão tipo `S01E05` bate direto quanto no fallback de
+  último-número-isolado, ex. `Nome - 01.mkv`, já que `findEpisodeMatch`
+  reporta a posição do episódio nos dois casos). Quem quiser manter os
+  campos atuais sem essa sobrescrita usa o botão **Atualizar** em vez de
+  escanear de novo.
 - **Atualizar**: reaplica os campos (fansub/nome/temporada/tags) editados em
-  cima da mesma lista de arquivos já escaneada, sem reler a pasta do disco —
-  só "Escanear pasta" volta a listar os arquivos de novo. Implementado como
-  um caso de uso separado (`recomputeRename`, IPC `rename:recompute`) que
-  reusa a mesma função pura de geração de nome.
+  cima da mesma lista de arquivos já escaneada, sem reler a pasta do disco e
+  **sem** rodar a detecção automática — só "Escanear pasta" detecta/
+  sobrescreve de novo. Implementado como um caso de uso separado
+  (`recomputeRename`, IPC `rename:recompute`) que reusa a mesma função pura
+  de geração de nome.
+- **Rotular faixa PT-BR**: separado do "Renomear" (que só troca o nome do
+  arquivo) — pega os arquivos `.mkv`/`.webm` já escaneados e edita **só o
+  metadado** da faixa de legenda já embutida em cada um (`mkvpropedit`,
+  seletor `track:@N` pelo "track number" do Matroska — não remuxa o arquivo
+  inteiro, é quase instantâneo mesmo em arquivos grandes). Reaproveita a
+  mesma detecção de PT-BR do Transferir (idioma/nome reconhecido, com
+  palpite pelo conteúdo como último recurso), troca o nome da faixa para o
+  configurado em Configurações e sempre reforça o idioma como `por`.
+  Arquivos sem nenhuma faixa reconhecida como PT-BR, ou já rotulados
+  corretamente, são pulados (aparece no log) — `workflow.renameSubtitleTracks`
+  /`infra/mkvProcess.ts:setSubtitleTrackLabel`.
 - **Fansubs/tags conhecidas**: configuráveis na página Configurações
   (`renameFansubPresets`/`renameTagPresets` em `AppConfig`, editados via o
   componente reutilizável `ui/TagListEditor.tsx`) — sugeridas como dropdown
-  nos campos Fansub (autocomplete nativo via `<datalist>`) e Tags (um
-  `<select>` que soma a tag escolhida ao texto, sem substituir o que já foi
-  digitado). Fansubs padrão: DKB, Erai-raws, EMBER, Judas, WF. Tags padrão:
-  HEVC, BD, WebRip, 1080p, 720p.
+  customizado nos campos Fansub (`ui/SuggestInput.tsx` — substitui o campo
+  inteiro ao clicar) e Tags (`ui/SuggestInput.tsx:TagPickerInput` — soma/
+  remove a tag do texto ao clicar, sem fechar o dropdown, pra dar pra
+  marcar várias seguidas). Fansubs padrão: DKB, Erai-raws, EMBER, Judas, WF
+  (mais as que o usuário for cadastrando). Tags padrão: HEVC, BD, WebRip,
+  1080p, 720p.
 - A última pasta usada é lembrada entre sessões (`AppConfig.renameFolder`,
   mesmo esquema de `sourceDir`/`destDir`).
-- Arquivo sem episódio detectável no nome original é marcado como "não
-  detectado" e fica de fora da renomeação (não trava a pasta inteira).
+- Arquivo sem episódio detectável no nome original (modo Episódio) é
+  marcado como "não detectado" e fica de fora da renomeação (não trava a
+  pasta inteira).
 - Dois arquivos que gerariam o mesmo novo nome são marcados como conflito em
   vez de aplicados (renomear ambos pro mesmo nome perderia um dos dois).
 - A extensão do arquivo original (`.mkv`, `.ass`...) é sempre preservada; só
@@ -263,14 +337,18 @@ pré-visualização → aplicar), mais um botão **Atualizar**:
 - Cada renomeação (sucesso ou erro) também é gravada em `transfer-log.json`
   igual Transferir/Limpar (`renamer.ts` chama `appendTransferLog`) — aparece
   junto na página Histórico, com "Episódio" mostrando o `S00E00` calculado e
-  "Arquivo gerado" mostrando o novo nome.
+  "Arquivo gerado" mostrando o novo nome. A rotulagem de faixa (que não
+  mexe no nome do arquivo) não gera entrada própria no Histórico.
 
 ## Log de transferências
 
 O painel de log na tela (`components/LogPanel.tsx`) colore cada linha por
 nível (`info`/`success`/`warn`/`error`) com um ícone e um leve tingimento de
-fundo, e um som de conclusão minimalista (`utils/completionSound.ts`, via
-Web Audio API) toca ao terminar uma transferência ou limpeza.
+fundo. Um som de conclusão minimalista (`utils/completionSound.ts`, via Web
+Audio API) toca ao terminar uma transferência ou limpeza; um som de aviso
+diferente, mais grave (`utils/warningSound.ts`) toca quando um escaneamento
+produz avisos ou episódios sem correspondência — o mesmo sino de
+notificações do topo (`NotificationsMenu`) que mostraria o badge.
 
 Além disso, cada execução (sucesso ou erro) grava uma entrada em
 `transfer-log.json`, na raiz do projeto (mesma pasta do
@@ -291,10 +369,10 @@ liberar o botão de confirmar) já que é uma ação irreversível. A primeira
 coluna ("Tipo") identifica qual operação gerou a entrada — Transferir
 Legenda/Limpeza/Renomeador, via `TransferLogEntry.kind` — gravado por
 `transferRows`/`cleanRows`/`renamer.ts` desde que o campo passou a existir;
-entradas antigas (sem `kind`) caem no palpite `resolveKind` (mesmo
-arquivo de origem e destino = Limpeza, senão Transferir — o Renomeador só
-existe desde que esse campo já estava presente, então não entra nesse
-palpite).
+entradas antigas (sem `kind`) caem no palpite `resolveKind` (mesmo arquivo
+de origem e destino, e a saída na mesma pasta do arquivo de origem = na
+verdade Renomeador; mesmo arquivo de origem e destino noutra pasta =
+Limpeza; senão Transferir).
 
 ## Estrutura
 
@@ -302,15 +380,21 @@ palpite).
 src/
   main/
     domain/     regras puras, sem I/O:
-                episodeMatcher.ts   — casar episodio pelo numero (temporada so desempata)
-                subtitleLanguage.ts — reconhecer/priorizar legenda PT-BR
+                episodeMatcher.ts   — casar episodio pelo numero (temporada so desempata);
+                                      findEpisodeMatch devolve posicao (padrao direto OU fallback)
+                subtitleLanguage.ts — reconhecer/priorizar legenda PT-BR, resolver nome/idioma
+                                      da faixa transferida
                 audioLanguage.ts    — reconhecer audio em ingles
                 subtitleTiming.ts   — parse/format de timecodes MM:SS,mmm
                 subtitleEncoding.ts — decodificar legenda (UTF-8 com fallback Windows-1252)
-    infra/      I/O: mkvToolNixLocator.ts, mkvProcess.ts, videoFiles.ts,
-                configStore.ts, transferLog.ts, cancellation.ts (abortar)
-    workflow.ts casos de uso: scanFolders/transferRows (Transferir),
-                scanForClean/cleanRows (Limpar)
+                renamePattern.ts    — gerar nome + detectar fansub/nome/temporada/tags (Renomeador)
+    infra/      I/O: mkvToolNixLocator.ts (mkvmerge/mkvextract/mkvpropedit), mkvProcess.ts,
+                videoFiles.ts, configStore.ts, transferLog.ts, cancellation.ts (abortar),
+                fileRename.ts
+    workflow.ts casos de uso: scanFolders/transferRows (Transferir), scanMovie (Transferir
+                modo Filme), scanForClean/cleanRows (Limpar), prepareSync/getTrackEvents
+                (modal de sync), renameSubtitleTracks (rotular faixa PT-BR em lote)
+    renamer.ts  caso de uso do Renomeador: previewRename/recomputeRename/applyRename
     index.ts    entrypoint do Electron + handlers IPC
   preload/      ponte contextBridge exposta como window.api
   renderer/     app React + main.tsx (bootstrap):
@@ -319,12 +403,14 @@ src/
                 GlobalStyle.ts    estilos globais (scrollbar, reset, fonte)
                 ui/               primitivas genericas: primitives.ts (Button, Row, Col,
                                   Panel, Label, Input, SectionTitle), Chip.ts, Checkbox.tsx,
-                                  ConfirmDialog.tsx (modal de confirmacao reutilizavel)
+                                  ConfirmDialog.tsx, EpisodeMovieToggle.tsx, SuggestInput.tsx
+                                  (SuggestInput/TagPickerInput), TagListEditor.tsx
                 components/       Sidebar (navegacao), WorkflowView (pagina Transferir/
-                                  Limpar), HistoryView, SettingsView, FolderField,
-                                  StatusBadge, LogPanel, EpisodeTable, SyncModal,
+                                  Limpar, com modo Filme), RenameView (com modo Filme e
+                                  rotulagem de faixa), HistoryView, SettingsView, FolderField,
+                                  FileField, StatusBadge, LogPanel, EpisodeTable, SyncModal,
                                   NotificationsMenu — cada um com seu proprio estado
                 utils/            subtitleDisplay.ts (formatacao de legenda/timing),
-                                  completionSound.ts, useEscapeToClose.ts
+                                  completionSound.ts, warningSound.ts, useEscapeToClose.ts
   shared/       tipos TypeScript compartilhados entre main/preload/renderer
 ```

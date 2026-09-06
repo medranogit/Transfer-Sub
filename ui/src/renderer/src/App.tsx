@@ -311,7 +311,8 @@ function AppContent() {
           ...prev,
           fansub: fansubKnown ? detected.fansub : '',
           animeName: detected.animeName,
-          season: detected.season
+          season: detected.season,
+          tags: detected.tags
         }))
         if (fansubKnown) {
           pushLog(`Detectado automaticamente: fansub "${detected.fansub}", temporada ${detected.season}.`, 'info')

@@ -1,7 +1,7 @@
-// Pagina de configuracoes - MKVToolNix (status + localizar) e como o app
-// nomeia o arquivo de saida (assinatura da fansub no inicio + marcacao livre
-// no final, uma config por modo). O resto das opcoes, tipo remover audio, e
-// por operacao e fica nas paginas de Transferir/Limpeza, nao aqui.
+// Pagina de configuracoes - MKVToolNix (status + localizar), marcacao livre
+// no final do nome de saida (uma config por modo) e o nome dado a faixa de
+// legenda quando reconhecida como PT-BR. O resto das opcoes, tipo remover
+// audio, e por operacao e fica nas paginas de Transferir/Limpeza, nao aqui.
 import styled from 'styled-components'
 import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
 import type { MkvToolsStatus, NamingConfig } from '@shared/types'

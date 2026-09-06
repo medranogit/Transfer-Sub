@@ -182,13 +182,14 @@ export interface RenameFields {
   movieMode: boolean
 }
 
-// Palpite de fansub/nomeAnime/temporada a partir do primeiro arquivo de uma
-// pasta recem-escaneada - a UI so aplica isso quando os campos ainda estao
-// em branco (nao sobrescreve edicao manual do usuario).
+// Palpite de fansub/nomeAnime/temporada/tags a partir do primeiro arquivo de
+// uma pasta recem-escaneada - reaplicado a cada "Escanear pasta", mesmo que
+// os campos ja tenham sido editados antes (ver previewRename).
 export interface DetectedRenameFields {
   fansub: string
   animeName: string
   season: number
+  tags: string
 }
 
 // Uma linha da pre-visualizacao do Renomeador: nome atual x novo nome

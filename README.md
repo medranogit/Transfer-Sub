@@ -26,13 +26,20 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 
 ## Funcionalidades
 
-- 🔀 **Dois modos**, cada um sua própria página no menu lateral: **Transferir Legenda** (entre
-  pastas de origem/destino) ou **Limpeza** (trata os arquivos de uma única pasta, sem
-  transferir nada) — mais **Renomeador**, **Histórico** e **Configurações** como páginas próprias.
+- 🔀 **Cinco páginas** no menu lateral: **Transferir Legenda** (entre pastas de origem/destino),
+  **Limpeza** (trata os arquivos de uma única pasta, sem transferir nada), **Renomeador**,
+  **Histórico** e **Configurações**.
+- 🎞️ **Modo Filme** — filmes não têm número de episódio pra casar/detectar automaticamente. Um
+  alternador **Episódio / Filme** (sempre começa em Episódio) aparece tanto no Transferir Legenda
+  quanto no Renomeador: no Transferir, os campos de pasta viram seletor de **arquivo** (origem e
+  destino escolhidos direto); no Renomeador, o campo Temporada some e o nome gerado não leva
+  `S00E00`.
 - ✏️ **Renomeador** — renomeia em lote os vídeos de uma pasta a partir de 4 campos (fansub, nome do
-  anime, temporada, tags; o episódio é detectado por arquivo), com auto-detecção no primeiro
-  escaneamento, fansubs/tags conhecidas configuráveis com dropdown de sugestão, e um botão
-  Atualizar que reaplica os campos sem reler a pasta.
+  anime, temporada, tags; o episódio é detectado por arquivo), com auto-detecção **a cada
+  escaneamento** (inclusive tags — ex. "BD HEVC 1080p"), fansubs/tags conhecidas configuráveis com
+  dropdown de sugestão, um botão **Atualizar** que reaplica os campos sem reler a pasta, e um botão
+  separado pra **rotular em lote a faixa de legenda PT-BR** já embutida nos arquivos (edição de
+  metadado via `mkvpropedit`, sem remuxar nada).
 - 📂 **Casamento automático de episódio** pelo nome do arquivo — reconhece `S01E05`, `1x05`,
   `Episodio 05`, `E05`, e cai num fallback inteligente para nomes de fansub tipo
   `[Grupo] Nome do Show - 05 (1080p) [ABCD1234].mkv`.
@@ -46,9 +53,10 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
   o idioma errado.
 - 🖋️ **Preserva as fontes da legenda** — copia as fontes customizadas (attachments) anexadas ao
   arquivo de origem, evitando que a legenda ASS perca a formatação por falta da fonte no destino.
-- 🏷️ **Renomeia a faixa transferida** — a legenda PT-BR transferida vira `PortuguesBr - TransferSub`
-  com idioma indeterminado (`und`), pra identificar facilmente no player sem repetir "[Português]"
-  no nome que já é autoexplicativo.
+- 🏷️ **Renomeia e rotula a faixa transferida como PT-BR** — o nome dado à faixa é configurável em
+  Configurações (padrão `Portugues BR`) e o idioma é sempre reforçado como português (`por`),
+  mesmo que a faixa original viesse rotulada como indeterminada ou com um código errado. O mesmo
+  rótulo pode ser aplicado depois, em lote, a arquivos que já têm legenda embutida (Renomeador).
 - 🎧 **Remove dublagem em inglês** (opcional, ligado por padrão) — mantém só o áudio japonês do
   arquivo final.
 - 🧹 **Modo limpar** — mantém apenas a legenda escolhida (removendo as demais) e/ou tira a dublagem
@@ -57,19 +65,22 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 - ⏱️ **Três formas de ajustar o timing** — informe o instante (`MM:SS,mmm`) em que a primeira fala
   deve aparecer, ou um deslocamento manual em milissegundos, ou use **Sincronizar** para comparar
   lado a lado a legenda em inglês do destino com a PT-BR da origem, clicar na mesma fala nos dois
-  lados e deixar o app calcular o deslocamento.
+  lados e deixar o app calcular o deslocamento — as duas legendas são buscadas em paralelo, então o
+  modal abre bem mais rápido.
+- 🔔 **Som de conclusão e de aviso** — toca ao terminar uma transferência/limpeza, e um som diferente
+  quando um escaneamento traz avisos ou episódios sem correspondência pro sino de notificações.
 - 🧩 **Não sobrescreve com duplicados** — o resultado é sempre salvo com nome fixo por
-  episódio/arquivo; rodar de novo substitui o anterior em vez de criar `(1)`, `(2)`, etc. Por padrão
-  assina `[TS - Tag]` ao lado da tag da fansub original (nos dois modos), mas em Configurações dá
-  pra desligar essa assinatura e/ou ligar, opcionalmente e por modo, uma marcação extra no final do
-  nome (ex: `[legendado]`/`[limpo]`, a palavra é livre).
-- 📊 Log colorido em tempo real (info/sucesso/aviso/erro), som de conclusão e histórico salvo em
+  episódio/arquivo; rodar de novo substitui o anterior em vez de criar `(1)`, `(2)`, etc. Em
+  Configurações dá pra ligar, por modo, uma marcação extra no final do nome (ex: `[legendado]`/
+  `[limpo]`, a palavra é livre).
+- 📊 Log colorido em tempo real (info/sucesso/aviso/erro) e histórico salvo em
   `transfer-log.json`.
 
 ## Instalação e uso
 
 Requer o [MKVToolNix](https://mkvtoolnix.download/) instalado (detectado automaticamente em
-`C:\Program Files\MKVToolNix`, ou configurável pela própria interface) e [Node.js](https://nodejs.org/).
+`C:\Program Files\MKVToolNix`, ou configurável pela própria interface — precisa achar `mkvmerge.exe`,
+`mkvextract.exe` e `mkvpropedit.exe` juntos) e [Node.js](https://nodejs.org/).
 
 ```bash
 cd ui
@@ -80,7 +91,8 @@ npm run dev
 **Página Transferir Legenda:**
 
 1. Selecione a **pasta de origem** (arquivos que já têm a legenda embutida) e a **pasta de destino**
-   (arquivos que vão receber a legenda).
+   (arquivos que vão receber a legenda) — ou, se for um filme, alterne pra **Filme** no topo e
+   escolha os dois **arquivos** direto.
 2. Clique em **Escanear pastas** — a tabela mostra cada episódio casado, a faixa de legenda
    detectada (com destaque quando for PT-BR) e o status.
 3. Ajuste a faixa de qualquer linha pelo dropdown, se quiser outro idioma. Se precisar corrigir o
@@ -97,6 +109,16 @@ npm run dev
    **Aplicar a todos** no cabeçalho copia a faixa escolhida na 1ª linha pras demais.
 4. Clique em **Limpar selecionados**.
 
+**Página Renomeador:**
+
+1. Selecione a pasta com os arquivos (ou alterne pra **Filme** se não houver número de episódio).
+2. Clique em **Escanear pasta** — fansub, nome, temporada e tags são detectados automaticamente do
+   primeiro arquivo (repete a cada novo escaneamento).
+3. Ajuste os campos e clique em **Atualizar** pra ver o resultado sem reler a pasta, ou
+   **Renomear** pra aplicar.
+4. Pra corrigir o rótulo da legenda PT-BR já embutida nos arquivos (sem mexer no nome do arquivo),
+   use o botão **Rotular faixa PT-BR**.
+
 Quer gerar um instalador `.exe` em vez de rodar em modo desenvolvimento?
 
 ```bash
@@ -111,18 +133,23 @@ pura (dominio) de tudo que toca o sistema de arquivos ou dispara processos exter
 ```
 ui/src/
   main/
-    domain/     regras puras, sem I/O — casar episódio, reconhecer PT-BR/áudio em inglês, timing
-    infra/      I/O — localizar o MKVToolNix, listar vídeos, rodar mkvmerge/mkvextract, config, log
-    workflow.ts casos de uso (escanear/transferir, escanear/limpar) orquestrando domain + infra
+    domain/     regras puras, sem I/O — casar episódio, reconhecer PT-BR/áudio em inglês, timing,
+                gerar/detectar os campos do Renomeador
+    infra/      I/O — localizar o MKVToolNix, listar vídeos, rodar mkvmerge/mkvextract/mkvpropedit,
+                config, log
+    workflow.ts casos de uso (escanear/transferir, escanear/limpar, escanear filme, rotular faixa)
+                orquestrando domain + infra
+    renamer.ts  caso de uso do Renomeador
     index.ts    único ponto que conhece Electron/IPC
   preload/      ponte contextBridge exposta como window.api
   renderer/     UI em React, dividida por responsabilidade:
                 App.tsx        orquestrador (estado + handlers), monta a tela
                 theme.ts        tema (cores/spacing) + tipagem do styled-components
-                ui/             primitivas genericas reaproveitaveis (Button, Row, Chip...)
+                ui/             primitivas genericas reaproveitaveis (Button, Row, Chip,
+                                EpisodeMovieToggle...)
                 components/     um arquivo por peca com estado/logica propria (EpisodeTable,
                                 SyncModal, LogPanel...)
-                utils/          funcoes puras (formatacao de legenda/timing, som de conclusao)
+                utils/          funcoes puras (formatacao de legenda/timing, som de conclusao/aviso)
   shared/       tipos TypeScript compartilhados entre as camadas
 ```
 
@@ -130,4 +157,5 @@ Mais detalhes em [`ui/README.md`](ui/README.md).
 
 ## Stack
 
-Electron · React · TypeScript · styled-components · Ant Design Icons · MKVToolNix (`mkvmerge` / `mkvextract`)
+Electron · React · TypeScript · styled-components · Ant Design Icons ·
+MKVToolNix (`mkvmerge` / `mkvextract` / `mkvpropedit`)

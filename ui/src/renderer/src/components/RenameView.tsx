@@ -158,7 +158,7 @@ export function RenameView({
               S01E02 - BD HEVC 1080p").
             </>
           )}{' '}
-          Fansub/nome{fields.movieMode ? '' : '/temporada'} sao sugeridos no primeiro escaneamento da pasta. A
+          Fansub/nome{fields.movieMode ? '' : '/temporada'}/tags sao sugeridos a cada escaneamento da pasta. A
           extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
         </Hint>
 

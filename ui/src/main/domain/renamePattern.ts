@@ -58,31 +58,39 @@ export function buildRenamedName(originalFileName: string, fields: RenameFields)
   return { name: `${newBase}${ext}`, reason: null }
 }
 
-// Palpite de fansub/nomeAnime/temporada a partir de UM arquivo de exemplo
-// (o primeiro da pasta escaneada) - so aplicado pela UI quando os campos
-// ainda estao em branco. Fansub vem do "[Tag]" no inicio (se houver);
-// nomeAnime e o texto entre o fansub e a marcacao de episodio (so quando um
-// EPISODE_PATTERN bateu direto - no fallback via ultimo-numero-isolado nao
-// da pra saber onde cortar com confianca, entao fica em branco); temporada
-// vem do proprio nome ou 1 como padrao.
+// Palpite de fansub/nomeAnime/temporada/tags a partir de UM arquivo de
+// exemplo (o primeiro da pasta escaneada) - so aplicado pela UI quando os
+// campos ainda estao em branco. Fansub vem do "[Tag]" no inicio (se houver);
+// nomeAnime e tags sao o texto antes/depois da marcacao de episodio
+// (matchStart/matchEnd - disponivel tanto no EPISODE_PATTERNS quanto no
+// fallback de ultimo-numero-isolado, ver episodeMatcher.ts); temporada vem
+// do proprio nome ou 1 como padrao.
 export function detectRenameFields(originalFileName: string): DetectedRenameFields {
   const name = parse(originalFileName).name
 
   const fansubMatch = name.match(FANSUB_TAG)
   const fansub = fansubMatch ? fansubMatch[1].trim() : ''
   const afterFansub = fansubMatch ? name.slice(fansubMatch[0].length) : name
+  const fansubLen = fansubMatch ? fansubMatch[0].length : 0
 
   const episodeMatch = findEpisodeMatch(originalFileName)
   const season = episodeMatch?.season ?? 1
 
   let animeName = ''
+  let tags = ''
   if (episodeMatch) {
-    const cutPoint = episodeMatch.matchStart - (fansubMatch ? fansubMatch[0].length : 0)
+    const cutPoint = episodeMatch.matchStart - fansubLen
     animeName = afterFansub
       .slice(0, Math.max(0, cutPoint))
       .trim()
       .replace(/[-\s]+$/, '')
+
+    const tagsStart = episodeMatch.matchEnd - fansubLen
+    tags = afterFansub
+      .slice(Math.max(0, tagsStart))
+      .trim()
+      .replace(/^[-\s]+/, '')
   }
 
-  return { fansub, animeName, season }
+  return { fansub, animeName, season, tags }
 }

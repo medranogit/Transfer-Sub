@@ -47,16 +47,22 @@ export function previewRename(folder: string, fields: RenameFields): RenamePrevi
   const paths = listVideoFiles(folder)
 
   // "Escanear pasta" e uma acao explicita de recarregar a pasta - sempre
-  // tenta detectar fansub/nome/temporada do primeiro arquivo e sobrescreve o
-  // que estiver nos campos, mesmo que o usuario tenha editado antes (quem
-  // quiser manter os campos atuais sem reler a pasta usa "Atualizar", que
-  // reaplica sem chamar deteccao - ver recomputeRename). Quando detecta, usa
-  // os valores agora mesmo pra montar a pre-visualizacao (senao a tabela
-  // mostraria o resultado com os campos antigos, dessincronizado do que a UI
-  // vai exibir).
+  // tenta detectar fansub/nome/temporada/tags do primeiro arquivo e
+  // sobrescreve o que estiver nos campos, mesmo que o usuario tenha editado
+  // antes (quem quiser manter os campos atuais sem reler a pasta usa
+  // "Atualizar", que reaplica sem chamar deteccao - ver recomputeRename).
+  // Quando detecta, usa os valores agora mesmo pra montar a pre-visualizacao
+  // (senao a tabela mostraria o resultado com os campos antigos,
+  // dessincronizado do que a UI vai exibir).
   const detected = paths.length > 0 ? detectRenameFields(basename(paths[0])) : null
   const effectiveFields = detected
-    ? { ...fields, fansub: detected.fansub, animeName: detected.animeName, season: detected.season }
+    ? {
+        ...fields,
+        fansub: detected.fansub,
+        animeName: detected.animeName,
+        season: detected.season,
+        tags: detected.tags
+      }
     : fields
 
   const rows = buildPreviewRows(paths, effectiveFields)
