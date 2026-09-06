@@ -150,6 +150,21 @@ export async function scanFolders(
 
   const warnings: string[] = []
 
+  // listVideoFiles devolve [] silenciosamente tanto pra pasta vazia quanto
+  // pra pasta inexistente - sem isso, uma pasta com caminho desatualizado
+  // (ex: renomeada depois de selecionada) fazia todo mundo da origem cair
+  // em "sem correspondencia no destino" sem nenhuma pista do motivo real.
+  if (!existsSync(sourceDir)) {
+    warnings.push(`Pasta de origem nao encontrada: ${sourceDir}`)
+  } else if (sourceFiles.length === 0) {
+    warnings.push(`Nenhum arquivo de video na pasta de origem: ${sourceDir}`)
+  }
+  if (!existsSync(destDir)) {
+    warnings.push(`Pasta de destino nao encontrada: ${destDir}`)
+  } else if (destFiles.length === 0) {
+    warnings.push(`Nenhum arquivo de video na pasta de destino: ${destDir}`)
+  }
+
   interface Candidate {
     file: string
     season: number | null
@@ -258,6 +273,12 @@ export async function scanForClean(
   const files = listVideoFiles(folder)
   const rows: EpisodeRow[] = []
   const warnings: string[] = []
+
+  if (!existsSync(folder)) {
+    warnings.push(`Pasta nao encontrada: ${folder}`)
+  } else if (files.length === 0) {
+    warnings.push(`Nenhum arquivo de video na pasta: ${folder}`)
+  }
 
   for (const file of files) {
     if (token?.aborted) break

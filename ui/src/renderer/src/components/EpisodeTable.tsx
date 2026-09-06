@@ -54,9 +54,8 @@ const Td = styled.td`
 `
 
 const FileName = styled.div`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
   max-width: 260px;
 `
 

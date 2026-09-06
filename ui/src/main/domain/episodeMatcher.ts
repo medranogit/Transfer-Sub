@@ -21,6 +21,16 @@ const EPISODE_PATTERNS: RegExp[] = [
 // o fallback usa o ULTIMO numero isolado que encontrar).
 const FALLBACK_NUMBER = /(?<!\w)(\d{1,3})(?!\w)/g
 
+// Arquivos de abertura/encerramento/extras tem um numero no nome (ex:
+// "Opening 2.mkv", "NCED 1.mkv") que o fallback acima confundiria com numero
+// de episodio - colidindo com o episodio real de mesmo numero (ex: episodio
+// 02 e "Ending 2" cairiam no mesmo balde em scanFolders, quebrando o
+// pareamento 1-para-1 quando a temporada nao e detectavel dos dois lados).
+// Tratados como "sem episodio identificado" em vez de participar do
+// pareamento por numero.
+const NON_EPISODE_TOKENS =
+  /\b(nced|ncop|opening|ending|creditless|special|specials|ova|oad|pv|trailer|teaser)\b/i
+
 export interface EpisodeMatch {
   season: number | null
   episode: number
@@ -69,6 +79,7 @@ function matchFallbackNumber(name: string): EpisodeMatch | null {
 // Tenta os EPISODE_PATTERNS primeiro (mais especificos, tem temporada); so
 // cai no fallback quando nenhum bate.
 function matchEpisode(name: string): EpisodeMatch | null {
+  if (NON_EPISODE_TOKENS.test(name)) return null
   return matchEpisodePatterns(name) ?? matchFallbackNumber(name)
 }
 

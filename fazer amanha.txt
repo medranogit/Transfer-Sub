@@ -1,3 +1,0 @@
-Nao deui certo a feat nova de indentificar.
-
-Entao algo simlpes, em cada linha colocar um campo para adiantar ou atrasra o audio, ai fazemos manulamnete
