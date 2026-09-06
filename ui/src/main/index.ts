@@ -30,6 +30,17 @@ import type {
 const WINDOW_WIDTH = 1750
 const WINDOW_HEIGHT = 1000
 
+// Escala inicial da interface (1 = 100%, igual o zoom de navegador) - o
+// Ctrl+/Ctrl-/Ctrl+0 do app (ver useZoomShortcuts no renderer) ajusta isso
+// via zoom:in/out/reset, sem persistir entre sessoes. Limitado a 2 passos
+// pra cima e 2 pra baixo do padrao - alem disso a interface comeca a
+// quebrar (fontes gigantes ou ilegiveis demais).
+const DEFAULT_ZOOM_FACTOR = 1
+const ZOOM_STEP = 0.1
+const MAX_ZOOM_STEPS = 2
+const MIN_ZOOM_FACTOR = DEFAULT_ZOOM_FACTOR - ZOOM_STEP * MAX_ZOOM_STEPS
+const MAX_ZOOM_FACTOR = DEFAULT_ZOOM_FACTOR + ZOOM_STEP * MAX_ZOOM_STEPS
+
 let mainWindow: BrowserWindow | null = null
 // So uma transferencia/limpeza roda por vez (o botao fica desabilitado
 // enquanto isso) - guarda o token da operacao atual pro botao "Abortar".
@@ -72,6 +83,7 @@ function createWindow(): void {
   })
 
   mainWindow.on('ready-to-show', () => mainWindow?.show())
+  mainWindow.webContents.setZoomFactor(DEFAULT_ZOOM_FACTOR)
 
   // O React seta document.title (via index.html) e isso sobrescreveria o
   // titulo com a versao definido acima assim que a pagina carrega.
@@ -107,6 +119,30 @@ if (gotSingleInstanceLock) {
 app.whenReady().then(() => {
   ipcMain.handle('config:load', (): AppConfig => loadConfig())
   ipcMain.handle('config:save', (_e, config: AppConfig) => saveConfig(config))
+
+  // Zoom da janela (Ctrl+/Ctrl-/Ctrl+0) - Electron nao vincula esses atalhos
+  // sozinho sem um menu de aplicativo (este app roda com autoHideMenuBar e
+  // sem menu customizado), entao o renderer escuta o teclado e chama esses
+  // 3 handlers, que so ajustam o zoomFactor real da BrowserWindow. Devolve o
+  // novo fator pro renderer poder mostrar no log (ver App.tsx).
+  ipcMain.handle('zoom:in', (): number => {
+    const wc = mainWindow?.webContents
+    if (!wc) return DEFAULT_ZOOM_FACTOR
+    const next = Math.min(MAX_ZOOM_FACTOR, wc.getZoomFactor() + ZOOM_STEP)
+    wc.setZoomFactor(next)
+    return next
+  })
+  ipcMain.handle('zoom:out', (): number => {
+    const wc = mainWindow?.webContents
+    if (!wc) return DEFAULT_ZOOM_FACTOR
+    const next = Math.max(MIN_ZOOM_FACTOR, wc.getZoomFactor() - ZOOM_STEP)
+    wc.setZoomFactor(next)
+    return next
+  })
+  ipcMain.handle('zoom:reset', (): number => {
+    mainWindow?.webContents.setZoomFactor(DEFAULT_ZOOM_FACTOR)
+    return DEFAULT_ZOOM_FACTOR
+  })
 
   ipcMain.handle('dialog:chooseFolder', async (_e, initialPath?: string) => {
     const result = await dialog.showOpenDialog(mainWindow!, {

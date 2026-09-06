@@ -116,11 +116,31 @@ export function WorkflowView({
   return (
     <>
       <ConfigPanel>
-        {!cleanOnly && (
-          <Row $gap={8}>
-            <EpisodeMovieToggle movieMode={movieMode} onChange={onSetMovieMode} />
-          </Row>
-        )}
+        <Row $gap={12} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+          {!cleanOnly && <EpisodeMovieToggle movieMode={movieMode} onChange={onSetMovieMode} />}
+          <ChipRow>
+            <Chip
+              type="button"
+              $active={removeEnglishAudio}
+              onClick={onToggleRemoveEnglishAudio}
+              title="Remove a dublagem em ingles do arquivo de destino, mantendo so o audio japones."
+            >
+              {removeEnglishAudio && <CheckOutlined />}
+              Remover dublagem em ingles
+            </Chip>
+            {!cleanOnly && (
+              <Chip
+                type="button"
+                $active={removeExtraSubtitles}
+                onClick={onToggleRemoveExtraSubtitles}
+                title="Remove as legendas que ja existiam no destino, deixando so a legenda transferida."
+              >
+                {removeExtraSubtitles && <CheckOutlined />}
+                Limpar legendas do destino
+              </Chip>
+            )}
+          </ChipRow>
+        </Row>
         {!cleanOnly && movieMode ? (
           <>
             <FileField
@@ -150,29 +170,6 @@ export function WorkflowView({
           </>
         )}
         <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={onOutputDirChange} />
-
-        <ChipRow>
-          <Chip
-            type="button"
-            $active={removeEnglishAudio}
-            onClick={onToggleRemoveEnglishAudio}
-            title="Remove a dublagem em ingles do arquivo de destino, mantendo so o audio japones."
-          >
-            {removeEnglishAudio && <CheckOutlined />}
-            Remover dublagem em ingles
-          </Chip>
-          {!cleanOnly && (
-            <Chip
-              type="button"
-              $active={removeExtraSubtitles}
-              onClick={onToggleRemoveExtraSubtitles}
-              title="Remove as legendas que ja existiam no destino, deixando so a legenda transferida."
-            >
-              {removeExtraSubtitles && <CheckOutlined />}
-              Limpar legendas do destino
-            </Chip>
-          )}
-        </ChipRow>
 
         <ToolbarRow>
           <Row $gap={8}>

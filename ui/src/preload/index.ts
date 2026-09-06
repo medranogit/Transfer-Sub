@@ -84,7 +84,11 @@ const api = {
     const listener = (_e: unknown, payload: TransferProgressEvent): void => callback(payload)
     ipcRenderer.on('transfer:progress', listener)
     return () => ipcRenderer.removeListener('transfer:progress', listener)
-  }
+  },
+
+  zoomIn: (): Promise<number> => ipcRenderer.invoke('zoom:in'),
+  zoomOut: (): Promise<number> => ipcRenderer.invoke('zoom:out'),
+  zoomReset: (): Promise<number> => ipcRenderer.invoke('zoom:reset')
 }
 
 contextBridge.exposeInMainWorld('api', api)

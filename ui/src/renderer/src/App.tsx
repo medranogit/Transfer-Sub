@@ -167,6 +167,31 @@ function AppContent() {
     }
   }, [])
 
+  function logZoom(factor: number): void {
+    pushLog(`Zoom da tela: ${Math.round(factor * 100)}%`)
+  }
+
+  // Ctrl/Cmd +/-/0 pra ajustar o zoom da janela - Electron nao vincula isso
+  // sozinho sem um menu de aplicativo (ver zoom:in/out/reset em main/index.ts).
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent): void {
+      if (!e.ctrlKey && !e.metaKey) return
+      if (e.key === '+' || e.key === '=' || e.code === 'NumpadAdd') {
+        e.preventDefault()
+        window.api.zoomIn().then(logZoom)
+      } else if (e.key === '-' || e.code === 'NumpadSubtract') {
+        e.preventDefault()
+        window.api.zoomOut().then(logZoom)
+      } else if (e.key === '0' || e.code === 'Numpad0') {
+        e.preventDefault()
+        window.api.zoomReset().then(logZoom)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Unico ponto que adiciona ao log em tela (main via canal 'log', ou
   // renderer via pushLog) - tambem reenvia pro processo principal gravar no
   // .txt da sessao atual (ver infra/sessionLog.ts), garantindo que o arquivo
