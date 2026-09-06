@@ -12,8 +12,7 @@ export const ChipRow = styled.div`
 `
 
 export const Chip = styled.button<{ $active: boolean }>`
-  flex: 1;
-  min-width: 200px;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -108,7 +108,8 @@ function AppContent() {
     fansub: '',
     animeName: '',
     season: 1,
-    tags: ''
+    tags: '',
+    movieMode: false
   })
   const [renameFansubPresets, setRenameFansubPresets] = useState<string[]>([])
   const [renameTagPresets, setRenameTagPresets] = useState<string[]>([])
@@ -286,7 +287,7 @@ function AppContent() {
       pushLog('Selecione a pasta com os arquivos a renomear.', 'error')
       return
     }
-    if (!Number.isFinite(renameFields.season) || renameFields.season < 0) {
+    if (!renameFields.movieMode && (!Number.isFinite(renameFields.season) || renameFields.season < 0)) {
       pushLog('Informe uma temporada valida.', 'error')
       return
     }
@@ -325,7 +326,7 @@ function AppContent() {
 
   async function handleRenameUpdate() {
     if (renameRows.length === 0) return
-    if (!Number.isFinite(renameFields.season) || renameFields.season < 0) {
+    if (!renameFields.movieMode && (!Number.isFinite(renameFields.season) || renameFields.season < 0)) {
       pushLog('Informe uma temporada valida.', 'error')
       return
     }
@@ -519,7 +520,7 @@ function AppContent() {
             onDestDirChange={setDestDir}
             onOutputDirChange={setOutputDir}
             movieMode={movieMode}
-            onToggleMovieMode={() => setMovieMode(!movieMode)}
+            onSetMovieMode={setMovieMode}
             movieSourceFile={movieSourceFile}
             movieDestFile={movieDestFile}
             onMovieSourceFileChange={setMovieSourceFile}

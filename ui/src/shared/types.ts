@@ -168,6 +168,10 @@ export interface RenameFields {
   animeName: string
   season: number
   tags: string
+  // Filme: sem numero de episodio - omite a temporada/episodio do nome
+  // gerado ("[fansub] nomeAnime - tags") e nao exige detectar episodio no
+  // nome original.
+  movieMode: boolean
 }
 
 // Palpite de fansub/nomeAnime/temporada a partir do primeiro arquivo de uma

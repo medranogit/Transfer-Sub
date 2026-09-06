@@ -30,17 +30,32 @@ export function formatSeasonEpisode(season: number, episode: number): string {
 // campos informados pelo usuario (temporada e tags valem pra pasta
 // inteira). Numeros saem com 2 digitos (01, 11...) e a extensao do arquivo
 // original e sempre preservada.
+//
+// No modo filme (fields.movieMode) nao ha temporada/episodio pra incluir -
+// nem pra exigir: filmes raramente tem uma marcacao "S01E01" no nome, entao
+// aqui nao chama findEpisode (diferente do modo episodio, onde a ausencia
+// dele bloqueia a linha). Resultado vira so "[fansub] nomeAnime - tags".
 export function buildRenamedName(originalFileName: string, fields: RenameFields): RenameResult {
+  const fansub = fields.fansub.trim()
+  const ext = parse(originalFileName).ext
+
+  if (fields.movieMode) {
+    const namePart = [fansub ? `[${fansub}]` : '', fields.animeName.trim()]
+      .filter((part) => part.length > 0)
+      .join(' ')
+    const newBase = [namePart, fields.tags.trim()].filter((part) => part.length > 0).join(' - ')
+    if (!newBase) return { name: null, reason: 'preencha ao menos o nome do filme' }
+    return { name: `${newBase}${ext}`, reason: null }
+  }
+
   const [, episode] = findEpisode(originalFileName)
   if (episode === null) return { name: null, reason: 'episodio nao detectado no nome original' }
 
-  const fansub = fields.fansub.trim()
   const seasonEpisode = formatSeasonEpisode(fields.season, episode)
   const middle = [fields.animeName.trim(), seasonEpisode].filter((part) => part.length > 0).join(' - ')
   const namePart = [fansub ? `[${fansub}]` : '', middle].filter((part) => part.length > 0).join(' ')
   const newBase = [namePart, fields.tags.trim()].filter((part) => part.length > 0).join(' - ')
 
-  const ext = parse(originalFileName).ext
   return { name: `${newBase}${ext}`, reason: null }
 }
 

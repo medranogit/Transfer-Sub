@@ -18,8 +18,11 @@ function buildPreviewRows(paths: string[], fields: RenameFields): RenamePreviewR
   const rows: RenamePreviewRow[] = paths.map((path) => {
     const originalName = basename(path)
     const { name, reason } = buildRenamedName(originalName, fields)
-    const [, episode] = findEpisode(originalName)
-    const episodeKey = episode === null ? null : formatSeasonEpisode(fields.season, episode)
+    let episodeKey: string | null = null
+    if (!fields.movieMode) {
+      const [, episode] = findEpisode(originalName)
+      episodeKey = episode === null ? null : formatSeasonEpisode(fields.season, episode)
+    }
     return { id: path, originalPath: path, originalName, newName: name, skipReason: reason, episodeKey }
   })
 

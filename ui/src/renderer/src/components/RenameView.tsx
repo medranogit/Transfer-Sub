@@ -13,6 +13,7 @@ import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
 import { SuggestInput, TagPickerInput } from '../ui/SuggestInput'
+import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { FolderField } from './FolderField'
 import { LogPanel } from './LogPanel'
 
@@ -91,6 +92,13 @@ export function RenameView({
   return (
     <>
       <ConfigPanel>
+        <Row $gap={8}>
+          <EpisodeMovieToggle
+            movieMode={fields.movieMode}
+            onChange={(movieMode) => onFieldsChange({ ...fields, movieMode })}
+          />
+        </Row>
+
         <FolderField label="Pasta com os arquivos" value={folder} onChange={onFolderChange} />
 
         <FieldsRow>
@@ -111,15 +119,17 @@ export function RenameView({
               placeholder="Black Clover"
             />
           </Field>
-          <Field $width={90}>
-            <Label>Temporada</Label>
-            <Input
-              type="number"
-              min={0}
-              value={fields.season}
-              onChange={(e) => onFieldsChange({ ...fields, season: Number(e.target.value) })}
-            />
-          </Field>
+          {!fields.movieMode && (
+            <Field $width={90}>
+              <Label>Temporada</Label>
+              <Input
+                type="number"
+                min={0}
+                value={fields.season}
+                onChange={(e) => onFieldsChange({ ...fields, season: Number(e.target.value) })}
+              />
+            </Field>
+          )}
           <Field style={{ flex: 1.6 }}>
             <Label>Tags</Label>
             <TagPickerInput
@@ -131,9 +141,19 @@ export function RenameView({
           </Field>
         </FieldsRow>
         <Hint>
-          O episodio e detectado automaticamente em cada arquivo. Resultado:{' '}
-          <strong>[fansub] nome do anime - S(temporada)E(episodio) - tags</strong> (ex: "[Judas] Black Clover -
-          S01E02 - BD HEVC 1080p"). Fansub/nome/temporada sao sugeridos no primeiro escaneamento da pasta. A
+          {fields.movieMode ? (
+            <>
+              Filme: sem numero de episodio. Resultado: <strong>[fansub] nome do filme - tags</strong> (ex:
+              "[EMBER] Nome do Filme - BD HEVC 1080p").
+            </>
+          ) : (
+            <>
+              O episodio e detectado automaticamente em cada arquivo. Resultado:{' '}
+              <strong>[fansub] nome do anime - S(temporada)E(episodio) - tags</strong> (ex: "[Judas] Black Clover -
+              S01E02 - BD HEVC 1080p").
+            </>
+          )}{' '}
+          Fansub/nome{fields.movieMode ? '' : '/temporada'} sao sugeridos no primeiro escaneamento da pasta. A
           extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
         </Hint>
 

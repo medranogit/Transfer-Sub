@@ -10,7 +10,7 @@ import { applyRename, previewRename, recomputeRename } from './renamer'
 import type { AppConfig, MkvToolsStatus, RenameFields, RenamePreviewRow, TransferRequest } from '@shared/types'
 
 // Tamanho inicial da janela do app - ajuste aqui.
-const WINDOW_WIDTH = 1600
+const WINDOW_WIDTH = 1750
 const WINDOW_HEIGHT = 1000
 
 let mainWindow: BrowserWindow | null = null

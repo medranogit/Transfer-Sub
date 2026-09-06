@@ -7,6 +7,7 @@ import { CheckOutlined, StopOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, RowStatus } from '@shared/types'
 import { Button, Col, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Chip, ChipRow } from '../ui/Chip'
+import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { FolderField } from './FolderField'
 import { FileField } from './FileField'
 import { LogPanel } from './LogPanel'
@@ -50,7 +51,7 @@ export function WorkflowView({
   onDestDirChange,
   onOutputDirChange,
   movieMode,
-  onToggleMovieMode,
+  onSetMovieMode,
   movieSourceFile,
   movieDestFile,
   onMovieSourceFileChange,
@@ -84,7 +85,7 @@ export function WorkflowView({
   onDestDirChange: (value: string) => void
   onOutputDirChange: (value: string) => void
   movieMode: boolean
-  onToggleMovieMode: () => void
+  onSetMovieMode: (movieMode: boolean) => void
   movieSourceFile: string
   movieDestFile: string
   onMovieSourceFileChange: (value: string) => void
@@ -113,6 +114,11 @@ export function WorkflowView({
   return (
     <>
       <ConfigPanel>
+        {!cleanOnly && (
+          <Row $gap={8}>
+            <EpisodeMovieToggle movieMode={movieMode} onChange={onSetMovieMode} />
+          </Row>
+        )}
         {!cleanOnly && movieMode ? (
           <>
             <FileField
@@ -144,17 +150,6 @@ export function WorkflowView({
         <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={onOutputDirChange} />
 
         <ChipRow>
-          {!cleanOnly && (
-            <Chip
-              type="button"
-              $active={movieMode}
-              onClick={onToggleMovieMode}
-              title="Filmes nao tem numero de episodio pra parear automaticamente por pasta - com essa opcao ligada, voce escolhe os arquivos de origem e destino direto, um por um."
-            >
-              {movieMode && <CheckOutlined />}
-              E um filme
-            </Chip>
-          )}
           <Chip
             type="button"
             $active={removeEnglishAudio}
