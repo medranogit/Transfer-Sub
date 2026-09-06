@@ -8,12 +8,22 @@ export function trackLabel(track: SubtitleTrack): string {
 }
 
 // PGS/VobSub (S_HDMV/PGS, S_VOBSUB) sao legendas de imagem (bitmaps, sem
-// texto codificado) - comuns em releases de Blu-ray. Nao da pra extrair
-// falas delas pro auto-sync, so formatos baseados em texto (ASS/SSA/SRT).
+// texto codificado) - comuns em releases de Blu-ray.
 const TEXT_SUBTITLE_CODECS = new Set(['S_TEXT/ASS', 'S_TEXT/SSA', 'S_TEXT/UTF8'])
 
 export function isTextSubtitleCodec(codecId: string): boolean {
   return TEXT_SUBTITLE_CODECS.has(codecId)
+}
+
+// PGS tem suporte a auto-sync mesmo sem texto: o processo principal
+// decodifica os bitmaps da legenda em imagens (ver domain/pgsSubtitle.ts),
+// que a tela de sync mostra no lugar do texto - o usuario le a imagem pra
+// reconhecer a "mesma fala". VobSub (formato mais antigo, estilo DVD) ainda
+// nao tem decodificador - so os campos manuais funcionam pra essas faixas.
+const IMAGE_SYNC_CODECS = new Set(['S_HDMV/PGS'])
+
+export function canSyncTrack(codecId: string): boolean {
+  return isTextSubtitleCodec(codecId) || IMAGE_SYNC_CODECS.has(codecId)
 }
 
 // Resumo curto do ajuste de timing configurado numa linha, para exibir como

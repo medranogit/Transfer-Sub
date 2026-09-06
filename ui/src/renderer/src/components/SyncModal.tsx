@@ -9,8 +9,8 @@ import type { EpisodeRow, SubtitleEvent, SubtitleTrack } from '@shared/types'
 import { theme } from '../theme'
 import { Button, Col, Label, Panel, Row } from '../ui/primitives'
 import {
+  canSyncTrack,
   formatEventTime,
-  isTextSubtitleCodec,
   maskOffsetInput,
   maskTimeInput,
   trackLabel
@@ -146,6 +146,13 @@ const ItemTime = styled.span`
   padding-top: 1px;
 `
 
+const SubtitleThumb = styled.img`
+  max-width: 100%;
+  max-height: 60px;
+  background: #000;
+  border-radius: 2px;
+`
+
 const OffsetPreview = styled.div`
   font-size: 12.5px;
   color: ${(p) => p.theme.colors.text};
@@ -234,7 +241,7 @@ export function SyncModal({
   const offsetMs = selectedEn && selectedPt ? selectedEn.startMs - selectedPt.startMs : null
 
   const enTrack = destTracks.find((t) => t.trackId === enTrackId)
-  const enTrackIsImageBased = enTrack !== undefined && !isTextSubtitleCodec(enTrack.codecId)
+  const enTrackUnsupported = enTrack !== undefined && !canSyncTrack(enTrack.codecId)
 
   return (
     <Overlay onClick={onClose}>
@@ -298,15 +305,16 @@ export function SyncModal({
               )}
             </FieldRow>
 
-            {enTrackIsImageBased && (
+            {enTrackUnsupported && (
               <div style={{ color: theme.colors.warning }}>
-                Esta faixa e uma legenda de imagem (PGS/VobSub, comum em releases de Blu-ray) - nao
-                tem texto codificado pra comparar. Escolha uma faixa de texto (ASS/SSA/SRT) acima
-                para usar o auto-sync, ou ajuste manualmente pelos campos no topo.
+                Esta faixa e uma legenda de imagem em formato ainda nao suportado (VobSub, comum em
+                rips de DVD) - nao da pra gerar uma previa pra comparar. Escolha outra faixa acima
+                (PGS e suportado, mostra a imagem da legenda) ou ajuste manualmente pelos campos no
+                topo.
               </div>
             )}
 
-            {!enTrackIsImageBased && (
+            {!enTrackUnsupported && (
               <>
                 <ColumnsRow>
                   <Column>
@@ -323,7 +331,11 @@ export function SyncModal({
                             onClick={() => setSelectedEnIndex(i)}
                           >
                             <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
-                            <span>{evt.text}</span>
+                            {evt.imageDataUrl ? (
+                              <SubtitleThumb src={evt.imageDataUrl} alt="" />
+                            ) : (
+                              <span>{evt.text}</span>
+                            )}
                           </ColumnItem>
                         ))}
                     </ColumnList>
@@ -341,7 +353,11 @@ export function SyncModal({
                           onClick={() => setSelectedPtIndex(i)}
                         >
                           <ItemTime>{formatEventTime(evt.startMs)}</ItemTime>
-                          <span>{evt.text}</span>
+                          {evt.imageDataUrl ? (
+                            <SubtitleThumb src={evt.imageDataUrl} alt="" />
+                          ) : (
+                            <span>{evt.text}</span>
+                          )}
                         </ColumnItem>
                       ))}
                     </ColumnList>

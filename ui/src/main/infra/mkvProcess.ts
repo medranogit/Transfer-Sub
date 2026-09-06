@@ -58,7 +58,8 @@ const ASS_CODEC_IDS = new Set(['S_TEXT/ASS', 'S_TEXT/SSA'])
 const SUB_EXT_BY_CODEC: Record<string, string> = {
   'S_TEXT/ASS': '.ass',
   'S_TEXT/SSA': '.ssa',
-  'S_TEXT/UTF8': '.srt'
+  'S_TEXT/UTF8': '.srt',
+  'S_HDMV/PGS': '.sup'
 }
 
 interface MkvMergeTrackJson {

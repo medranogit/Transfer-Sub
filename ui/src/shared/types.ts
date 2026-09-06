@@ -124,11 +124,15 @@ export interface TransferSummary {
   aborted: boolean
 }
 
-// Uma linha de legenda ja parseada (timestamp + texto limpo), usada pela
-// tela de auto-sync manual (escolher a "mesma fala" em ingles e ptbr).
+// Uma linha de legenda ja parseada, usada pela tela de auto-sync manual
+// (escolher a "mesma fala" em ingles e ptbr). Legendas de texto (ASS/SSA/
+// SRT) preenchem "text"; legendas de imagem (PGS) nao tem texto codificado,
+// entao preenchem "imageDataUrl" com um PNG (data URL) da propria imagem da
+// legenda - o usuario le a imagem pra reconhecer a "mesma fala".
 export interface SubtitleEvent {
   startMs: number
   text: string
+  imageDataUrl?: string
 }
 
 export interface SyncPrepareResult {

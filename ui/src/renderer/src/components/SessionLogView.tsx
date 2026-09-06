@@ -69,6 +69,8 @@ const LogViewer = styled.div`
   font-family: ${(p) => p.theme.font.mono};
   font-size: 12px;
   line-height: 1.7;
+  user-select: text;
+  cursor: text;
 `
 
 const Line = styled.div<{ $level?: 'success' | 'warn' | 'error' }>`

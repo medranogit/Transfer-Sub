@@ -16,6 +16,11 @@ const LogWrap = styled.div`
   display: flex;
   flex-direction: column;
   gap: 1px;
+  /* O app desativa selecao de texto globalmente (evita selecionar rotulo de
+     botao/checkbox sem querer) - o log e uma excecao: e comum copiar uma
+     linha de erro pra colar em outro lugar. */
+  user-select: text;
+  cursor: text;
 `
 
 const LOG_COLOR: Record<LogEvent['level'], keyof typeof theme.colors> = {

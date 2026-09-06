@@ -11,6 +11,7 @@ import {
 } from './domain/subtitleLanguage'
 import { isEnglishAudio } from './domain/audioLanguage'
 import { decodeSubtitleBuffer } from './domain/subtitleEncoding'
+import { parsePgsSubtitle } from './domain/pgsSubtitle'
 import {
   formatMsAsTimeCode,
   parseFirstEventStartMs,
@@ -715,6 +716,12 @@ async function extractSubtitleEvents(
     const extension = subtitleExtension(track.codecId)
     const tmpPath = join(tmpDir, `evt${extension}`)
     await extractSubtitle(mkvextractPath, filePath, track.trackId, tmpPath)
+    if (track.codecId === 'S_HDMV/PGS') {
+      // Legenda de imagem (sem texto codificado) - decodifica os bitmaps em
+      // vez de tentar ler como texto, pra tela de auto-sync poder mostrar a
+      // propria imagem da legenda.
+      return parsePgsSubtitle(await readFile(tmpPath))
+    }
     const content = decodeSubtitleBuffer(await readFile(tmpPath))
     return parseSubtitleEvents(content, extension)
   } finally {
