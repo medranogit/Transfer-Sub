@@ -3,7 +3,7 @@
 // so que agora e uma pagina navegada pela Sidebar em vez de alternada por
 // um toggle dentro de uma unica tela.
 import styled from 'styled-components'
-import { CheckOutlined, StopOutlined } from '@ant-design/icons'
+import { CheckOutlined, ClearOutlined, StopOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, RowStatus } from '@shared/types'
 import { Button, Col, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Chip, ChipRow } from '../ui/Chip'
@@ -75,7 +75,8 @@ export function WorkflowView({
   onApplyTrackToAll,
   onOpenSync,
   progressPct,
-  logs
+  logs,
+  onClearLog
 }: {
   cleanOnly: boolean
   sourceDir: string
@@ -110,6 +111,7 @@ export function WorkflowView({
   onOpenSync: (rowId: string) => void
   progressPct: number
   logs: LogEvent[]
+  onClearLog: () => void
 }) {
   return (
     <>
@@ -226,7 +228,18 @@ export function WorkflowView({
       </Col>
 
       <Col $gap={6}>
-        <SectionTitle>Log</SectionTitle>
+        <ToolbarRow>
+          <SectionTitle>Log</SectionTitle>
+          <Button
+            type="button"
+            $variant="ghost"
+            onClick={onClearLog}
+            disabled={logs.length === 0}
+            title="Limpar o log desta sessao"
+          >
+            <ClearOutlined /> Limpar log
+          </Button>
+        </ToolbarRow>
         <LogPanel entries={logs} />
       </Col>
     </>

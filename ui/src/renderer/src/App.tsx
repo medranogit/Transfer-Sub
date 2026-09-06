@@ -154,6 +154,10 @@ function AppContent() {
     setLogs((prev) => [...prev, { level, message }])
   }
 
+  function handleClearLog(): void {
+    setLogs([])
+  }
+
   // Com um escaneamento/transferencia/limpeza em andamento a Sidebar ja
   // desabilita todo o resto (so a aba ativa fica clicavel) - essa checagem e
   // so uma segunda camada de protecao. Trocar entre Transferir Legenda <->
@@ -577,6 +581,7 @@ function AppContent() {
             onOpenSync={setSyncRowId}
             progressPct={progressPct}
             logs={logs}
+            onClearLog={handleClearLog}
           />
         )}
 
@@ -598,6 +603,7 @@ function AppContent() {
             onApply={handleRenameApply}
             onRenameTracks={handleRenameTracks}
             logs={logs}
+            onClearLog={handleClearLog}
           />
         )}
 

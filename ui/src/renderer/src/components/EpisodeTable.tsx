@@ -1,5 +1,11 @@
 import styled from 'styled-components'
-import { ClockCircleFilled, CopyOutlined, SyncOutlined } from '@ant-design/icons'
+import {
+  ArrowRightOutlined,
+  CheckCircleFilled,
+  ClockCircleFilled,
+  CopyOutlined,
+  SyncOutlined
+} from '@ant-design/icons'
 import type { EpisodeRow, RowStatus } from '@shared/types'
 import { Button, Row } from '../ui/primitives'
 import { Checkbox } from '../ui/Checkbox'
@@ -69,10 +75,10 @@ const TrackSelect = styled.select`
   color: ${(p) => p.theme.colors.text};
 `
 
-const PtBrTag = styled.span`
+const PtBrIcon = styled(CheckCircleFilled)`
   color: ${(p) => p.theme.colors.success};
-  font-weight: 700;
-  font-size: 10.5px;
+  font-size: 13px;
+  margin-left: 6px;
 `
 
 const PtBrGuessTag = styled.span`
@@ -90,6 +96,13 @@ const SyncStatusIcon = styled(ClockCircleFilled)`
 const NoSubtitle = styled.span`
   color: ${(p) => p.theme.colors.textFaint};
   font-style: italic;
+`
+
+const ArrowCell = styled.td`
+  padding: 8px 4px;
+  text-align: center;
+  color: ${(p) => p.theme.colors.textFaint};
+  font-size: 13px;
 `
 
 export function EpisodeTable({
@@ -124,7 +137,6 @@ export function EpisodeTable({
               <Checkbox checked={allSelected} onChange={onToggleSelectAll} title="Selecionar todos" />
             </th>
             <th style={{ width: 90 }}>Episodio</th>
-            {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
             <th>
               <Row $gap={8} style={{ alignItems: 'center' }}>
                 <span>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</span>
@@ -141,6 +153,8 @@ export function EpisodeTable({
                 )}
               </Row>
             </th>
+            {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
+            {!cleanOnly && <th style={{ width: 24 }} />}
             {!cleanOnly && <th>Arquivo destino</th>}
             {!cleanOnly && <th style={{ width: 150 }}>Sincronizacao</th>}
             <th style={{ width: 110 }}>Status</th>
@@ -155,9 +169,6 @@ export function EpisodeTable({
                   <Checkbox checked={selectedIds.has(row.id)} onChange={() => onToggleSelect(row.id)} />
                 </Td>
                 <Td>{row.episodeKey}</Td>
-                <Td>
-                  <FileName title={row.sourceName}>{row.sourceName}</FileName>
-                </Td>
                 <Td onClick={(e) => e.stopPropagation()}>
                   {row.tracks.length > 0 ? (
                     <TrackSelect
@@ -177,7 +188,9 @@ export function EpisodeTable({
                   ) : (
                     <NoSubtitle>(nenhuma legenda encontrada)</NoSubtitle>
                   )}
-                  {selectedTrack?.isPtBr && <PtBrTag> auto-selecionado PT-BR</PtBrTag>}
+                  {selectedTrack?.isPtBr && (
+                    <PtBrIcon title="Faixa em PT-BR (idioma/nome reconhecido) selecionada automaticamente" />
+                  )}
                   {!selectedTrack?.isPtBr && selectedTrack?.isPtBrGuess && (
                     <PtBrGuessTag title="Nenhuma faixa foi identificada como PT-BR por idioma/nome, mas o conteudo desta parece portugues - confira antes de transferir">
                       {' '}
@@ -185,6 +198,14 @@ export function EpisodeTable({
                     </PtBrGuessTag>
                   )}
                 </Td>
+                <Td>
+                  <FileName title={row.sourceName}>{row.sourceName}</FileName>
+                </Td>
+                {!cleanOnly && (
+                  <ArrowCell>
+                    <ArrowRightOutlined />
+                  </ArrowCell>
+                )}
                 {!cleanOnly && (
                   <Td>
                     <FileName title={row.destName}>{row.destName}</FileName>

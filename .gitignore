@@ -41,3 +41,6 @@ $RECYCLE.BIN/
 
 # Estado local do Claude Code - nao faz parte do projeto
 .claude/
+
+# Nota pessoal de instrucoes locais - nao faz parte do projeto
+COMO_GERAR_EXE.txt

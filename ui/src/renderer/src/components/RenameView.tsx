@@ -8,7 +8,7 @@
 // aplicar -> log), mais um botao "Atualizar" que reaplica os campos sem
 // reler a pasta do disco.
 import styled from 'styled-components'
-import { CheckCircleFilled, ReloadOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
+import { CheckCircleFilled, ClearOutlined, ReloadOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
@@ -72,7 +72,8 @@ export function RenameView({
   onUpdate,
   onApply,
   onRenameTracks,
-  logs
+  logs,
+  onClearLog
 }: {
   folder: string
   onFolderChange: (value: string) => void
@@ -90,6 +91,7 @@ export function RenameView({
   onApply: () => void
   onRenameTracks: () => void
   logs: LogEvent[]
+  onClearLog: () => void
 }) {
   const readyCount = rows.filter((r) => r.newName).length
   const mkvCount = rows.filter((r) => /\.(mkv|webm)$/i.test(r.originalName)).length
@@ -240,7 +242,18 @@ export function RenameView({
       </Col>
 
       <Col $gap={6}>
-        <SectionTitle>Log</SectionTitle>
+        <Row $gap={12} style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+          <SectionTitle>Log</SectionTitle>
+          <Button
+            type="button"
+            $variant="ghost"
+            onClick={onClearLog}
+            disabled={logs.length === 0}
+            title="Limpar o log desta sessao"
+          >
+            <ClearOutlined /> Limpar log
+          </Button>
+        </Row>
         <LogPanel entries={logs} />
       </Col>
     </>
