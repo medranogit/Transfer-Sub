@@ -23,6 +23,8 @@ const api = {
   chooseFolder: (initialPath?: string): Promise<string | null> =>
     ipcRenderer.invoke('dialog:chooseFolder', initialPath),
 
+  chooseFile: (initialPath?: string): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFile', initialPath),
+
   locateMkvTools: (configuredDir?: string): Promise<MkvToolsStatus> =>
     ipcRenderer.invoke('mkvtools:locate', configuredDir),
   chooseMkvToolsDir: (): Promise<MkvToolsStatus> => ipcRenderer.invoke('mkvtools:chooseDir'),
@@ -31,6 +33,9 @@ const api = {
     ipcRenderer.invoke('scan:run', { sourceDir, destDir }),
 
   scanClean: (folder: string): Promise<ScanResult> => ipcRenderer.invoke('scan:clean', { folder }),
+
+  scanMovie: (sourceFile: string, destFile: string): Promise<ScanResult> =>
+    ipcRenderer.invoke('scan:movie', { sourceFile, destFile }),
 
   transfer: (request: TransferRequest): Promise<TransferSummary> =>
     ipcRenderer.invoke('transfer:run', request),

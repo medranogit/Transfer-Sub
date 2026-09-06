@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { mkdtemp, readFile, rm } from 'fs/promises'
-import { join, basename, resolve } from 'path'
+import { join, basename, extname, resolve } from 'path'
 import { episodeKey, findEpisode } from './domain/episodeMatcher'
 import {
   guessPtBrFromContent,
@@ -91,6 +91,51 @@ async function tagPtBrGuesses(
   }
 }
 
+// Monta uma linha (sondagem de faixas + deteccao/palpite de PT-BR + escolha
+// da faixa padrao) pra um par origem/destino ja definido - reaproveitada
+// tanto pelo pareamento automatico por episodio (scanFolders) quanto pelo
+// modo filme (scanMovie, que ja recebe os dois arquivos escolhidos direto,
+// sem precisar identificar numero de episodio).
+async function buildEpisodeRow(
+  mkvmergePath: string,
+  mkvextractPath: string,
+  key: string,
+  sourcePath: string,
+  destPath: string,
+  onLog: LogFn
+): Promise<EpisodeRow> {
+  let tracks: SubtitleTrack[]
+  try {
+    tracks = await probeSubtitleTracks(mkvmergePath, sourcePath)
+  } catch (err) {
+    onLog({ level: 'error', message: `Falha ao ler faixas de ${basename(sourcePath)}: ${(err as Error).message}` })
+    tracks = []
+  }
+
+  const assTracks = tracks.filter((t) => t.isAss)
+  const usableTracks = assTracks.length > 0 ? assTracks : tracks
+
+  if (usableTracks.length > 0 && !usableTracks.some((t) => t.isPtBr)) {
+    await tagPtBrGuesses(mkvextractPath, sourcePath, usableTracks, key, onLog)
+  }
+
+  const bestIndex = pickBestTrackIndex(usableTracks)
+  const selectedTrackId = bestIndex >= 0 ? usableTracks[bestIndex].trackId : null
+
+  return {
+    id: key,
+    episodeKey: key,
+    sourcePath,
+    sourceName: basename(sourcePath),
+    destPath,
+    destName: basename(destPath),
+    tracks: usableTracks,
+    selectedTrackId,
+    firstLineTargetText: '',
+    manualOffsetText: ''
+  }
+}
+
 export async function scanFolders(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -160,36 +205,7 @@ export async function scanFolders(
     const destPath = dest.file
     const key = episodeKey(source.season ?? dest.season, episode)!
 
-    let tracks: SubtitleTrack[]
-    try {
-      tracks = await probeSubtitleTracks(mkvmergePath, sourcePath)
-    } catch (err) {
-      onLog({ level: 'error', message: `Falha ao ler faixas de ${basename(sourcePath)}: ${(err as Error).message}` })
-      tracks = []
-    }
-
-    const assTracks = tracks.filter((t) => t.isAss)
-    const usableTracks = assTracks.length > 0 ? assTracks : tracks
-
-    if (usableTracks.length > 0 && !usableTracks.some((t) => t.isPtBr)) {
-      await tagPtBrGuesses(mkvextractPath, sourcePath, usableTracks, key, onLog)
-    }
-
-    const bestIndex = pickBestTrackIndex(usableTracks)
-    const selectedTrackId = bestIndex >= 0 ? usableTracks[bestIndex].trackId : null
-
-    rows.push({
-      id: key,
-      episodeKey: key,
-      sourcePath,
-      sourceName: basename(sourcePath),
-      destPath,
-      destName: basename(destPath),
-      tracks: usableTracks,
-      selectedTrackId,
-      firstLineTargetText: '',
-      manualOffsetText: ''
-    })
+    rows.push(await buildEpisodeRow(mkvmergePath, mkvextractPath, key, sourcePath, destPath, onLog))
   }
 
   const unmatchedSource = [...sourceByEpisode.values()]
@@ -206,6 +222,25 @@ export async function scanFolders(
   })
 
   return { rows, warnings, unmatchedSource, aborted }
+}
+
+// Modo "filme": filmes nao tem numero de episodio pra parear automaticamente
+// (scanFolders exigiria isso e so geraria avisos de "nao identifiquei
+// episodio"), entao aqui o usuario ja escolhe direto os dois arquivos - o de
+// origem (com a legenda ptbr) e o de destino (sem legenda) - e o app monta
+// uma unica linha pra esse par, reaproveitando a mesma logica de
+// sondagem/deteccao de faixa PT-BR do pareamento automatico.
+export async function scanMovie(
+  mkvmergePath: string,
+  mkvextractPath: string,
+  sourceFile: string,
+  destFile: string,
+  onLog: LogFn
+): Promise<ScanResult> {
+  const key = basename(sourceFile, extname(sourceFile))
+  const row = await buildEpisodeRow(mkvmergePath, mkvextractPath, key, sourceFile, destFile, onLog)
+  onLog({ level: 'info', message: `Filme pronto para transferir: ${row.sourceName} -> ${row.destName}` })
+  return { rows: [row], warnings: [], unmatchedSource: [], aborted: false }
 }
 
 // Modo "apenas limpar": nao ha par origem/destino, cada arquivo da pasta

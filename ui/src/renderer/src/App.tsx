@@ -68,6 +68,14 @@ function AppContent() {
   const [sourceDir, setSourceDir] = useState('')
   const [destDir, setDestDir] = useState('')
   const [outputDir, setOutputDir] = useState('')
+  // Modo Filme (so no Transferir Legenda): filmes nao tem numero de episodio
+  // pra parear automaticamente por pasta, entao o usuario escolhe os dois
+  // arquivos direto em vez de pastas inteiras. Nao persiste o toggle em si
+  // (sempre comeca desligado, como os outros toggles de operacao), so os
+  // ultimos arquivos escolhidos.
+  const [movieMode, setMovieMode] = useState(false)
+  const [movieSourceFile, setMovieSourceFile] = useState('')
+  const [movieDestFile, setMovieDestFile] = useState('')
   const [mkvStatus, setMkvStatus] = useState<MkvToolsStatus>({ found: false })
 
   const [rows, setRows] = useState<EpisodeRow[]>([])
@@ -125,6 +133,8 @@ function AppContent() {
       setRenameFolder(config.renameFolder)
       setRenameFansubPresets(config.renameFansubPresets)
       setRenameTagPresets(config.renameTagPresets)
+      setMovieSourceFile(config.movieSourceFile)
+      setMovieDestFile(config.movieDestFile)
       window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
     })
 
@@ -171,6 +181,8 @@ function AppContent() {
       renameFolder: string
       renameFansubPresets: string[]
       renameTagPresets: string[]
+      movieSourceFile: string
+      movieDestFile: string
     }> = {}
   ) {
     await window.api.saveConfig({
@@ -182,7 +194,9 @@ function AppContent() {
       namingClean: overrides.namingClean ?? namingClean,
       renameFolder: overrides.renameFolder ?? renameFolder,
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
-      renameTagPresets: overrides.renameTagPresets ?? renameTagPresets
+      renameTagPresets: overrides.renameTagPresets ?? renameTagPresets,
+      movieSourceFile: overrides.movieSourceFile ?? movieSourceFile,
+      movieDestFile: overrides.movieDestFile ?? movieDestFile
     })
   }
 
@@ -222,14 +236,23 @@ function AppContent() {
         pushLog('Selecione a pasta com os arquivos a limpar.', 'error')
         return
       }
+    } else if (movieMode) {
+      if (!movieSourceFile || !movieDestFile) {
+        pushLog('Selecione os arquivos de origem e destino do filme.', 'error')
+        return
+      }
     } else if (!sourceDir || !destDir) {
       pushLog('Selecione as pastas de origem e destino.', 'error')
       return
     }
-    const effectiveOutput = outputDir || destDir
+    // Sem pasta de saida definida, cai na pasta do destino - no modo filme
+    // isso e a pasta que contem o arquivo de destino, ja que nao ha uma
+    // "pasta de destino" escolhida separadamente.
+    const fallbackOutput = movieMode ? movieDestFile.replace(/[\\/][^\\/]+$/, '') : destDir
+    const effectiveOutput = outputDir || fallbackOutput
     if (!outputDir) setOutputDir(effectiveOutput)
 
-    await persistConfig({ outputDir: effectiveOutput })
+    await persistConfig({ outputDir: effectiveOutput, movieSourceFile, movieDestFile })
     setScanning(true)
     setRows([])
     setStatuses({})
@@ -237,7 +260,11 @@ function AppContent() {
     setScanWarnings([])
     setUnmatchedSource([])
     try {
-      const result = cleanOnly ? await window.api.scanClean(destDir) : await window.api.scan(sourceDir, destDir)
+      const result = cleanOnly
+        ? await window.api.scanClean(destDir)
+        : movieMode
+          ? await window.api.scanMovie(movieSourceFile, movieDestFile)
+          : await window.api.scan(sourceDir, destDir)
       setRows(result.rows)
       setSelectedIds(new Set(result.rows.map((r) => r.id)))
       setStatuses(Object.fromEntries(result.rows.map((r) => [r.id, 'idle' as RowStatus])))
@@ -438,7 +465,7 @@ function AppContent() {
     try {
       const request = {
         rows: targets,
-        outputDir: outputDir || destDir,
+        outputDir: outputDir || (movieMode ? movieDestFile.replace(/[\\/][^\\/]+$/, '') : destDir),
         removeEnglishAudio,
         removeExtraSubtitles: !cleanOnly && removeExtraSubtitles
       }
@@ -491,6 +518,12 @@ function AppContent() {
             onSourceDirChange={setSourceDir}
             onDestDirChange={setDestDir}
             onOutputDirChange={setOutputDir}
+            movieMode={movieMode}
+            onToggleMovieMode={() => setMovieMode(!movieMode)}
+            movieSourceFile={movieSourceFile}
+            movieDestFile={movieDestFile}
+            onMovieSourceFileChange={setMovieSourceFile}
+            onMovieDestFileChange={setMovieDestFile}
             removeEnglishAudio={removeEnglishAudio}
             onToggleRemoveEnglishAudio={() => setRemoveEnglishAudio(!removeEnglishAudio)}
             removeExtraSubtitles={removeExtraSubtitles}

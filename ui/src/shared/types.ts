@@ -90,6 +90,11 @@ export interface AppConfig {
   // Fansub/Tags do Renomeador - crescem conforme o usuario usa/cadastra.
   renameFansubPresets: string[]
   renameTagPresets: string[]
+  // Ultimos arquivos escolhidos no Modo Filme do Transferir Legenda (nao tem
+  // contagem de episodio pra parear automaticamente por pasta, entao o
+  // usuario escolhe os dois arquivos direto).
+  movieSourceFile: string
+  movieDestFile: string
 }
 
 export interface TransferRequest {

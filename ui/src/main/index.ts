@@ -4,7 +4,8 @@ import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
 import { CancellationToken } from './infra/cancellation'
-import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, transferRows } from './workflow'
+import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, scanMovie, transferRows } from './workflow'
+import { VIDEO_EXTS } from './infra/videoFiles'
 import { applyRename, previewRename, recomputeRename } from './renamer'
 import type { AppConfig, MkvToolsStatus, RenameFields, RenamePreviewRow, TransferRequest } from '@shared/types'
 
@@ -81,6 +82,21 @@ app.whenReady().then(() => {
     return result.filePaths[0]
   })
 
+  // Modo filme: escolhe um arquivo de video especifico em vez de uma pasta
+  // inteira (nao ha varios episodios pra escanear).
+  ipcMain.handle('dialog:chooseFile', async (_e, initialPath?: string) => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openFile'],
+      defaultPath: initialPath || undefined,
+      filters: [
+        { name: 'Videos', extensions: [...VIDEO_EXTS].map((ext) => ext.slice(1)) },
+        { name: 'Todos os arquivos', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
   ipcMain.handle('mkvtools:locate', (_e, configuredDir?: string) => tryLocate(configuredDir))
 
   ipcMain.handle('mkvtools:chooseDir', async () => {
@@ -116,6 +132,19 @@ app.whenReady().then(() => {
       if (activeToken === token) activeToken = null
     }
   })
+
+  ipcMain.handle(
+    'scan:movie',
+    async (_e, { sourceFile, destFile }: { sourceFile: string; destFile: string }) => {
+      const status = tryLocate(loadConfig().mkvToolNixDir)
+      if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
+        throw new Error('MKVToolNix nao localizado.')
+      }
+      return scanMovie(status.mkvmergePath, status.mkvextractPath, sourceFile, destFile, (log) => {
+        mainWindow?.webContents.send('log', log)
+      })
+    }
+  )
 
   ipcMain.handle('scan:clean', async (_e, { folder }: { folder: string }) => {
     const status = tryLocate(loadConfig().mkvToolNixDir)

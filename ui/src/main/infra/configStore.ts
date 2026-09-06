@@ -13,7 +13,9 @@ const DEFAULT_CONFIG: AppConfig = {
   namingClean: { signatureEnabled: true, tagEnabled: false, tagWord: 'limpo' },
   renameFolder: '',
   renameFansubPresets: ['DKB', 'Erai-raws', 'EMBER', 'Judas', 'WF'],
-  renameTagPresets: ['HEVC', 'BD', 'WebRip', '1080p', '720p']
+  renameTagPresets: ['HEVC', 'BD', 'WebRip', '1080p', '720p'],
+  movieSourceFile: '',
+  movieDestFile: ''
 }
 
 function configPath(): string {

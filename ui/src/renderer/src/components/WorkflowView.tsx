@@ -8,6 +8,7 @@ import type { EpisodeRow, LogEvent, RowStatus } from '@shared/types'
 import { Button, Col, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Chip, ChipRow } from '../ui/Chip'
 import { FolderField } from './FolderField'
+import { FileField } from './FileField'
 import { LogPanel } from './LogPanel'
 import { EpisodeTable } from './EpisodeTable'
 
@@ -48,6 +49,12 @@ export function WorkflowView({
   onSourceDirChange,
   onDestDirChange,
   onOutputDirChange,
+  movieMode,
+  onToggleMovieMode,
+  movieSourceFile,
+  movieDestFile,
+  onMovieSourceFileChange,
+  onMovieDestFileChange,
   removeEnglishAudio,
   onToggleRemoveEnglishAudio,
   removeExtraSubtitles,
@@ -76,6 +83,12 @@ export function WorkflowView({
   onSourceDirChange: (value: string) => void
   onDestDirChange: (value: string) => void
   onOutputDirChange: (value: string) => void
+  movieMode: boolean
+  onToggleMovieMode: () => void
+  movieSourceFile: string
+  movieDestFile: string
+  onMovieSourceFileChange: (value: string) => void
+  onMovieDestFileChange: (value: string) => void
   removeEnglishAudio: boolean
   onToggleRemoveEnglishAudio: () => void
   removeExtraSubtitles: boolean
@@ -100,28 +113,66 @@ export function WorkflowView({
   return (
     <>
       <ConfigPanel>
-        <FolderField
-          label="Pasta de origem (com legenda)"
-          value={sourceDir}
-          onChange={onSourceDirChange}
-          disabled={cleanOnly}
-        />
-        <FolderField
-          label={cleanOnly ? 'Pasta com os arquivos' : 'Pasta de destino (sem legenda)'}
-          value={destDir}
-          onChange={onDestDirChange}
-        />
+        {!cleanOnly && movieMode ? (
+          <>
+            <FileField
+              label="Arquivo de origem (com legenda)"
+              value={movieSourceFile}
+              onChange={onMovieSourceFileChange}
+            />
+            <FileField
+              label="Arquivo de destino (sem legenda)"
+              value={movieDestFile}
+              onChange={onMovieDestFileChange}
+            />
+          </>
+        ) : (
+          <>
+            <FolderField
+              label="Pasta de origem (com legenda)"
+              value={sourceDir}
+              onChange={onSourceDirChange}
+              disabled={cleanOnly}
+            />
+            <FolderField
+              label={cleanOnly ? 'Pasta com os arquivos' : 'Pasta de destino (sem legenda)'}
+              value={destDir}
+              onChange={onDestDirChange}
+            />
+          </>
+        )}
         <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={onOutputDirChange} />
 
         <ChipRow>
-          <Chip type="button" $active={removeEnglishAudio} onClick={onToggleRemoveEnglishAudio}>
+          {!cleanOnly && (
+            <Chip
+              type="button"
+              $active={movieMode}
+              onClick={onToggleMovieMode}
+              title="Filmes nao tem numero de episodio pra parear automaticamente por pasta - com essa opcao ligada, voce escolhe os arquivos de origem e destino direto, um por um."
+            >
+              {movieMode && <CheckOutlined />}
+              E um filme
+            </Chip>
+          )}
+          <Chip
+            type="button"
+            $active={removeEnglishAudio}
+            onClick={onToggleRemoveEnglishAudio}
+            title="Remove a dublagem em ingles do arquivo de destino, mantendo so o audio japones."
+          >
             {removeEnglishAudio && <CheckOutlined />}
-            Remover dublagem em ingles do destino (manter so o audio japones)
+            Remover dublagem em ingles
           </Chip>
           {!cleanOnly && (
-            <Chip type="button" $active={removeExtraSubtitles} onClick={onToggleRemoveExtraSubtitles}>
+            <Chip
+              type="button"
+              $active={removeExtraSubtitles}
+              onClick={onToggleRemoveExtraSubtitles}
+              title="Remove as legendas que ja existiam no destino, deixando so a legenda transferida."
+            >
               {removeExtraSubtitles && <CheckOutlined />}
-              Limpar legendas do destino, deixando so a transferida
+              Limpar legendas do destino
             </Chip>
           )}
         </ChipRow>
@@ -129,7 +180,13 @@ export function WorkflowView({
         <ToolbarRow>
           <Row $gap={8}>
             <Button $variant="primary" onClick={onScan} disabled={scanning}>
-              {scanning ? 'Escaneando...' : cleanOnly ? 'Escanear pasta' : 'Escanear pastas'}
+              {scanning
+                ? 'Escaneando...'
+                : cleanOnly
+                  ? 'Escanear pasta'
+                  : movieMode
+                    ? 'Preparar filme'
+                    : 'Escanear pastas'}
             </Button>
             <Button onClick={onTransfer} disabled={transferring || rows.length === 0}>
               {transferring
@@ -157,7 +214,9 @@ export function WorkflowView({
       </Row>
 
       <Col $gap={6} style={{ flex: 1, minHeight: 0 }}>
-        <SectionTitle>{cleanOnly ? `Arquivos (${rows.length})` : `Episodios (${rows.length})`}</SectionTitle>
+        <SectionTitle>
+          {cleanOnly ? `Arquivos (${rows.length})` : movieMode ? 'Filme' : `Episodios (${rows.length})`}
+        </SectionTitle>
         <EpisodeTable
           rows={rows}
           statuses={statuses}
