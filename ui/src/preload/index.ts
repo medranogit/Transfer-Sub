@@ -66,6 +66,9 @@ const api = {
 
   applyRename: (rows: RenamePreviewRow[]): Promise<RenameSummary> => ipcRenderer.invoke('rename:apply', rows),
 
+  renameSubtitleTracks: (paths: string[]): Promise<RenameSummary> =>
+    ipcRenderer.invoke('rename:tracks', { paths }),
+
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)
     ipcRenderer.on('log', listener)

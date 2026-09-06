@@ -4,7 +4,16 @@ import { loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
 import { CancellationToken } from './infra/cancellation'
-import { cleanRows, getTrackEvents, prepareSync, scanForClean, scanFolders, scanMovie, transferRows } from './workflow'
+import {
+  cleanRows,
+  getTrackEvents,
+  prepareSync,
+  renameSubtitleTracks,
+  scanForClean,
+  scanFolders,
+  scanMovie,
+  transferRows
+} from './workflow'
 import { VIDEO_EXTS } from './infra/videoFiles'
 import { applyRename, previewRename, recomputeRename } from './renamer'
 import type { AppConfig, MkvToolsStatus, RenameFields, RenamePreviewRow, TransferRequest } from '@shared/types'
@@ -61,8 +70,8 @@ function is_dev(): boolean {
 
 function tryLocate(configuredDir?: string): MkvToolsStatus {
   try {
-    const { mkvmerge, mkvextract } = locateMkvToolNix(configuredDir)
-    return { found: true, mkvmergePath: mkvmerge, mkvextractPath: mkvextract }
+    const { mkvmerge, mkvextract, mkvpropedit } = locateMkvToolNix(configuredDir)
+    return { found: true, mkvmergePath: mkvmerge, mkvextractPath: mkvextract, mkvpropeditPath: mkvpropedit }
   } catch (err) {
     if (err instanceof MkvToolsNotFoundError) return { found: false }
     throw err
@@ -280,6 +289,24 @@ app.whenReady().then(() => {
       mainWindow?.webContents.send('log', log)
     })
   )
+
+  ipcMain.handle('rename:tracks', async (_e, { paths }: { paths: string[] }) => {
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath || !status.mkvextractPath || !status.mkvpropeditPath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return renameSubtitleTracks(
+      status.mkvmergePath,
+      status.mkvextractPath,
+      status.mkvpropeditPath,
+      paths,
+      config.ptBrTrackName,
+      (log) => {
+        mainWindow?.webContents.send('log', log)
+      }
+    )
+  })
 
   createWindow()
 

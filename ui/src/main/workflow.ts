@@ -28,6 +28,7 @@ import {
   probeSubtitleTracks,
   resolveCleanOutputPath,
   resolveOutputPath,
+  setSubtitleTrackLabel,
   subtitleExtension
 } from './infra/mkvProcess'
 import { appendTransferLog } from './infra/transferLog'
@@ -36,6 +37,7 @@ import type {
   EpisodeRow,
   LogEvent,
   NamingConfig,
+  RenameSummary,
   RowStatus,
   ScanResult,
   SubtitleEvent,
@@ -46,12 +48,11 @@ import type {
 
 type LogFn = (event: LogEvent) => void
 
-// mkvmerge nao suporta ler e escrever no mesmo arquivo ao mesmo tempo -
-// com a assinatura "[TS - Tag]" sendo idempotente (nao assina de novo se o
-// arquivo ja foi processado antes), rodar a mesma operacao 2x sem trocar a
-// pasta de saida faria o output bater com o proprio arquivo de entrada.
-// Comparacao normalizada (resolve + minusculo) pois no Windows o path nao
-// diferencia maiusculas/minusculas.
+// mkvmerge nao suporta ler e escrever no mesmo arquivo ao mesmo tempo - sem
+// nenhuma marcacao no nome (tag desligada), apontar a pasta de saida pra
+// mesma pasta de origem/destino faria o output bater com o proprio arquivo
+// de entrada. Comparacao normalizada (resolve + minusculo) pois no Windows
+// o path nao diferencia maiusculas/minusculas.
 function samePath(a: string, b: string): boolean {
   return resolve(a).toLowerCase() === resolve(b).toLowerCase()
 }
@@ -756,4 +757,80 @@ export async function getTrackEvents(
   const tracks = await probeSubtitleTracks(mkvmergePath, filePath)
   const track = tracks.find((t) => t.trackId === trackId)
   return track ? extractSubtitleEvents(mkvextractPath, filePath, track) : []
+}
+
+// Renomeador: corrige em lote o rotulo (nome + idioma) da faixa de legenda
+// PT-BR de arquivos .mkv que ja tem essa faixa embutida - sem remuxar nada,
+// so edita o metadado (mkvpropedit). Util pra arquivos transferidos antes de
+// existir a config "Nome da faixa de legenda", ou renomeados manualmente.
+// Mesma deteccao usada no Transferir (idioma/nome reconhecido, com palpite
+// pelo conteudo como ultimo recurso) - sempre reforca o idioma como "por",
+// igual resolveTransferLanguage faz numa transferencia nova.
+export async function renameSubtitleTracks(
+  mkvmergePath: string,
+  mkvextractPath: string,
+  mkvpropeditPath: string,
+  paths: string[],
+  ptBrTrackName: string,
+  onLog: LogFn,
+  token?: CancellationToken
+): Promise<RenameSummary> {
+  let success = 0
+  let failed = 0
+  const total = paths.length
+
+  for (const filePath of paths) {
+    if (token?.aborted) break
+    const label = basename(filePath)
+
+    let tracks: SubtitleTrack[]
+    try {
+      tracks = await probeSubtitleTracks(mkvmergePath, filePath)
+    } catch (err) {
+      failed += 1
+      onLog({ level: 'error', message: `${label}: falha ao ler faixas (${(err as Error).message})` })
+      continue
+    }
+
+    const assTracks = tracks.filter((t) => t.isAss)
+    const usableTracks = assTracks.length > 0 ? assTracks : tracks
+    if (usableTracks.length > 0 && !usableTracks.some((t) => t.isPtBr)) {
+      await tagPtBrGuesses(mkvextractPath, filePath, usableTracks, label, onLog)
+    }
+
+    const ptTrack = usableTracks.find((t) => t.isPtBr || t.isPtBrGuess)
+    if (!ptTrack) {
+      onLog({ level: 'warn', message: `${label}: nenhuma faixa em PT-BR encontrada, pulado` })
+      continue
+    }
+
+    // ptTrack.isPtBr ja confirma que o idioma e reconhecido como PT-BR (o
+    // mkvpropedit tambem preenche language_ietf junto - ex: definir
+    // language=por faz language_ietf virar "pt", entao comparar com o
+    // literal "por" falharia sempre depois da 1a rotulagem).
+    if (ptTrack.trackName === ptBrTrackName && ptTrack.isPtBr) {
+      onLog({ level: 'info', message: `${label}: faixa ja rotulada como "${ptBrTrackName}", nada a fazer` })
+      continue
+    }
+
+    try {
+      await setSubtitleTrackLabel(mkvpropeditPath, filePath, ptTrack.trackNumber, ptBrTrackName, 'por', token)
+      success += 1
+      onLog({
+        level: 'success',
+        message: `${label}: faixa #${ptTrack.trackId} rotulada como "${ptBrTrackName}" (por)`
+      })
+    } catch (err) {
+      if (err instanceof OperationAbortedError) throw err
+      failed += 1
+      onLog({ level: 'error', message: `${label}: falha ao rotular a faixa (${(err as Error).message})` })
+    }
+  }
+
+  onLog({
+    level: failed ? 'warn' : 'success',
+    message: `Rotulagem de faixas concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+  })
+
+  return { total, success, failed }
 }

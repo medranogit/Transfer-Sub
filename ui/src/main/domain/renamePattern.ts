@@ -13,8 +13,7 @@ export interface RenameResult {
   reason: string | null
 }
 
-// Fansub original quase sempre marca o nome com "[Tag]" no inicio - mesma
-// convencao usada em infra/mkvProcess.ts (withTransferSubSignature).
+// Fansub original quase sempre marca o nome com "[Tag]" no inicio.
 const FANSUB_TAG = /^\[([^\]]+)\]/
 
 // Formato usado no nome gerado (2 digitos - ex: "S01E05") - diferente do

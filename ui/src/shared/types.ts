@@ -1,5 +1,11 @@
 export interface SubtitleTrack {
   trackId: number
+  // "Track number" do Matroska (properties.number do mkvmerge -J) - diferente
+  // do trackId (id sequencial do mkvmerge, 0-based). Usado como seletor
+  // (`track:@N`) do mkvpropedit pra editar nome/idioma da faixa sem remuxar -
+  // ver infra/mkvProcess.ts. Preferido ao track UID porque cabe com folga
+  // num number do JS (o UID e grande demais e perde precisao no JSON.parse).
+  trackNumber: number
   codecId: string
   language: string
   trackName: string
@@ -61,17 +67,14 @@ export interface MkvToolsStatus {
   found: boolean
   mkvmergePath?: string
   mkvextractPath?: string
+  mkvpropeditPath?: string
 }
 
 // Configuracao de como o app nomeia o arquivo de saida - uma por modo
-// (Transferir/Limpeza), configuravel em Configuracoes:
-// - signatureEnabled: acrescenta "[TS - Tag]"/"[TS]" no INICIO do nome, ao
-//   lado da tag da fansub original (ligado por padrao - era o unico
-//   comportamento antes desta opcao existir).
-// - tagEnabled/tagWord: acrescenta uma palavra livre no FINAL do nome (ex:
-//   "Nome do Episodio [legendado].mkv"). Desligado por padrao.
+// (Transferir/Limpeza), configuravel em Configuracoes: tagEnabled/tagWord
+// acrescenta uma palavra livre no FINAL do nome (ex: "Nome do Episodio
+// [legendado].mkv"). Desligado por padrao.
 export interface NamingConfig {
-  signatureEnabled: boolean
   tagEnabled: boolean
   tagWord: string
 }

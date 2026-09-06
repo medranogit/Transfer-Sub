@@ -54,16 +54,6 @@ function NamingConfigPanel({
       <Label>{title}</Label>
 
       <Row $gap={10}>
-        <Checkbox
-          checked={value.signatureEnabled}
-          onChange={() => onChange({ ...value, signatureEnabled: !value.signatureEnabled })}
-        />
-        <ToggleLabel>
-          Assinar <strong>[TS - Tag]</strong> ao lado da tag da fansub, no inicio do nome
-        </ToggleLabel>
-      </Row>
-
-      <Row $gap={10}>
         <Checkbox checked={value.tagEnabled} onChange={() => onChange({ ...value, tagEnabled: !value.tagEnabled })} />
         <ToggleLabel>Adicionar uma marcacao no final do nome</ToggleLabel>
       </Row>

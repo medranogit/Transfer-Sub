@@ -8,7 +8,7 @@
 // aplicar -> log), mais um botao "Atualizar" que reaplica os campos sem
 // reler a pasta do disco.
 import styled from 'styled-components'
-import { CheckCircleFilled, ReloadOutlined, WarningFilled } from '@ant-design/icons'
+import { CheckCircleFilled, ReloadOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
@@ -67,9 +67,11 @@ export function RenameView({
   scanning,
   updating,
   renaming,
+  renamingTracks,
   onScan,
   onUpdate,
   onApply,
+  onRenameTracks,
   logs
 }: {
   folder: string
@@ -82,12 +84,15 @@ export function RenameView({
   scanning: boolean
   updating: boolean
   renaming: boolean
+  renamingTracks: boolean
   onScan: () => void
   onUpdate: () => void
   onApply: () => void
+  onRenameTracks: () => void
   logs: LogEvent[]
 }) {
   const readyCount = rows.filter((r) => r.newName).length
+  const mkvCount = rows.filter((r) => /\.(mkv|webm)$/i.test(r.originalName)).length
 
   return (
     <>
@@ -172,6 +177,22 @@ export function RenameView({
           </Button>
           <Button onClick={onApply} disabled={renaming || readyCount === 0}>
             {renaming ? 'Renomeando...' : `Renomear (${readyCount})`}
+          </Button>
+          <Button
+            type="button"
+            $variant="secondary"
+            onClick={onRenameTracks}
+            disabled={renamingTracks || mkvCount === 0}
+            title={
+              'Nao mexe no nome do arquivo - edita o rotulo da faixa de legenda JA EMBUTIDA em cada .mkv/.webm ' +
+              'listado abaixo (rapido, so metadado, sem remuxar o arquivo inteiro). Em cada arquivo: acha a faixa ' +
+              'em portugues (pelo idioma/nome da faixa, ou pelo palpite no proprio texto quando nenhuma faixa ' +
+              'esta rotulada como PT-BR) e troca o nome dela para o que estiver em Configuracoes > "Nome da faixa ' +
+              'de legenda", alem de sempre marcar o idioma da faixa como portugues. Arquivos sem nenhuma faixa ' +
+              'reconhecida como PT-BR sao pulados (aparece no log).'
+            }
+          >
+            <TagOutlined /> {renamingTracks ? 'Rotulando...' : `Rotular faixa PT-BR (${mkvCount})`}
           </Button>
         </Row>
       </ConfigPanel>

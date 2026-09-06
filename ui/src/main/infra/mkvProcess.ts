@@ -69,6 +69,7 @@ interface MkvMergeTrackJson {
     language?: string
     language_ietf?: string
     track_name?: string
+    number?: number
   }
 }
 
@@ -87,6 +88,10 @@ export async function probeSubtitleTracks(mkvmergePath: string, videoFile: strin
       const trackName = props.track_name ?? ''
       return {
         trackId: t.id,
+        // "Track number" do Matroska - usado pelo mkvpropedit (`track:@N`)
+        // pra editar essa faixa sem remuxar. Cai pro id+1 do mkvmerge (que e
+        // 0-based) no caso raro de vir sem essa propriedade.
+        trackNumber: props.number ?? t.id + 1,
         codecId,
         language,
         trackName,
@@ -95,6 +100,25 @@ export async function probeSubtitleTracks(mkvmergePath: string, videoFile: strin
         isPtBrGuess: false
       }
     })
+}
+
+// Edita so o nome e o idioma de uma faixa ja existente, sem remuxar o
+// arquivo inteiro (mkvpropedit e uma edicao de metadado, quase instantanea
+// mesmo em arquivos grandes) - usado pelo Renomeador pra corrigir em lote o
+// rotulo da faixa PT-BR de arquivos que ja foram transferidos antes.
+export async function setSubtitleTrackLabel(
+  mkvpropeditPath: string,
+  videoFile: string,
+  trackNumber: number,
+  name: string,
+  language: string,
+  token?: CancellationToken
+): Promise<void> {
+  await runMkvTool(
+    mkvpropeditPath,
+    [videoFile, '--edit', `track:@${trackNumber}`, '--set', `name=${name}`, '--set', `language=${language}`],
+    token
+  )
 }
 
 export function subtitleExtension(codecId: string): string {
@@ -228,26 +252,9 @@ export async function muxSubtitleInto(
   await runMkvTool(mkvmergePath, args, token)
 }
 
-// A fansub original quase sempre marca o nome com "[Tag]" no inicio (ex:
-// "[Judas] Nome do episodio"). Em vez de acrescentar um sufixo tipo
-// " [legendado]"/" [limpo]", por padrao assina ao lado da tag original (ex:
-// "[TS - Judas] Nome do episodio"), igual como fansubs costumam colaborar
-// entre si - usado tanto no modo Transferir quanto no Limpar. Configuravel
-// em Configuracoes (NamingConfig.signatureEnabled) - desligado, mantem o
-// nome original intacto nessa parte.
-const FANSUB_TAG = /^\[([^\]]+)\]/
-// Ja assinado (ex: rodando Limpar sobre um arquivo que o proprio app gerou
-// antes) - nao assina de novo, senao vira "[TS - TS - Tag]".
-const ALREADY_SIGNED = /^\[TS(?:\s*-\s*[^\]]+)?\]/
-
-function withTransferSubSignature(name: string, enabled: boolean): string {
-  if (!enabled || ALREADY_SIGNED.test(name)) return name
-  return FANSUB_TAG.test(name) ? name.replace(FANSUB_TAG, '[TS - $1]') : `[TS] ${name}`
-}
-
 // Marcacao opcional configurada pelo usuario em Configuracoes (ex: "
-// [legendado]"), acrescentada ao final do nome - independente da assinatura
-// da fansub, que fica no inicio. tagWord vazio/undefined = nao marca.
+// [legendado]"), acrescentada ao final do nome. tagWord vazio/undefined =
+// nao marca.
 function withOptionalTag(name: string, tagWord?: string): string {
   return tagWord ? `${name} [${tagWord}]` : name
 }
@@ -256,8 +263,7 @@ function withOptionalTag(name: string, tagWord?: string): string {
 // com esse nome na pasta de saida, o mkvmerge sobrescreve - nao criamos
 // duplicados "(1)", "(2)", etc.
 export function resolveOutputPath(destVideo: string, outputFolder: string, naming: NamingConfig): string {
-  const signed = withTransferSubSignature(parse(destVideo).name, naming.signatureEnabled)
-  const base = withOptionalTag(signed, naming.tagEnabled ? naming.tagWord.trim() : undefined)
+  const base = withOptionalTag(parse(destVideo).name, naming.tagEnabled ? naming.tagWord.trim() : undefined)
   return join(outputFolder, `${base}.mkv`)
 }
 
@@ -285,10 +291,9 @@ export async function cleanTracksInto(
   await runMkvTool(mkvmergePath, args, token)
 }
 
-// Mesmo esquema de nome fixo (sobrescreve por nome) e mesma assinatura do
-// resolveOutputPath - ver withTransferSubSignature/withOptionalTag.
+// Mesmo esquema de nome fixo (sobrescreve por nome) do resolveOutputPath -
+// ver withOptionalTag.
 export function resolveCleanOutputPath(sourceFile: string, outputFolder: string, naming: NamingConfig): string {
-  const signed = withTransferSubSignature(parse(sourceFile).name, naming.signatureEnabled)
-  const base = withOptionalTag(signed, naming.tagEnabled ? naming.tagWord.trim() : undefined)
+  const base = withOptionalTag(parse(sourceFile).name, naming.tagEnabled ? naming.tagWord.trim() : undefined)
   return join(outputFolder, `${base}.mkv`)
 }

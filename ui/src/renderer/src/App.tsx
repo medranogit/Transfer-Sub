@@ -93,12 +93,10 @@ function AppContent() {
   const [syncRowId, setSyncRowId] = useState<string | null>(null)
   const [preferredEnTrackId, setPreferredEnTrackId] = useState<number | null>(null)
   const [namingTransfer, setNamingTransfer] = useState<NamingConfig>({
-    signatureEnabled: true,
     tagEnabled: false,
     tagWord: 'legendado'
   })
   const [namingClean, setNamingClean] = useState<NamingConfig>({
-    signatureEnabled: true,
     tagEnabled: false,
     tagWord: 'limpo'
   })
@@ -122,6 +120,7 @@ function AppContent() {
   // adiciona a lista e aplica no campo (ver handleRenameScan).
   const [pendingFansub, setPendingFansub] = useState<DetectedRenameFields | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [renamingTracks, setRenamingTracks] = useState(false)
 
   const cleanOnly = view === 'clean'
 
@@ -386,6 +385,29 @@ function AppContent() {
     }
   }
 
+  // So mexe no metadado da faixa (nome + idioma) de arquivos .mkv/.webm ja
+  // escaneados - nao muda o nome do arquivo, entao (diferente de
+  // handleRenameApply) nao limpa renameRows no final.
+  async function handleRenameTracks() {
+    const targets = renameRows.filter((r) => /\.(mkv|webm)$/i.test(r.originalName)).map((r) => r.originalPath)
+    if (targets.length === 0) {
+      pushLog('Nenhum arquivo .mkv/.webm para rotular.', 'error')
+      return
+    }
+    setRenamingTracks(true)
+    try {
+      const summary = await window.api.renameSubtitleTracks(targets)
+      pushLog(
+        `Rotulagem de faixas concluida: ${summary.success}/${summary.total} com sucesso.`,
+        summary.failed ? 'warn' : 'success'
+      )
+    } catch (err) {
+      pushLog(`Erro ao rotular faixas: ${(err as Error).message}`, 'error')
+    } finally {
+      setRenamingTracks(false)
+    }
+  }
+
   function handleTrackChange(rowId: string, trackId: number | null) {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, selectedTrackId: trackId } : r)))
   }
@@ -569,9 +591,11 @@ function AppContent() {
             scanning={renameScanning}
             updating={renameUpdating}
             renaming={renaming}
+            renamingTracks={renamingTracks}
             onScan={handleRenameScan}
             onUpdate={handleRenameUpdate}
             onApply={handleRenameApply}
+            onRenameTracks={handleRenameTracks}
             logs={logs}
           />
         )}
