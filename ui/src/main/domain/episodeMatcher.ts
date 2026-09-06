@@ -12,7 +12,14 @@ const EPISODE_PATTERNS: RegExp[] = [
   /\bE(\d{1,3})\b/ // E05
 ]
 
-const FALLBACK_NUMBER = /(?<!\d)(\d{1,3})(?!\d)/g
+// Numero isolado - nem colado a outro digito NEM a uma letra (\w cobre os
+// dois). So checar "nao colado a outro digito" deixava passar coisas como
+// "Top3" (titulo de episodio terminando em numero): o "3" ali nao tem digito
+// vizinho, mas tem a letra "p" colada antes - nao e um numero de episodio,
+// e o antigo regex pegava ele por engano quando aparecia depois do numero
+// real (ex: "Blue Lock - 013 - Top3" virava episodio 3 em vez de 13, porque
+// o fallback usa o ULTIMO numero isolado que encontrar).
+const FALLBACK_NUMBER = /(?<!\w)(\d{1,3})(?!\w)/g
 
 export interface EpisodeMatch {
   season: number | null

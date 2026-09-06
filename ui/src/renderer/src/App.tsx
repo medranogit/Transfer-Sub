@@ -22,6 +22,7 @@ import { SyncModal } from './components/SyncModal'
 import { NotificationsMenu } from './components/NotificationsMenu'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { playCompletionSound } from './utils/completionSound'
+import { playWarningSound } from './utils/warningSound'
 
 // ---------------------------------------------------------------------------
 // Layout - especifico desta tela, sem uso fora daqui.
@@ -242,6 +243,7 @@ function AppContent() {
       setStatuses(Object.fromEntries(result.rows.map((r) => [r.id, 'idle' as RowStatus])))
       setScanWarnings(result.warnings)
       setUnmatchedSource(result.unmatchedSource)
+      if (result.warnings.length + result.unmatchedSource.length > 0) playWarningSound()
       result.warnings.forEach((w) => pushLog(w, 'warn'))
       if (result.aborted) pushLog('Escaneamento abortado antes de terminar.', 'warn')
     } catch (err) {
