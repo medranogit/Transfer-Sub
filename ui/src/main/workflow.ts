@@ -407,7 +407,8 @@ export async function transferRows(
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn,
   token: CancellationToken | undefined,
-  naming: NamingConfig
+  naming: NamingConfig,
+  ptBrTrackName: string
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
@@ -498,7 +499,7 @@ export async function transferRows(
         subPath,
         outputFile,
         resolveTransferLanguage(track),
-        resolveTransferTrackName(track),
+        resolveTransferTrackName(track, ptBrTrackName),
         offsetMs,
         keepAudioTrackIds,
         destSubtitleTrackIds,

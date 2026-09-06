@@ -2,6 +2,7 @@
 import { app } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
+import { DEFAULT_PT_BR_TRANSFER_TRACK_NAME } from '../domain/subtitleLanguage'
 import type { AppConfig } from '@shared/types'
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -11,6 +12,7 @@ const DEFAULT_CONFIG: AppConfig = {
   mkvToolNixDir: '',
   namingTransfer: { signatureEnabled: true, tagEnabled: false, tagWord: 'legendado' },
   namingClean: { signatureEnabled: true, tagEnabled: false, tagWord: 'limpo' },
+  ptBrTrackName: DEFAULT_PT_BR_TRANSFER_TRACK_NAME,
   renameFolder: '',
   renameFansubPresets: ['DKB', 'Erai-raws', 'EMBER', 'Judas', 'WF'],
   renameTagPresets: ['HEVC', 'BD', 'WebRip', '1080p', '720p'],

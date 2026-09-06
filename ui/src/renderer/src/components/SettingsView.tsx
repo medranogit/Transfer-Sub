@@ -89,6 +89,8 @@ export function SettingsView({
   onNamingTransferChange,
   namingClean,
   onNamingCleanChange,
+  ptBrTrackName,
+  onPtBrTrackNameChange,
   renameFansubPresets,
   onRenameFansubPresetsChange,
   renameTagPresets,
@@ -100,6 +102,8 @@ export function SettingsView({
   onNamingTransferChange: (next: NamingConfig) => void
   namingClean: NamingConfig
   onNamingCleanChange: (next: NamingConfig) => void
+  ptBrTrackName: string
+  onPtBrTrackNameChange: (next: string) => void
   renameFansubPresets: string[]
   onRenameFansubPresetsChange: (next: string[]) => void
   renameTagPresets: string[]
@@ -133,6 +137,21 @@ export function SettingsView({
           onChange={onNamingTransferChange}
         />
         <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
+      </SettingsPanel>
+
+      <SettingsPanel>
+        <SectionTitle>Nome da faixa de legenda</SectionTitle>
+        <Col $gap={6}>
+          <Label htmlFor="pt-br-track-name">
+            Nome dado a faixa quando reconhecida como PT-BR, so no modo Transferir Legenda
+          </Label>
+          <Input
+            id="pt-br-track-name"
+            value={ptBrTrackName}
+            onChange={(e) => onPtBrTrackNameChange(e.target.value)}
+            placeholder="Portugues BR"
+          />
+        </Col>
       </SettingsPanel>
 
       <SettingsPanel>

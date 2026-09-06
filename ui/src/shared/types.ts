@@ -83,6 +83,11 @@ export interface AppConfig {
   mkvToolNixDir: string
   namingTransfer: NamingConfig
   namingClean: NamingConfig
+  // Nome dado a faixa de legenda ao ser transferida, quando reconhecida como
+  // PT-BR (por idioma/nome ou palpite de conteudo) - identifica facilmente
+  // qual faixa o Transfer Sub adicionou em players que listam o nome da
+  // faixa. So se aplica ao modo Transferir (Limpeza nao renomeia faixas).
+  ptBrTrackName: string
   // Ultima pasta usada no Renomeador (nao tem par origem/destino/saida como
   // o resto do app - so essa).
   renameFolder: string

@@ -102,6 +102,7 @@ function AppContent() {
     tagEnabled: false,
     tagWord: 'limpo'
   })
+  const [ptBrTrackName, setPtBrTrackName] = useState('')
 
   const [renameFolder, setRenameFolder] = useState('')
   const [renameFields, setRenameFields] = useState<RenameFields>({
@@ -131,6 +132,7 @@ function AppContent() {
       setOutputDir(config.outputDir)
       setNamingTransfer(config.namingTransfer)
       setNamingClean(config.namingClean)
+      setPtBrTrackName(config.ptBrTrackName)
       setRenameFolder(config.renameFolder)
       setRenameFansubPresets(config.renameFansubPresets)
       setRenameTagPresets(config.renameTagPresets)
@@ -179,6 +181,7 @@ function AppContent() {
       outputDir: string
       namingTransfer: NamingConfig
       namingClean: NamingConfig
+      ptBrTrackName: string
       renameFolder: string
       renameFansubPresets: string[]
       renameTagPresets: string[]
@@ -193,6 +196,7 @@ function AppContent() {
       mkvToolNixDir: mkvStatus.mkvmergePath ? mkvStatus.mkvmergePath.replace(/[\\/][^\\/]+$/, '') : '',
       namingTransfer: overrides.namingTransfer ?? namingTransfer,
       namingClean: overrides.namingClean ?? namingClean,
+      ptBrTrackName: overrides.ptBrTrackName ?? ptBrTrackName,
       renameFolder: overrides.renameFolder ?? renameFolder,
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
       renameTagPresets: overrides.renameTagPresets ?? renameTagPresets,
@@ -209,6 +213,11 @@ function AppContent() {
   function handleNamingCleanChange(next: NamingConfig) {
     setNamingClean(next)
     persistConfig({ namingClean: next })
+  }
+
+  function handlePtBrTrackNameChange(next: string) {
+    setPtBrTrackName(next)
+    persistConfig({ ptBrTrackName: next })
   }
 
   function handleRenameFansubPresetsChange(next: string[]) {
@@ -577,6 +586,8 @@ function AppContent() {
             onNamingTransferChange={handleNamingTransferChange}
             namingClean={namingClean}
             onNamingCleanChange={handleNamingCleanChange}
+            ptBrTrackName={ptBrTrackName}
+            onPtBrTrackNameChange={handlePtBrTrackNameChange}
             renameFansubPresets={renameFansubPresets}
             onRenameFansubPresetsChange={handleRenameFansubPresetsChange}
             renameTagPresets={renameTagPresets}

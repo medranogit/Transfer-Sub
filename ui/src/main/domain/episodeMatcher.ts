@@ -25,10 +25,9 @@ export interface EpisodeMatch {
   season: number | null
   episode: number
   // Posicao do match dentro do nome (sem extensao) - usado pelo Renomeador
-  // pra cortar o nome do anime antes da marcacao de episodio. So disponivel
-  // quando um dos EPISODE_PATTERNS bateu direto (nao no fallback - ai a
-  // string usada pra achar o numero ja foi limpa de ruido e as posicoes nao
-  // batem mais com o nome original).
+  // pra cortar o nome do anime antes da marcacao de episodio. Disponivel
+  // tanto quando um EPISODE_PATTERNS bateu direto quanto no fallback (ver
+  // stripNoise abaixo pra como isso fica confiavel nos dois casos).
   matchStart: number
   matchEnd: number
 }
@@ -45,27 +44,43 @@ function matchEpisodePatterns(name: string): EpisodeMatch | null {
   return null
 }
 
+// Troca cada trecho de ruido (resolucao, codec, crc...) por espacos do MESMO
+// tamanho, em vez de colapsar tudo num unico espaco - assim qualquer numero
+// que sobrar depois da limpeza mantem a mesma posicao que tinha no nome
+// ORIGINAL, permitindo ao fallback abaixo tambem reportar matchStart/matchEnd
+// utilizavel (antes so os EPISODE_PATTERNS tinham posicao confiavel).
+function stripNoise(name: string): string {
+  return name.replace(NOISE_TOKENS, (token) => ' '.repeat(token.length))
+}
+
+// Fallback: pega o ULTIMO numero isolado (nem colado a outro digito nem a
+// uma letra) que sobrar depois de limpar ruido conhecido - comum em releases
+// de anime que numeram o episodio sem nenhuma marcacao tipo "E01" (ex:
+// "Erased - 01.mkv").
+function matchFallbackNumber(name: string): EpisodeMatch | null {
+  const cleaned = stripNoise(name)
+  const matches = [...cleaned.matchAll(FALLBACK_NUMBER)]
+  if (matches.length === 0) return null
+
+  const last = matches[matches.length - 1]
+  return { season: null, episode: parseInt(last[1], 10), matchStart: last.index!, matchEnd: last.index! + last[0].length }
+}
+
+// Tenta os EPISODE_PATTERNS primeiro (mais especificos, tem temporada); so
+// cai no fallback quando nenhum bate.
+function matchEpisode(name: string): EpisodeMatch | null {
+  return matchEpisodePatterns(name) ?? matchFallbackNumber(name)
+}
+
 // Igual findEpisode, mas devolve tambem onde o episodio foi encontrado no
-// nome - null quando so o fallback (ultimo numero isolado) identificou algo.
+// nome - usado pelo Renomeador pra cortar o nome do anime antes dessa marcacao.
 export function findEpisodeMatch(filename: string): EpisodeMatch | null {
-  return matchEpisodePatterns(parse(filename).name)
+  return matchEpisode(parse(filename).name)
 }
 
 export function findEpisode(filename: string): [number | null, number | null] {
-  const name = parse(filename).name
-
-  const match = matchEpisodePatterns(name)
-  if (match) return [match.season, match.episode]
-
-  // fallback: remove ruido conhecido (resolucao, codec, crc...) e pega o
-  // ultimo numero isolado que sobrar - comum em releases de anime.
-  const cleaned = name.replace(NOISE_TOKENS, ' ')
-  const numbers = [...cleaned.matchAll(FALLBACK_NUMBER)].map((m) => parseInt(m[1], 10))
-  if (numbers.length > 0) {
-    return [null, numbers[numbers.length - 1]]
-  }
-
-  return [null, null]
+  const match = matchEpisode(parse(filename).name)
+  return match ? [match.season, match.episode] : [null, null]
 }
 
 export function episodeKey(season: number | null, episode: number | null): string | null {

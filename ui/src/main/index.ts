@@ -190,7 +190,8 @@ app.whenReady().then(() => {
           mainWindow?.webContents.send('log', log)
         },
         token,
-        config.namingTransfer
+        config.namingTransfer,
+        config.ptBrTrackName
       )
     } finally {
       if (activeToken === token) activeToken = null
