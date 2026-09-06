@@ -48,7 +48,7 @@ export function isPtBrTrack(language: string, trackName: string): boolean {
 // faixa foi adicionada pelo Transfer Sub em players que listam o nome da
 // faixa, em vez de manter o nome original (que varia de fansub pra fansub,
 // as vezes vazio).
-export const DEFAULT_PT_BR_TRANSFER_TRACK_NAME = 'Portugues BR'
+export const DEFAULT_PT_BR_TRANSFER_TRACK_NAME = 'TS Portugues BR'
 
 // So renomeia quando a faixa foi reconhecida como PT-BR (por idioma/nome ou
 // pelo palpite de conteudo) - outras faixas mantem o nome original.
