@@ -12,6 +12,7 @@ e já pré-seleciona a legenda em **PT-BR** quando existir.
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
 ![styled--components](https://img.shields.io/badge/styled--components-6-DB7093?logo=styledcomponents&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?logo=windows&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-yellow.svg)
 
 ![Transfer Sub screenshot](docs/screenshot.png)
 
@@ -75,19 +76,28 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 - ⚠️ **Aviso de episódio faltando** — ao escanear uma pasta, se a numeração dos episódios tiver um
   buraco (ex.: do 01 ao 25, falta o 14), aparece um aviso no log e no sino de notificações — fácil
   de não perceber só olhando a tabela quando há muitos arquivos.
-- 🔔 **Som de conclusão e de aviso** — toca ao terminar uma transferência/limpeza, e um som diferente
-  quando um escaneamento traz avisos, episódio faltando ou sem correspondência pro sino de
-  notificações.
+- 🔔 **Som de conclusão e de aviso** (silenciável em Configurações) — toca ao terminar uma
+  transferência/limpeza, e um som diferente quando um escaneamento traz avisos, episódio faltando
+  ou sem correspondência pro sino de notificações.
 - 🔎 **Zoom da interface** — `Ctrl` `+`/`Ctrl` `-`/`Ctrl` `0` aumentam, diminuem e restauram o zoom da
   janela (padrão 100%, entre 80% e 120%); cada mudança fica registrada no log.
 - 📝 **Log completo** — o painel de log em tela tem botão para limpar e o texto pode ser selecionado/
   copiado; **todo** erro (inclusive os que só apareceriam num modal, como falha ao preparar a
   sincronização) também vai para o log. Cada sessão do app fica gravada num arquivo próprio,
   navegável na página **Log da Sessão** (mais recente primeiro).
+- 📁 **Pasta de saída organizada** — os arquivos finais (Transferir/Limpeza) vão para uma subpasta
+  criada dentro da pasta de saída escolhida (padrão `TS - Result`, nome configurável em
+  Configurações), em vez de direto nela.
 - 🧩 **Não sobrescreve com duplicados** — o resultado é sempre salvo com nome fixo por
   episódio/arquivo; rodar de novo substitui o anterior em vez de criar `(1)`, `(2)`, etc. Em
   Configurações dá pra ligar, por modo, uma marcação extra no final do nome (ex: `[legendado]`/
   `[limpo]`, a palavra é livre).
+- ⚙️ **Predefinições por tela** — em Configurações dá pra escolher com que o app já abre cada tela:
+  Modo Episódio/Filme (Transferir e Renomeador) e as ações padrão (Remover dublagem, Limpar
+  legendas) de Transferir/Limpeza — sem precisar reajustar toda vez.
+- 💾 **Exportar/Importar configurações** — leva todas as configurações (pastas, predefinições, nome
+  da faixa PT-BR, presets do Renomeador...) para outra máquina ou guarda um backup manual, como um
+  arquivo `.json`.
 - 📊 Log colorido em tempo real (info/sucesso/aviso/erro) e histórico salvo em
   `transfer-log.json`.
 
@@ -116,6 +126,8 @@ npm run dev
    app calcular o deslocamento.
 4. Clique em **Transferir selecionados**.
 
+![Modal de sincronização](docs/sync-modal.png)
+
 **Página Limpeza:**
 
 1. Vá na página **Limpeza** no menu lateral e selecione a pasta com os arquivos.
@@ -123,6 +135,8 @@ npm run dev
 3. Para remover legendas extras, escolha no dropdown qual manter (padrão é manter todas) — o botão
    **Aplicar a todos** no cabeçalho copia a faixa escolhida na 1ª linha pras demais.
 4. Clique em **Limpar selecionados**.
+
+![Página Limpeza](docs/limpeza.png)
 
 **Página Renomeador:**
 
@@ -134,10 +148,26 @@ npm run dev
 4. Pra corrigir o rótulo da legenda PT-BR já embutida nos arquivos (sem mexer no nome do arquivo),
    use o botão **Rotular faixa PT-BR**.
 
+![Página Renomeador](docs/renomeador.png)
+
+Toda transferência/limpeza/renomeação fica registrada na página **Histórico**:
+
+![Página Histórico](docs/historico.png)
+
 Quer gerar um instalador `.exe` em vez de rodar em modo desenvolvimento?
 
 ```bash
 npm run dist
+```
+
+Ou, pra publicar uma release já pronta no GitHub (build automático), basta empurrar uma tag `vX.Y.Z`
+que bata com o `version` de `ui/package.json` — o workflow em
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builda num runner Windows e sobe o
+instalador como asset da Release.
+
+```bash
+git tag v2.3.0
+git push origin v2.3.0
 ```
 
 ## Arquitetura
@@ -174,3 +204,7 @@ Mais detalhes em [`ui/README.md`](ui/README.md).
 
 Electron · React · TypeScript · styled-components · Ant Design Icons ·
 MKVToolNix (`mkvmerge` / `mkvextract` / `mkvpropedit`)
+
+## Licenca
+
+[MIT](LICENSE) — copyright (c) 2026 Vinicius Medrano.

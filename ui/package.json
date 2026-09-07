@@ -4,6 +4,11 @@
   "description": "Transfer Sub - transferir legendas ASS entre arquivos MKV",
   "main": "./out/main/index.js",
   "author": "Vinicius Medrano",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/medranogit/Transfer-Sub.git"
+  },
   "private": true,
   "scripts": {
     "dev": "electron-vite dev",

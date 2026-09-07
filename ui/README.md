@@ -154,6 +154,23 @@ npm run build   # type-check + build de producao (main/preload/renderer)
 npm run dist    # build + gera instalador .exe (electron-builder)
 ```
 
+### Release automatica (GitHub Actions)
+
+`.github/workflows/release.yml` builda e publica o instalador sozinho quando
+uma tag `vX.Y.Z` e' empurrada - precisa bater com o `version` deste
+`package.json`, ja' que e' o que o `electron-builder` usa (via
+`--publish always`, config `build.publish` no `package.json`) pra decidir o
+nome/tag da Release no GitHub, nao a tag que disparou o workflow. Roda num
+runner Windows (o instalador e' NSIS, so' builda em Windows) e usa o
+`GITHUB_TOKEN` que o proprio Actions ja' fornece - nao precisa cadastrar
+nenhum secret. Tambem pode ser disparado manualmente (sem tag) pela aba
+Actions do GitHub (`workflow_dispatch`), util pra testar o workflow em si.
+
+```
+git tag v2.3.0
+git push origin v2.3.0
+```
+
 ## Seleção automática de legenda em PT-BR
 
 A função `isPtBrTrack` em `src/main/domain/subtitleLanguage.ts` marca uma
@@ -252,6 +269,8 @@ fica limitado pela mais lenta, não pela soma das duas.
 Qualquer valor calculado vira um `--sync` no `mkvmerge` para deslocar toda a
 legenda. Deixe todos os campos em branco para manter o timing original.
 
+![Modal de sincronização, com as duas colunas de legenda lado a lado](../docs/sync-modal.png)
+
 ### Sincronizar automaticamente com legenda de imagem (PGS)
 
 Faixas PGS (`.sup`, comuns em releases de BD) não têm texto codificado — só
@@ -335,6 +354,20 @@ Como a saída pode acabar com o mesmo nome do arquivo de entrada quando a
 pasta de saída é igual à de destino, o `workflow.ts` recusa a operação nesse
 caso (`samePath`) em vez de deixar o `mkvmerge` tentar ler e escrever o
 mesmo arquivo ao mesmo tempo — o que corromperia o vídeo original.
+
+## Pasta de saída (subpasta "TS - Result")
+
+Os arquivos finais de Transferir/Limpeza não vão direto na pasta de saída
+escolhida — vão numa **subpasta** criada dentro dela (`resolveResultFolder`
+em `infra/mkvProcess.ts`), criada automaticamente (`mkdir` recursivo) antes de
+gerar qualquer arquivo. Fica claro o que o app gerou, sem misturar com o
+resto do que já estiver na pasta, e reduz bastante os casos em que
+"pasta de saída igual a de destino" bloquearia a operação (ver seção acima) —
+já que o arquivo final não cai mais no mesmo caminho do arquivo de destino.
+
+O nome da subpasta é configurável em Configurações → Geral
+(`AppConfig.outputFolderName`), padrão `"TS - Result"`; se o campo ficar
+vazio, cai de volta nesse padrão (`DEFAULT_RESULT_FOLDER_NAME`).
 
 ## Aviso de episódio faltando
 
@@ -500,6 +533,40 @@ no topo), diferente do painel da tela (que cresce pra baixo, ao vivo); faz
 mais sentido aqui porque é histórico, não algo acompanhado em tempo real. O
 texto também é selecionável/copiável.
 
+## Configurações
+
+`components/SettingsView.tsx` — layout em grid de 2 colunas fixas (cada
+painel é atribuído a uma coluna no JSX, não balanceado automaticamente pelo
+navegador, pra não pular de coluna sozinho conforme o conteúdo cresce). Além
+do que já tinha (MKVToolNix, nome do arquivo de saída, nome da faixa PT-BR,
+presets do Renomeador), agora tem:
+
+- **Predefinições por tela** (`AppConfig.transferDefaults`/`cleanDefaults`/
+  `renameDefaults`) — o estado com que Transferir Legenda, Limpeza e
+  Renomeador já abrem: Modo Episódio/Filme (mesmo componente
+  `EpisodeMovieToggle` usado nas telas de trabalho, um interruptor — ativar
+  um lado desativa o outro) e as ações padrão ("Remover dublagem em inglês",
+  "Limpar legendas do destino", só no Transferir). Mudar aqui já aplica no
+  estado ao vivo da tela correspondente na hora (não só na próxima abertura
+  do app) e persiste como o novo padrão. `removeEnglishAudio`/
+  `removeExtraSubtitles` deixaram de ser um único estado compartilhado entre
+  Transferir e Limpeza (`App.tsx`) — cada tela tem o seu, senão não daria pra
+  configurar um padrão diferente por tela de verdade.
+- **Silenciar sons** (`AppConfig.muteSounds`) — desliga os sons de
+  conclusão/aviso (`utils/completionSound.ts`/`warningSound.ts`) sem afetar
+  o resto (log, sino de notificações).
+- **Exportar/Importar configurações** — grava/lê o `AppConfig` inteiro num
+  `.json` à parte do `config.json` interno (`infra/configStore.ts:
+  exportConfig`/`importConfig`), via diálogo de salvar/abrir arquivo. Útil
+  pra levar a configuração pra outra máquina ou guardar um backup manual.
+  Importar sempre mescla sobre os valores padrão (mesmo esquema do
+  `loadConfig`), então um arquivo exportado de uma versão mais antiga (sem
+  algum campo novo) continua carregando sem quebrar.
+
+`config.json` fica em `app.getPath('userData')` (fora da pasta de instalação
+do app) — sobrevive normalmente a atualizações/reinstalações, já que o
+instalador só limpa a pasta de instalação, nunca a de dados do usuário.
+
 ## Estrutura
 
 ```
@@ -547,3 +614,7 @@ src/
                                   completionSound.ts, warningSound.ts, useEscapeToClose.ts
   shared/       tipos TypeScript compartilhados entre main/preload/renderer
 ```
+
+## Licenca
+
+[MIT](../LICENSE) — copyright (c) 2026 Vinicius Medrano.
