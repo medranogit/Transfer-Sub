@@ -1,6 +1,6 @@
 {
   "name": "transfer-sub-ui",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Transfer Sub - transferir legendas ASS entre arquivos MKV",
   "main": "./out/main/index.js",
   "author": "Vinicius Medrano",
@@ -37,6 +37,11 @@
   "build": {
     "appId": "com.viniciusmedrano.transfersub",
     "productName": "Transfer Sub",
+    "publish": {
+      "provider": "github",
+      "owner": "medranogit",
+      "repo": "Transfer-Sub"
+    },
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico"

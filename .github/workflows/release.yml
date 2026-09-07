@@ -1,0 +1,48 @@
+name: Release
+
+# Dispara sozinho ao empurrar uma tag "v*" (ex: v2.3.0 - deve bater com o
+# "version" de ui/package.json, e' o que o electron-builder usa pra nomear a
+# release e o instalador). "workflow_dispatch" deixa rodar manualmente pela
+# aba Actions do GitHub, sem precisar de tag, pra testar o workflow em si.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Necessario pro GITHUB_TOKEN automatico ter permissao de criar/editar a
+# release e subir o instalador como asset.
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # electron-builder --win precisa rodar em Windows (gera o instalador
+    # NSIS) - nao da pra buildar isso num runner Linux/macOS.
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      # typecheck + electron-vite build (main/preload/renderer) - o mesmo que
+      # "npm run dist" roda antes do electron-builder.
+      - run: npm run build
+
+      # --publish always: cria (ou reaproveita) a release no GitHub cujo tag
+      # e' "v" + o "version" de package.json, sobe o instalador .exe como
+      # asset e gera as notas a partir dos commits desde a ultima tag.
+      # GH_TOKEN e' o nome que o electron-builder espera (mapeado aqui do
+      # GITHUB_TOKEN que o proprio Actions ja fornece, sem precisar cadastrar
+      # nenhum secret manualmente).
+      - run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
