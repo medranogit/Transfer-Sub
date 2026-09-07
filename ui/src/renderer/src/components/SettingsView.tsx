@@ -11,13 +11,15 @@ import { Checkbox } from '../ui/Checkbox'
 import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { TagListEditor } from '../ui/TagListEditor'
 
-// column-count (em vez de grid/flex) pra fluir os paineis em 2 colunas sem
-// precisar decidir manualmente qual painel vai em qual coluna - o navegador
-// balanceia a altura sozinho. break-inside evita partir um painel ao meio na
-// quebra de coluna.
-const SettingsColumns = styled.div`
-  column-count: 2;
-  column-gap: 14px;
+// Grid com 2 colunas explicitas (em vez de column-count, que balanceia a
+// altura sozinho e pode mudar qual painel cai em qual coluna conforme o
+// conteudo cresce) - cada painel e atribuido a uma coluna fixa no JSX abaixo,
+// entao a posicao nao muda de lugar sozinha.
+const SettingsGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
 `
 
 const SettingsPanel = styled(Panel)`
@@ -25,8 +27,6 @@ const SettingsPanel = styled(Panel)`
   display: flex;
   flex-direction: column;
   gap: 14px;
-  break-inside: avoid;
-  margin-bottom: 14px;
 `
 
 const StatusRow = styled(Row)<{ $found: boolean }>`
@@ -205,95 +205,97 @@ export function SettingsView({
   onRenameTagPresetsChange: (next: string[]) => void
 }) {
   return (
-    <SettingsColumns>
-      <SettingsPanel>
-        <Col $gap={6}>
-          <Label>MKVToolNix</Label>
-          <StatusRow $gap={8} $found={mkvStatus.found}>
-            {mkvStatus.found ? <CheckCircleFilled /> : <CloseCircleFilled />}
-            {mkvStatus.found ? 'Instalacao localizada' : 'Nao localizado'}
-          </StatusRow>
-          {mkvStatus.found && mkvStatus.mkvmergePath && <PathText>{mkvStatus.mkvmergePath}</PathText>}
-        </Col>
+    <SettingsGrid>
+      <Col $gap={14}>
+        <SettingsPanel>
+          <Col $gap={6}>
+            <Label>MKVToolNix</Label>
+            <StatusRow $gap={8} $found={mkvStatus.found}>
+              {mkvStatus.found ? <CheckCircleFilled /> : <CloseCircleFilled />}
+              {mkvStatus.found ? 'Instalacao localizada' : 'Nao localizado'}
+            </StatusRow>
+            {mkvStatus.found && mkvStatus.mkvmergePath && <PathText>{mkvStatus.mkvmergePath}</PathText>}
+          </Col>
 
-        <Row $gap={8}>
-          <Button type="button" $variant="secondary" onClick={onChooseMkvDir}>
-            Localizar MKVToolNix...
-          </Button>
-        </Row>
-      </SettingsPanel>
+          <Row $gap={8}>
+            <Button type="button" $variant="secondary" onClick={onChooseMkvDir}>
+              Localizar MKVToolNix...
+            </Button>
+          </Row>
+        </SettingsPanel>
 
-      <SettingsPanel>
-        <SectionTitle>Geral</SectionTitle>
-        <Col $gap={6}>
-          <Label htmlFor="output-folder-name">
-            Nome da subpasta de saida (Transferir/Limpeza)
-          </Label>
-          <Input
-            id="output-folder-name"
-            value={outputFolderName}
-            onChange={(e) => onOutputFolderNameChange(e.target.value)}
-            placeholder="TS - Result"
+        <SettingsPanel>
+          <SectionTitle>Geral</SectionTitle>
+          <Col $gap={6}>
+            <Label htmlFor="output-folder-name">Nome da subpasta de saida (Transferir/Limpeza)</Label>
+            <Input
+              id="output-folder-name"
+              value={outputFolderName}
+              onChange={(e) => onOutputFolderNameChange(e.target.value)}
+              placeholder="TS - Result"
+            />
+          </Col>
+          <Row $gap={10}>
+            <Checkbox checked={muteSounds} onChange={() => onMuteSoundsChange(!muteSounds)} />
+            <ToggleLabel>Silenciar sons de conclusao/aviso</ToggleLabel>
+          </Row>
+          <Row $gap={8}>
+            <Button type="button" $variant="secondary" onClick={onExportConfig}>
+              <UploadOutlined /> Exportar configuracoes...
+            </Button>
+            <Button type="button" $variant="secondary" onClick={onImportConfig}>
+              <DownloadOutlined /> Importar configuracoes...
+            </Button>
+          </Row>
+        </SettingsPanel>
+
+        <SettingsPanel>
+          <SectionTitle>Estado inicial de cada tela</SectionTitle>
+          <TransferDefaultsPanel value={transferDefaults} onChange={onTransferDefaultsChange} />
+          <CleanDefaultsPanel value={cleanDefaults} onChange={onCleanDefaultsChange} />
+          <RenameDefaultsPanel value={renameDefaults} onChange={onRenameDefaultsChange} />
+        </SettingsPanel>
+      </Col>
+
+      <Col $gap={14}>
+        <SettingsPanel>
+          <SectionTitle>Nome do arquivo de saida</SectionTitle>
+          <NamingConfigPanel
+            id="tag-word-transfer"
+            title="Transferir Legenda"
+            value={namingTransfer}
+            onChange={onNamingTransferChange}
           />
-        </Col>
-        <Row $gap={10}>
-          <Checkbox checked={muteSounds} onChange={() => onMuteSoundsChange(!muteSounds)} />
-          <ToggleLabel>Silenciar sons de conclusao/aviso</ToggleLabel>
-        </Row>
-        <Row $gap={8}>
-          <Button type="button" $variant="secondary" onClick={onExportConfig}>
-            <UploadOutlined /> Exportar configuracoes...
-          </Button>
-          <Button type="button" $variant="secondary" onClick={onImportConfig}>
-            <DownloadOutlined /> Importar configuracoes...
-          </Button>
-        </Row>
-      </SettingsPanel>
+          <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
+        </SettingsPanel>
 
-      <SettingsPanel>
-        <SectionTitle>Nome do arquivo de saida</SectionTitle>
-        <NamingConfigPanel
-          id="tag-word-transfer"
-          title="Transferir Legenda"
-          value={namingTransfer}
-          onChange={onNamingTransferChange}
-        />
-        <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
-      </SettingsPanel>
+        <SettingsPanel>
+          <SectionTitle>Nome da faixa de legenda</SectionTitle>
+          <Col $gap={6}>
+            <Label htmlFor="pt-br-track-name">
+              Nome dado a faixa quando reconhecida como PT-BR, so no modo Transferir Legenda
+            </Label>
+            <Input
+              id="pt-br-track-name"
+              value={ptBrTrackName}
+              onChange={(e) => onPtBrTrackNameChange(e.target.value)}
+              placeholder="Portugues BR"
+            />
+          </Col>
+        </SettingsPanel>
 
-      <SettingsPanel>
-        <SectionTitle>Estado inicial de cada tela</SectionTitle>
-        <TransferDefaultsPanel value={transferDefaults} onChange={onTransferDefaultsChange} />
-        <CleanDefaultsPanel value={cleanDefaults} onChange={onCleanDefaultsChange} />
-        <RenameDefaultsPanel value={renameDefaults} onChange={onRenameDefaultsChange} />
-      </SettingsPanel>
-
-      <SettingsPanel>
-        <SectionTitle>Nome da faixa de legenda</SectionTitle>
-        <Col $gap={6}>
-          <Label htmlFor="pt-br-track-name">
-            Nome dado a faixa quando reconhecida como PT-BR, so no modo Transferir Legenda
-          </Label>
-          <Input
-            id="pt-br-track-name"
-            value={ptBrTrackName}
-            onChange={(e) => onPtBrTrackNameChange(e.target.value)}
-            placeholder="Portugues BR"
-          />
-        </Col>
-      </SettingsPanel>
-
-      <SettingsPanel>
-        <SectionTitle>Renomeador</SectionTitle>
-        <Col $gap={6}>
-          <Label>Fansubs conhecidas</Label>
-          <TagListEditor values={renameFansubPresets} onChange={onRenameFansubPresetsChange} />
-        </Col>
-        <Col $gap={6}>
-          <Label>Tags conhecidas</Label>
-          <TagListEditor values={renameTagPresets} onChange={onRenameTagPresetsChange} />
-        </Col>
-      </SettingsPanel>
-    </SettingsColumns>
+        <SettingsPanel>
+          <SectionTitle>Renomeador</SectionTitle>
+          <Col $gap={6}>
+            <Label>Fansubs conhecidas</Label>
+            <TagListEditor values={renameFansubPresets} onChange={onRenameFansubPresetsChange} />
+          </Col>
+          <Col $gap={6}>
+            <Label>Tags conhecidas</Label>
+            <TagListEditor values={renameTagPresets} onChange={onRenameTagPresetsChange} />
+          </Col>
+        </SettingsPanel>
+      </Col>
+    </SettingsGrid>
   )
 }
