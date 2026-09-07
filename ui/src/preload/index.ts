@@ -20,6 +20,8 @@ import type {
 const api = {
   loadConfig: (): Promise<AppConfig> => ipcRenderer.invoke('config:load'),
   saveConfig: (config: AppConfig): Promise<void> => ipcRenderer.invoke('config:save', config),
+  exportConfig: (): Promise<boolean> => ipcRenderer.invoke('config:export'),
+  importConfig: (): Promise<AppConfig | null> => ipcRenderer.invoke('config:import'),
 
   chooseFolder: (initialPath?: string): Promise<string | null> =>
     ipcRenderer.invoke('dialog:chooseFolder', initialPath),

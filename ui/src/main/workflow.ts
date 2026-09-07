@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
-import { mkdtemp, readFile, rm } from 'fs/promises'
+import { mkdir, mkdtemp, readFile, rm } from 'fs/promises'
 import { join, basename, extname, resolve } from 'path'
 import { describeEpisodeGaps, episodeKey, findEpisode } from './domain/episodeMatcher'
 import {
@@ -29,6 +29,7 @@ import {
   probeSubtitleTracks,
   resolveCleanOutputPath,
   resolveOutputPath,
+  resolveResultFolder,
   setSubtitleTrackLabel,
   subtitleExtension
 } from './infra/mkvProcess'
@@ -442,10 +443,13 @@ export async function transferRows(
   onLog: LogFn,
   token: CancellationToken | undefined,
   naming: NamingConfig,
-  ptBrTrackName: string
+  ptBrTrackName: string,
+  resultFolderName: string
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
+
+  await mkdir(resolveResultFolder(outputDir, resultFolderName), { recursive: true })
 
   for (const row of rows) {
     if (token?.aborted) break
@@ -461,7 +465,7 @@ export async function transferRows(
     onLog({ level: 'info', message: `[${row.episodeKey}] extraindo faixa ${track.trackId} de ${row.sourceName}` })
 
     const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-'))
-    const outputFile = resolveOutputPath(row.destPath, outputDir, naming)
+    const outputFile = resolveOutputPath(row.destPath, outputDir, naming, resultFolderName)
     if (samePath(outputFile, row.destPath)) {
       failed += 1
       onProgress(row.id, 'error', 'Pasta de saida igual a de destino geraria o mesmo nome de arquivo')
@@ -616,15 +620,18 @@ export async function cleanRows(
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn,
   token: CancellationToken | undefined,
-  naming: NamingConfig
+  naming: NamingConfig,
+  resultFolderName: string
 ): Promise<TransferSummary> {
   let success = 0
   let failed = 0
 
+  await mkdir(resolveResultFolder(outputDir, resultFolderName), { recursive: true })
+
   for (const row of rows) {
     if (token?.aborted) break
 
-    const outputFile = resolveCleanOutputPath(row.destPath, outputDir, naming)
+    const outputFile = resolveCleanOutputPath(row.destPath, outputDir, naming, resultFolderName)
     if (samePath(outputFile, row.destPath)) {
       failed += 1
       onProgress(row.id, 'error', 'Pasta de saida igual a de destino geraria o mesmo nome de arquivo')

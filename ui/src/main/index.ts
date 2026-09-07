@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
 import { join } from 'path'
-import { loadConfig, saveConfig } from './infra/configStore'
+import { exportConfig, importConfig, loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
 import { appendSessionLog, listSessionLogs, pruneOldSessionLogs, readSessionLog } from './infra/sessionLog'
@@ -119,6 +119,34 @@ if (gotSingleInstanceLock) {
 app.whenReady().then(() => {
   ipcMain.handle('config:load', (): AppConfig => loadConfig())
   ipcMain.handle('config:save', (_e, config: AppConfig) => saveConfig(config))
+
+  // Exportar/Importar configuracoes (Configuracoes) - arquivo .json a parte
+  // do config.json interno, pra levar as configuracoes pra outra maquina ou
+  // guardar um backup manual.
+  ipcMain.handle('config:export', async (): Promise<boolean> => {
+    const result = await dialog.showSaveDialog(mainWindow!, {
+      title: 'Exportar configuracoes',
+      defaultPath: 'transfer-sub-config.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (result.canceled || !result.filePath) return false
+    exportConfig(result.filePath)
+    return true
+  })
+
+  ipcMain.handle('config:import', async (): Promise<AppConfig | null> => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Importar configuracoes',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    try {
+      return importConfig(result.filePaths[0])
+    } catch (err) {
+      throw new Error(`Arquivo de configuracoes invalido: ${(err as Error).message}`)
+    }
+  })
 
   // Zoom da janela (Ctrl+/Ctrl-/Ctrl+0) - Electron nao vincula esses atalhos
   // sozinho sem um menu de aplicativo (este app roda com autoHideMenuBar e
@@ -262,7 +290,8 @@ app.whenReady().then(() => {
         },
         token,
         config.namingTransfer,
-        config.ptBrTrackName
+        config.ptBrTrackName,
+        config.outputFolderName
       )
     } finally {
       if (activeToken === token) activeToken = null
@@ -340,7 +369,8 @@ app.whenReady().then(() => {
           mainWindow?.webContents.send('log', log)
         },
         token,
-        config.namingClean
+        config.namingClean,
+        config.outputFolderName
       )
     } finally {
       if (activeToken === token) activeToken = null

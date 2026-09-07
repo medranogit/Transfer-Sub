@@ -4,7 +4,7 @@ Janela desktop nativa em React/TypeScript. É o único front-end do projeto —
 a versão anterior em Tkinter/Python foi removida.
 
 A navegação principal é um menu lateral (`components/Sidebar.tsx`, ícones do
-[`@ant-design/icons`](https://ant.design/components/icon)) com cinco
+[`@ant-design/icons`](https://ant.design/components/icon)) com seis
 páginas:
 
 - **Transferir Legenda** — casa episódios entre uma pasta de origem (com
@@ -25,16 +25,29 @@ páginas:
   `.mkv`/`.webm` da pasta (edição de metadado, sem remuxar nada).
 - **Histórico** — todas as transferências/limpezas/renomeações já feitas,
   persistidas em `transfer-log.json` (sobrevive a reinícios do app).
+- **Log da Sessão** — o log bruto (todas as linhas, igual ao painel da tela)
+  de qualquer sessão anterior do app, um arquivo `.txt` por sessão (do
+  momento que abre até fechar), navegável sem precisar copiar o log da tela
+  antes de fechar. Diferente do Histórico (só eventos estruturados de
+  transferência/limpeza/renomeação), aqui é tudo — inclusive navegação entre
+  páginas e mudanças de zoom.
 - **Configurações** — status/localização do MKVToolNix, marcação livre no
   final do nome de saída (por modo), o nome dado à faixa de legenda quando
   reconhecida como PT-BR, e as fansubs/tags conhecidas do Renomeador; é o
   lugar certo pra qualquer preferência global futura (as opções atuais, tipo
   remover áudio, são por operação e ficam nas páginas de Transferir/Limpar).
 
-Trocar entre Transferir Legenda e Limpeza limpa a lista escaneada
-(para evitar rodar uma ação com dados da tela anterior) e o menu inteiro fica
-bloqueado durante um escaneamento/transferência/limpeza em andamento;
-Renomeador, Histórico e Configurações navegam livremente fora disso.
+Trocar de página **preserva** o escaneamento em andamento: o último resultado
+de Transferir Legenda e o de Limpeza ficam guardados cada um no seu canto
+(`transferSnapshot`/`cleanSnapshot` em `App.tsx`) e voltam do jeito que
+estavam ao reentrar na página, mesmo passando por outras páginas no meio
+(Renomeador/Histórico/Log da Sessão/Configurações) — salvar ao sair e
+restaurar ao entrar são independentes um do outro, então uma navegação
+indireta (Transferir → Configurações → Limpeza → Transferir) não perde nada.
+O menu inteiro fica bloqueado (exceto a página ativa) durante um
+escaneamento/transferência/limpeza em andamento; as demais páginas navegam
+livremente fora disso. Toda troca de página também vira uma linha no log
+(tela + arquivo da sessão).
 
 A lógica de negócio roda inteira no processo principal do Electron (Node.js),
 separada em duas camadas:
@@ -51,12 +64,22 @@ separada em duas camadas:
     limpeza de ruído preserva o tamanho da string trocando cada trecho por
     espaços, em vez de colapsar tudo, pra posição continuar batendo com o
     nome original), usada pelo Renomeador pra cortar nome do anime e tags.
+    Também expõe `findEpisodeGaps`/`describeEpisodeGaps`, que detectam
+    "buracos" na sequência de números de episódio de uma pasta (ver seção
+    própria abaixo).
   - `subtitleLanguage.ts` — reconhece/prioriza legenda PT-BR e resolve o
     nome/idioma que a faixa recebe ao ser transferida.
   - `audioLanguage.ts` — reconhece faixas de áudio em inglês.
   - `subtitleTiming.ts` — converte texto `MM:SS,mmm` em milissegundos,
     encontra o instante da primeira legenda num arquivo `.ass`/`.ssa`/`.srt`
     e parseia todas as falas (`parseSubtitleEvents`) para a tela de sync.
+  - `pgsSubtitle.ts` — decodifica legenda de imagem (`.sup`, codec Matroska
+    `S_HDMV/PGS`, comum em BDs) direto do stream binário: segmentos PDS
+    (paleta)/ODS (bitmap, RLE)/PCS (composição)/END, YCbCr→RGB, e um
+    encoder de PNG minimalista escrito na mão (sem depender de `sharp`/libs
+    externas) via `zlib.deflateSync` do próprio Node — cada frame decodificado
+    vira um `SubtitleEvent` com `imageDataUrl` (PNG em base64) em vez de texto,
+    pra tela de sync mostrar a imagem da legenda.
   - `renamePattern.ts` — gera o novo nome de um arquivo a partir dos 4
     campos do Renomeador e detecta fansub/nome/temporada/tags a partir de um
     arquivo de exemplo (`detectRenameFields`).
@@ -64,9 +87,10 @@ separada em duas camadas:
   MKVToolNix (`mkvmerge`/`mkvextract`/`mkvpropedit`), listar arquivos de
   vídeo, chamar `mkvmerge`/`mkvextract`/`mkvpropedit` (`mkvProcess.ts`),
   persistir a configuração (`configStore.ts`), gravar o log de
-  transferências (`transferLog.ts`), renomear um arquivo no disco
-  (`fileRename.ts`) e permitir abortar uma operação em andamento matando o
-  processo atual (`cancellation.ts`).
+  transferências (`transferLog.ts`), gravar o log bruto de cada sessão do
+  app (`sessionLog.ts`, um `.txt` por sessão, com poda automática das mais
+  antigas), renomear um arquivo no disco (`fileRename.ts`) e permitir abortar
+  uma operação em andamento matando o processo atual (`cancellation.ts`).
 - `src/main/workflow.ts` — orquestra domain + infra nos casos de uso que o
   processo principal expõe via IPC: `scanFolders`/`transferRows` (modo
   Transferir), `scanMovie` (modo Filme do Transferir — escaneia um par de
@@ -81,7 +105,13 @@ separada em duas camadas:
   `recomputeRename` reaplica os campos atuais sem reler a pasta (botão
   "Atualizar"); `applyRename` executa a renomeação linha a linha.
 - `src/main/index.ts` — a única camada que conhece Electron/IPC; registra os
-  handlers e cria a janela.
+  handlers e cria a janela. Também cuida de: **instância única**
+  (`app.requestSingleInstanceLock()` — abrir o app de novo só foca a janela
+  já aberta em vez de criar uma segunda) e **zoom nativo** (`webContents.
+  setZoomFactor`, já que Electron não liga `Ctrl +`/`Ctrl -`/`Ctrl 0` a zoom
+  sozinho sem um `Menu` de aplicação — aqui é um listener de teclado no
+  renderer + IPC pros handlers `zoom:in`/`zoom:out`/`zoom:reset`, limitado a
+  ±2 passos de 10% a partir do padrão de 100%, ou seja 80%–120%).
 
 A janela (React) só fala com o processo principal via IPC
 (`src/preload/index.ts`), nunca chama o MKVToolNix diretamente. O front-end
@@ -91,11 +121,11 @@ orquestrador (estado + handlers, decide qual página mostrar); `theme.ts`/
 reaproveitáveis (`Button`, `Row`, `Chip`, `Checkbox`, `ConfirmDialog`,
 `Table`, `EpisodeMovieToggle`, `SuggestInput`/`TagPickerInput`...);
 `components/` tem um arquivo por peça de UI com estado/lógica própria —
-inclui as cinco páginas da Sidebar (`WorkflowView` usada tanto por
-Transferir quanto por Limpar, `RenameView`, `HistoryView`, `SettingsView`) e
-peças menores (`EpisodeTable`, `SyncModal`, `LogPanel`, `FolderField`,
-`FileField`...); `utils/` guarda funções puras de formatação
-(legenda/timing, som de conclusão/aviso).
+inclui as seis páginas da Sidebar (`WorkflowView` usada tanto por
+Transferir quanto por Limpar, `RenameView`, `HistoryView`, `SessionLogView`,
+`SettingsView`) e peças menores (`EpisodeTable`, `SyncModal`, `LogPanel`,
+`FolderField`, `FileField`, `NotificationsMenu`...); `utils/` guarda funções
+puras de formatação (legenda/timing, som de conclusão/aviso).
 
 ## Rodando em desenvolvimento
 
@@ -222,15 +252,53 @@ fica limitado pela mais lenta, não pela soma das duas.
 Qualquer valor calculado vira um `--sync` no `mkvmerge` para deslocar toda a
 legenda. Deixe todos os campos em branco para manter o timing original.
 
+### Sincronizar automaticamente com legenda de imagem (PGS)
+
+Faixas PGS (`.sup`, comuns em releases de BD) não têm texto codificado — só
+bitmaps. `canSyncTrack` (`utils/subtitleDisplay.ts`) reconhece PGS como
+"sincronizável" mesmo sem texto; `domain/pgsSubtitle.ts` decodifica cada
+frame do stream binário (segmentos PDS/ODS/PCS/END, RLE, YCbCr→RGB) e gera um
+PNG (via `zlib.deflateSync`, sem depender de biblioteca externa) para cada
+`SubtitleEvent.imageDataUrl`. O modal (`SyncModal.tsx`) mostra a imagem em vez
+do texto quando `imageDataUrl` existe — a coluna some no lugar do texto tanto
+do lado PT-BR (sempre extraído já sabendo o codec) quanto do lado inglês. A
+faixa é tratada como **segunda opção**: o app sempre tenta identificar
+automaticamente a legenda em inglês do destino (por código de idioma) e,
+sendo texto, mostra as falas normalmente; só quando a faixa disponível é de
+imagem (ou o usuário troca manualmente pra uma) é que aparecem as imagens —
+o usuário ainda escolhe visualmente a "mesma fala" nos dois lados do mesmo
+jeito, só que reconhecendo pela imagem em vez de ler o texto. Um único objeto
+de composição corrompido no meio do arquivo (raro, mas existe em alguns BDs)
+é pulado individualmente (try/catch por frame) em vez de derrubar a extração
+inteira. Faixas VobSub (`S_VOBSUB`) continuam sem suporte (nem texto nem
+imagem) — o modal avisa e o ajuste ali precisa ser manual (1ª fala/deslocamento).
+
+## Tabela de episódios
+
+`components/EpisodeTable.tsx` mostra, da esquerda pra direita: checkbox,
+Episódio, Sincronização (botão + ícone de relógio quando já há um ajuste de
+timing salvo), Faixa de legenda, **Arquivo origem**, uma seta (→) e
+**Arquivo destino**, Status — arquivo de origem fica do lado esquerdo da
+seta e o de destino do lado direito, refletindo a direção real da
+transferência. Nomes de arquivo/anime longos quebram linha
+(`overflow-wrap: break-word`) em vez de truncar com reticências, então dá
+pra ler o nome inteiro sem precisar de tooltip. A faixa PT-BR selecionada
+automaticamente mostra um ícone de check verde com tooltip explicando o
+motivo (idioma/nome reconhecido), em vez de um texto fixo do lado.
+
 ## Chips de opções
 
 As opções booleanas (remover dublagem, limpar legendas extras) aparecem como
-chips clicáveis (`ui/Chip.ts`) em vez de checkbox tradicional: ficam verdes
-quando ativas, neutras quando não, com tamanho ajustado ao texto (não
-esticam pra preencher a linha) — e a linha quebra sozinha (`flex-wrap`) se
-mais opções forem adicionadas no futuro. Cada chip tem um `title` (tooltip
-nativo do navegador) com a explicação completa, já que o texto visível é
-propositalmente curto.
+chips clicáveis (`ui/Chip.ts`, agrupados num `ChipRow`) em vez de checkbox
+tradicional: ficam verdes quando ativas, neutras quando não, com tamanho
+ajustado ao texto (não esticam pra preencher a linha) — e a linha quebra
+sozinha (`flex-wrap`) se mais opções forem adicionadas no futuro. Cada chip
+tem um `title` (tooltip nativo do navegador) com a explicação completa, já
+que o texto visível é propositalmente curto. Ficam na mesma linha do
+alternador **Episódio / Filme**, logo acima dos campos de pasta/arquivo —
+os itens dessa linha (`Row` com `flex-wrap`) ficam colados da esquerda pra
+direita (sem `justify-content: space-between` nem espaço reservado quando um
+lado tem menos itens que o outro, ex. modo Limpeza com só um chip).
 
 - **"Remover dublagem em inglês"** (ativado por padrão, vale para os dois
   modos) — antes de gerar o arquivo final, o app lê as faixas de áudio do
@@ -267,6 +335,30 @@ Como a saída pode acabar com o mesmo nome do arquivo de entrada quando a
 pasta de saída é igual à de destino, o `workflow.ts` recusa a operação nesse
 caso (`samePath`) em vez de deixar o `mkvmerge` tentar ler e escrever o
 mesmo arquivo ao mesmo tempo — o que corromperia o vídeo original.
+
+## Aviso de episódio faltando
+
+Fácil de não perceber, olhando uma tabela com muitos arquivos, que falta um
+episódio no meio da sequência (ex.: pasta vai do 01 ao 25 mas não tem o 14).
+`findEpisodeGaps`/`describeEpisodeGaps` (`domain/episodeMatcher.ts`) recebem a
+lista de números de episódio encontrados numa pasta e devolvem os que faltam
+dentro do intervalo mínimo–máximo (só faz sentido com 2+ números diferentes;
+não aponta nada fora desse intervalo, já que não há como saber quantos
+episódios a temporada realmente tem). Usado nos três escaneamentos que lidam
+com pasta(s) de vários arquivos:
+
+- `scanFolders` (Transferir Legenda) — checa a pasta de origem e a de destino
+  **separadamente**, cada uma podendo gerar seu próprio aviso.
+- `scanForClean` (Limpeza) — checa a única pasta escaneada.
+- `previewRename` (Renomeador) — checa a pasta, exceto em **Modo Filme**
+  (onde não há número de episódio).
+
+O aviso entra no mesmo array `warnings` que os demais alertas de
+escaneamento — aparece no log (nível `warn`) e no sino de notificações do
+topo (`NotificationsMenu`), com o som de aviso tocando junto. No Renomeador
+isso exigiu adicionar `warnings` ao `RenamePreviewResult` (antes só tinha
+`rows`/`detected`) e ligar `handleRenameScan` (`App.tsx`) no mesmo
+`scanWarnings`/`playWarningSound` que Transferir/Limpeza já usavam.
 
 ## Renomeador
 
@@ -344,11 +436,23 @@ de pré-visualização → aplicar), mais dois botões extras — **Atualizar** 
 
 O painel de log na tela (`components/LogPanel.tsx`) colore cada linha por
 nível (`info`/`success`/`warn`/`error`) com um ícone e um leve tingimento de
-fundo. Um som de conclusão minimalista (`utils/completionSound.ts`, via Web
-Audio API) toca ao terminar uma transferência ou limpeza; um som de aviso
-diferente, mais grave (`utils/warningSound.ts`) toca quando um escaneamento
-produz avisos ou episódios sem correspondência — o mesmo sino de
-notificações do topo (`NotificationsMenu`) que mostraria o badge.
+fundo; o texto é selecionável/copiável (`user-select: text`, exceção ao resto
+da UI que desativa seleção pra não marcar rótulo de botão/checkbox sem
+querer) e um botão **Limpar log** (ao lado do título "Log", em
+`WorkflowView.tsx`) zera só a lista em tela da sessão atual — não mexe no
+arquivo da sessão gravado em disco (ver "Log da Sessão" abaixo). Um som de
+conclusão minimalista (`utils/completionSound.ts`, via Web Audio API) toca ao
+terminar uma transferência ou limpeza; um som de aviso diferente, mais grave
+(`utils/warningSound.ts`) toca quando um escaneamento produz avisos, episódio
+faltando na numeração ou sem correspondência — o mesmo sino de notificações
+do topo (`NotificationsMenu`) que mostraria o badge.
+
+**Todo** erro do app aparece no log, mesmo os que só apareceriam dentro de um
+modal/tela específica: `HistoryView` e `SyncModal` recebem um `onError`
+(`App.tsx` repassa pra `pushLog(message, 'error')`) além do próprio estado
+local de erro exibido ali — assim uma falha ao preparar a sincronização ou ao
+apagar o histórico, por exemplo, não fica só visível numa tela que o usuário
+pode não estar olhando.
 
 Além disso, cada execução (sucesso ou erro) grava uma entrada em
 `transfer-log.json`, na raiz do projeto (mesma pasta do
@@ -374,6 +478,28 @@ de origem e destino, e a saída na mesma pasta do arquivo de origem = na
 verdade Renomeador; mesmo arquivo de origem e destino noutra pasta =
 Limpeza; senão Transferir).
 
+## Log da Sessão
+
+Além do painel da tela (que só existe enquanto o app está aberto) e de
+`transfer-log.json` (só histórico estruturado de transferência/limpeza/
+renomeação), `infra/sessionLog.ts` grava **todo** evento de log
+(`appendSessionLog`) num arquivo `.txt` por sessão (do momento que o
+processo abre até fechar, nome = timestamp de início) — `session-logs/`
+dentro da pasta de dados do usuário quando empacotado, ou na raiz do
+projeto em desenvolvimento (mesmo esquema de `transfer-log.json`). Isso
+cobre coisas que não entram em `transfer-log.json`: navegação entre
+páginas, avisos de escaneamento, mudanças de zoom, erros de UI. Sessões
+antigas além de `MAX_SESSIONS` (200) são apagadas automaticamente na
+abertura do app (`pruneOldSessionLogs`).
+
+A página **Log da Sessão** (`components/SessionLogView.tsx`) lista as
+sessões com log gravado (mais recente primeiro, sessão atual marcada com um
+ponto verde) numa coluna lateral, e mostra o conteúdo da selecionada — as
+linhas aparecem na **ordem contrária** de como foram gravadas (mais recente
+no topo), diferente do painel da tela (que cresce pra baixo, ao vivo); faz
+mais sentido aqui porque é histórico, não algo acompanhado em tempo real. O
+texto também é selecionável/copiável.
+
 ## Estrutura
 
 ```
@@ -387,29 +513,36 @@ src/
                 audioLanguage.ts    — reconhecer audio em ingles
                 subtitleTiming.ts   — parse/format de timecodes MM:SS,mmm
                 subtitleEncoding.ts — decodificar legenda (UTF-8 com fallback Windows-1252)
+                pgsSubtitle.ts      — decodificar legenda de imagem PGS (.sup) em PNGs, pro
+                                      modal de sync mostrar quando nao ha texto codificado
                 renamePattern.ts    — gerar nome + detectar fansub/nome/temporada/tags (Renomeador)
     infra/      I/O: mkvToolNixLocator.ts (mkvmerge/mkvextract/mkvpropedit), mkvProcess.ts,
-                videoFiles.ts, configStore.ts, transferLog.ts, cancellation.ts (abortar),
-                fileRename.ts
+                videoFiles.ts, configStore.ts, transferLog.ts, sessionLog.ts (log bruto por
+                sessao, pagina Log da Sessao), cancellation.ts (abortar), fileRename.ts
     workflow.ts casos de uso: scanFolders/transferRows (Transferir), scanMovie (Transferir
                 modo Filme), scanForClean/cleanRows (Limpar), prepareSync/getTrackEvents
                 (modal de sync), renameSubtitleTracks (rotular faixa PT-BR em lote)
     renamer.ts  caso de uso do Renomeador: previewRename/recomputeRename/applyRename
-    index.ts    entrypoint do Electron + handlers IPC
+    index.ts    entrypoint do Electron + handlers IPC, instancia unica
+                (requestSingleInstanceLock), zoom nativo da janela (zoom:in/out/reset)
   preload/      ponte contextBridge exposta como window.api
   renderer/     app React + main.tsx (bootstrap):
-                App.tsx           orquestrador (estado + handlers), decide a pagina ativa
+                App.tsx           orquestrador (estado + handlers), decide a pagina ativa,
+                                  guarda snapshot do scan por modo (Transferir/Limpeza),
+                                  atalhos de zoom (Ctrl +/-/0)
                 theme.ts          tema (cores/spacing) + tipagem do styled-components
                 GlobalStyle.ts    estilos globais (scrollbar, reset, fonte)
                 ui/               primitivas genericas: primitives.ts (Button, Row, Col,
                                   Panel, Label, Input, SectionTitle), Chip.ts, Checkbox.tsx,
                                   ConfirmDialog.tsx, EpisodeMovieToggle.tsx, SuggestInput.tsx
                                   (SuggestInput/TagPickerInput), TagListEditor.tsx
-                components/       Sidebar (navegacao), WorkflowView (pagina Transferir/
-                                  Limpar, com modo Filme), RenameView (com modo Filme e
-                                  rotulagem de faixa), HistoryView, SettingsView, FolderField,
-                                  FileField, StatusBadge, LogPanel, EpisodeTable, SyncModal,
-                                  NotificationsMenu — cada um com seu proprio estado
+                components/       Sidebar (navegacao, 6 paginas), WorkflowView (pagina
+                                  Transferir/Limpar, com modo Filme), RenameView (com modo
+                                  Filme e rotulagem de faixa), HistoryView, SessionLogView
+                                  (log bruto por sessao), SettingsView, FolderField,
+                                  FileField, StatusBadge, LogPanel, EpisodeTable, SyncModal
+                                  (com imagem PGS), NotificationsMenu — cada um com seu
+                                  proprio estado
                 utils/            subtitleDisplay.ts (formatacao de legenda/timing),
                                   completionSound.ts, warningSound.ts, useEscapeToClose.ts
   shared/       tipos TypeScript compartilhados entre main/preload/renderer

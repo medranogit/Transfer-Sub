@@ -79,6 +79,24 @@ export interface NamingConfig {
   tagWord: string
 }
 
+// Estado inicial (ao abrir o app) dos alternadores/chips de cada tela,
+// configuravel em Configuracoes - so o valor DEFAULT: o que o usuario mexe
+// durante a sessao (ex: desligar "Remover dublagem" pra um lote especifico)
+// nao e salvo de volta aqui, so afeta a sessao atual.
+export interface TransferDefaults {
+  movieMode: boolean
+  removeEnglishAudio: boolean
+  removeExtraSubtitles: boolean
+}
+
+export interface CleanDefaults {
+  removeEnglishAudio: boolean
+}
+
+export interface RenameDefaults {
+  movieMode: boolean
+}
+
 export interface AppConfig {
   sourceDir: string
   destDir: string
@@ -86,6 +104,17 @@ export interface AppConfig {
   mkvToolNixDir: string
   namingTransfer: NamingConfig
   namingClean: NamingConfig
+  transferDefaults: TransferDefaults
+  cleanDefaults: CleanDefaults
+  renameDefaults: RenameDefaults
+  // Nome da subpasta criada dentro da pasta de saida escolhida, onde os
+  // arquivos finais de Transferir/Limpeza sao gerados (ver
+  // infra/mkvProcess.ts:resolveResultFolder). Vazio cai no padrao "TS - Result".
+  outputFolderName: string
+  // Silencia os sons de conclusao/aviso (utils/completionSound.ts,
+  // utils/warningSound.ts) sem desligar o restante da notificacao (log,
+  // sino).
+  muteSounds: boolean
   // Nome dado a faixa de legenda ao ser transferida, quando reconhecida como
   // PT-BR (por idioma/nome ou palpite de conteudo) - identifica facilmente
   // qual faixa o Transfer Sub adicionou em players que listam o nome da

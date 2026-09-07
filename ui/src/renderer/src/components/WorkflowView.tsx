@@ -47,6 +47,7 @@ export function WorkflowView({
   sourceDir,
   destDir,
   outputDir,
+  outputFolderName,
   onSourceDirChange,
   onDestDirChange,
   onOutputDirChange,
@@ -82,6 +83,7 @@ export function WorkflowView({
   sourceDir: string
   destDir: string
   outputDir: string
+  outputFolderName: string
   onSourceDirChange: (value: string) => void
   onDestDirChange: (value: string) => void
   onOutputDirChange: (value: string) => void
@@ -169,7 +171,12 @@ export function WorkflowView({
             />
           </>
         )}
-        <FolderField label="Pasta de saida (arquivos finais)" value={outputDir} onChange={onOutputDirChange} />
+        <FolderField
+          label="Pasta de saida (arquivos finais)"
+          title={`Os arquivos finais sao gerados dentro de uma subpasta "${outputFolderName}" criada nesta pasta, nao direto nela (nome configuravel em Configuracoes).`}
+          value={outputDir}
+          onChange={onOutputDirChange}
+        />
 
         <ToolbarRow>
           <Row $gap={8}>

@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
 import type {
+  AppConfig,
+  CleanDefaults,
   DetectedRenameFields,
   EpisodeRow,
   LogEvent,
   MkvToolsStatus,
   NamingConfig,
+  RenameDefaults,
   RenameFields,
   RenamePreviewRow,
-  RowStatus
+  RowStatus,
+  TransferDefaults
 } from '@shared/types'
 import { theme } from './theme'
 import { GlobalStyle } from './GlobalStyle'
@@ -82,8 +86,9 @@ function AppContent() {
   const [outputDir, setOutputDir] = useState('')
   // Modo Filme (so no Transferir Legenda): filmes nao tem numero de episodio
   // pra parear automaticamente por pasta, entao o usuario escolhe os dois
-  // arquivos direto em vez de pastas inteiras. Nao persiste o toggle em si
-  // (sempre comeca desligado, como os outros toggles de operacao), so os
+  // arquivos direto em vez de pastas inteiras. O estado em si nao e
+  // persistido durante a sessao (so o valor DEFAULT ao abrir o app, vindo de
+  // config.transferDefaults - configuravel em Configuracoes), assim como os
   // ultimos arquivos escolhidos.
   const [movieMode, setMovieMode] = useState(false)
   const [movieSourceFile, setMovieSourceFile] = useState('')
@@ -105,8 +110,14 @@ function AppContent() {
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [aborting, setAborting] = useState(false)
-  const [removeEnglishAudio, setRemoveEnglishAudio] = useState(true)
-  const [removeExtraSubtitles, setRemoveExtraSubtitles] = useState(false)
+  // Remover dublagem/Limpar legendas extras sao por tela (Transferir e
+  // Limpeza NAO compartilham o mesmo valor, diferente de rows/statuses/...) -
+  // cada par comeca no valor configurado em Configuracoes (transferDefaults/
+  // cleanDefaults) e so o par da tela ativa e exibido/alterado (ver
+  // removeEnglishAudio/onToggleRemoveEnglishAudio abaixo).
+  const [transferRemoveEnglishAudio, setTransferRemoveEnglishAudio] = useState(true)
+  const [transferRemoveExtraSubtitles, setTransferRemoveExtraSubtitles] = useState(false)
+  const [cleanRemoveEnglishAudio, setCleanRemoveEnglishAudio] = useState(true)
   const [syncRowId, setSyncRowId] = useState<string | null>(null)
   const [preferredEnTrackId, setPreferredEnTrackId] = useState<number | null>(null)
   const [namingTransfer, setNamingTransfer] = useState<NamingConfig>({
@@ -117,6 +128,17 @@ function AppContent() {
     tagEnabled: false,
     tagWord: 'limpo'
   })
+  // Config editada na pagina Configuracoes (o DEFAULT aplicado aos estados
+  // acima ao abrir o app - ver useEffect de loadConfig).
+  const [transferDefaults, setTransferDefaults] = useState<TransferDefaults>({
+    movieMode: false,
+    removeEnglishAudio: true,
+    removeExtraSubtitles: false
+  })
+  const [cleanDefaults, setCleanDefaults] = useState<CleanDefaults>({ removeEnglishAudio: true })
+  const [renameDefaults, setRenameDefaults] = useState<RenameDefaults>({ movieMode: false })
+  const [outputFolderName, setOutputFolderName] = useState('TS - Result')
+  const [muteSounds, setMuteSounds] = useState(false)
   const [ptBrTrackName, setPtBrTrackName] = useState('')
 
   const [renameFolder, setRenameFolder] = useState('')
@@ -140,22 +162,51 @@ function AppContent() {
   const [renamingTracks, setRenamingTracks] = useState(false)
 
   const cleanOnly = view === 'clean'
+  // A tela ativa decide qual dos dois pares fica visivel/editavel - ver
+  // comentario acima de transferRemoveEnglishAudio.
+  const removeEnglishAudio = cleanOnly ? cleanRemoveEnglishAudio : transferRemoveEnglishAudio
+  const removeExtraSubtitles = transferRemoveExtraSubtitles
+
+  function handleToggleRemoveEnglishAudio(): void {
+    if (cleanOnly) setCleanRemoveEnglishAudio((v) => !v)
+    else setTransferRemoveEnglishAudio((v) => !v)
+  }
+
+  function handleToggleRemoveExtraSubtitles(): void {
+    setTransferRemoveExtraSubtitles((v) => !v)
+  }
+
+  // Aplica um AppConfig inteiro a todos os estados que vem dele - usado tanto
+  // no carregamento inicial (useEffect abaixo) quanto ao importar
+  // configuracoes de um arquivo (handleImportConfig), pra nao duplicar essa
+  // lista em dois lugares.
+  function applyConfig(config: AppConfig): void {
+    setSourceDir(config.sourceDir)
+    setDestDir(config.destDir)
+    setOutputDir(config.outputDir)
+    setNamingTransfer(config.namingTransfer)
+    setNamingClean(config.namingClean)
+    setTransferDefaults(config.transferDefaults)
+    setCleanDefaults(config.cleanDefaults)
+    setRenameDefaults(config.renameDefaults)
+    setMovieMode(config.transferDefaults.movieMode)
+    setTransferRemoveEnglishAudio(config.transferDefaults.removeEnglishAudio)
+    setTransferRemoveExtraSubtitles(config.transferDefaults.removeExtraSubtitles)
+    setCleanRemoveEnglishAudio(config.cleanDefaults.removeEnglishAudio)
+    setRenameFields((prev) => ({ ...prev, movieMode: config.renameDefaults.movieMode }))
+    setOutputFolderName(config.outputFolderName)
+    setMuteSounds(config.muteSounds)
+    setPtBrTrackName(config.ptBrTrackName)
+    setRenameFolder(config.renameFolder)
+    setRenameFansubPresets(config.renameFansubPresets)
+    setRenameTagPresets(config.renameTagPresets)
+    setMovieSourceFile(config.movieSourceFile)
+    setMovieDestFile(config.movieDestFile)
+    window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
+  }
 
   useEffect(() => {
-    window.api.loadConfig().then((config) => {
-      setSourceDir(config.sourceDir)
-      setDestDir(config.destDir)
-      setOutputDir(config.outputDir)
-      setNamingTransfer(config.namingTransfer)
-      setNamingClean(config.namingClean)
-      setPtBrTrackName(config.ptBrTrackName)
-      setRenameFolder(config.renameFolder)
-      setRenameFansubPresets(config.renameFansubPresets)
-      setRenameTagPresets(config.renameTagPresets)
-      setMovieSourceFile(config.movieSourceFile)
-      setMovieDestFile(config.movieDestFile)
-      window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
-    })
+    window.api.loadConfig().then(applyConfig)
 
     const offLog = window.api.onLog((event) => addLog(event))
     const offProgress = window.api.onTransferProgress(({ rowId, status }) => {
@@ -248,6 +299,11 @@ function AppContent() {
       outputDir: string
       namingTransfer: NamingConfig
       namingClean: NamingConfig
+      transferDefaults: TransferDefaults
+      cleanDefaults: CleanDefaults
+      renameDefaults: RenameDefaults
+      outputFolderName: string
+      muteSounds: boolean
       ptBrTrackName: string
       renameFolder: string
       renameFansubPresets: string[]
@@ -263,6 +319,11 @@ function AppContent() {
       mkvToolNixDir: mkvStatus.mkvmergePath ? mkvStatus.mkvmergePath.replace(/[\\/][^\\/]+$/, '') : '',
       namingTransfer: overrides.namingTransfer ?? namingTransfer,
       namingClean: overrides.namingClean ?? namingClean,
+      transferDefaults: overrides.transferDefaults ?? transferDefaults,
+      cleanDefaults: overrides.cleanDefaults ?? cleanDefaults,
+      renameDefaults: overrides.renameDefaults ?? renameDefaults,
+      outputFolderName: overrides.outputFolderName ?? outputFolderName,
+      muteSounds: overrides.muteSounds ?? muteSounds,
       ptBrTrackName: overrides.ptBrTrackName ?? ptBrTrackName,
       renameFolder: overrides.renameFolder ?? renameFolder,
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
@@ -280,6 +341,58 @@ function AppContent() {
   function handleNamingCleanChange(next: NamingConfig) {
     setNamingClean(next)
     persistConfig({ namingClean: next })
+  }
+
+  // Muda tanto o valor DEFAULT (persistido, vale a partir da proxima vez que
+  // a tela abrir) quanto o estado ao vivo da tela agora mesmo - senao mudar
+  // aqui pareceria nao ter feito nada ate reiniciar o app.
+  function handleTransferDefaultsChange(next: TransferDefaults) {
+    setTransferDefaults(next)
+    setMovieMode(next.movieMode)
+    setTransferRemoveEnglishAudio(next.removeEnglishAudio)
+    setTransferRemoveExtraSubtitles(next.removeExtraSubtitles)
+    persistConfig({ transferDefaults: next })
+  }
+
+  function handleCleanDefaultsChange(next: CleanDefaults) {
+    setCleanDefaults(next)
+    setCleanRemoveEnglishAudio(next.removeEnglishAudio)
+    persistConfig({ cleanDefaults: next })
+  }
+
+  function handleRenameDefaultsChange(next: RenameDefaults) {
+    setRenameDefaults(next)
+    setRenameFields((prev) => ({ ...prev, movieMode: next.movieMode }))
+    persistConfig({ renameDefaults: next })
+  }
+
+  function handleOutputFolderNameChange(next: string) {
+    setOutputFolderName(next)
+    persistConfig({ outputFolderName: next })
+  }
+
+  function handleMuteSoundsChange(next: boolean) {
+    setMuteSounds(next)
+    persistConfig({ muteSounds: next })
+  }
+
+  async function handleExportConfig() {
+    const ok = await window.api.exportConfig()
+    pushLog(ok ? 'Configuracoes exportadas.' : 'Exportacao de configuracoes cancelada.', ok ? 'success' : 'info')
+  }
+
+  async function handleImportConfig() {
+    try {
+      const config = await window.api.importConfig()
+      if (!config) {
+        pushLog('Importacao de configuracoes cancelada.', 'info')
+        return
+      }
+      applyConfig(config)
+      pushLog('Configuracoes importadas.', 'success')
+    } catch (err) {
+      pushLog(`Erro ao importar configuracoes: ${(err as Error).message}`, 'error')
+    }
   }
 
   function handlePtBrTrackNameChange(next: string) {
@@ -347,7 +460,7 @@ function AppContent() {
       setStatuses(Object.fromEntries(result.rows.map((r) => [r.id, 'idle' as RowStatus])))
       setScanWarnings(result.warnings)
       setUnmatchedSource(result.unmatchedSource)
-      if (result.warnings.length + result.unmatchedSource.length > 0) playWarningSound()
+      if (!muteSounds && result.warnings.length + result.unmatchedSource.length > 0) playWarningSound()
       result.warnings.forEach((w) => pushLog(w, 'warn'))
       if (result.aborted) pushLog('Escaneamento abortado antes de terminar.', 'warn')
     } catch (err) {
@@ -375,7 +488,7 @@ function AppContent() {
       const { rows: result, detected, warnings } = await window.api.previewRename(renameFolder, renameFields)
       setRenameRows(result)
       setScanWarnings(warnings)
-      if (warnings.length > 0) playWarningSound()
+      if (!muteSounds && warnings.length > 0) playWarningSound()
       warnings.forEach((w) => pushLog(w, 'warn'))
       if (detected) {
         const fansubKnown =
@@ -586,7 +699,7 @@ function AppContent() {
     } finally {
       setTransferring(false)
       setAborting(false)
-      playCompletionSound()
+      if (!muteSounds) playCompletionSound()
     }
   }
 
@@ -621,6 +734,7 @@ function AppContent() {
             sourceDir={sourceDir}
             destDir={destDir}
             outputDir={outputDir}
+            outputFolderName={outputFolderName}
             onSourceDirChange={setSourceDir}
             onDestDirChange={setDestDir}
             onOutputDirChange={setOutputDir}
@@ -631,9 +745,9 @@ function AppContent() {
             onMovieSourceFileChange={setMovieSourceFile}
             onMovieDestFileChange={setMovieDestFile}
             removeEnglishAudio={removeEnglishAudio}
-            onToggleRemoveEnglishAudio={() => setRemoveEnglishAudio(!removeEnglishAudio)}
+            onToggleRemoveEnglishAudio={handleToggleRemoveEnglishAudio}
             removeExtraSubtitles={removeExtraSubtitles}
-            onToggleRemoveExtraSubtitles={() => setRemoveExtraSubtitles(!removeExtraSubtitles)}
+            onToggleRemoveExtraSubtitles={handleToggleRemoveExtraSubtitles}
             scanning={scanning}
             transferring={transferring}
             aborting={aborting}
@@ -688,6 +802,18 @@ function AppContent() {
             onNamingTransferChange={handleNamingTransferChange}
             namingClean={namingClean}
             onNamingCleanChange={handleNamingCleanChange}
+            transferDefaults={transferDefaults}
+            onTransferDefaultsChange={handleTransferDefaultsChange}
+            cleanDefaults={cleanDefaults}
+            onCleanDefaultsChange={handleCleanDefaultsChange}
+            renameDefaults={renameDefaults}
+            onRenameDefaultsChange={handleRenameDefaultsChange}
+            outputFolderName={outputFolderName}
+            onOutputFolderNameChange={handleOutputFolderNameChange}
+            muteSounds={muteSounds}
+            onMuteSoundsChange={handleMuteSoundsChange}
+            onExportConfig={handleExportConfig}
+            onImportConfig={handleImportConfig}
             ptBrTrackName={ptBrTrackName}
             onPtBrTrackNameChange={handlePtBrTrackNameChange}
             renameFansubPresets={renameFansubPresets}

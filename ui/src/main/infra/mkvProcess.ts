@@ -260,12 +260,30 @@ function withOptionalTag(name: string, tagWord?: string): string {
   return tagWord ? `${name} [${tagWord}]` : name
 }
 
+// Os arquivos finais vao numa subpasta dentro da pasta de saida escolhida, em
+// vez de direto nela - fica claro o que o app gerou (em vez de misturar com
+// o resto do que já estiver la) e, de quebra, evita a maioria dos casos de
+// "saida igual ao destino" quando o usuario escolhe a mesma pasta de destino
+// como saida (ver samePath em workflow.ts). O nome e configuravel em
+// Configuracoes (AppConfig.outputFolderName); resultFolderName vazio (config
+// nunca definida, ou usuario limpou o campo) cai nesse padrao.
+export const DEFAULT_RESULT_FOLDER_NAME = 'TS - Result'
+
+export function resolveResultFolder(outputFolder: string, resultFolderName: string): string {
+  return join(outputFolder, resultFolderName.trim() || DEFAULT_RESULT_FOLDER_NAME)
+}
+
 // Nome fixo por episodio (sem sufixo de contador): se ja existir um arquivo
 // com esse nome na pasta de saida, o mkvmerge sobrescreve - nao criamos
 // duplicados "(1)", "(2)", etc.
-export function resolveOutputPath(destVideo: string, outputFolder: string, naming: NamingConfig): string {
+export function resolveOutputPath(
+  destVideo: string,
+  outputFolder: string,
+  naming: NamingConfig,
+  resultFolderName: string
+): string {
   const base = withOptionalTag(parse(destVideo).name, naming.tagEnabled ? naming.tagWord.trim() : undefined)
-  return join(outputFolder, `${base}.mkv`)
+  return join(resolveResultFolder(outputFolder, resultFolderName), `${base}.mkv`)
 }
 
 // Remuxa o proprio arquivo filtrando faixas: mantem so a legenda escolhida
@@ -292,9 +310,14 @@ export async function cleanTracksInto(
   await runMkvTool(mkvmergePath, args, token)
 }
 
-// Mesmo esquema de nome fixo (sobrescreve por nome) do resolveOutputPath -
-// ver withOptionalTag.
-export function resolveCleanOutputPath(sourceFile: string, outputFolder: string, naming: NamingConfig): string {
+// Mesmo esquema de nome fixo (sobrescreve por nome) e mesma subpasta do
+// resolveOutputPath - ver withOptionalTag/resolveResultFolder.
+export function resolveCleanOutputPath(
+  sourceFile: string,
+  outputFolder: string,
+  naming: NamingConfig,
+  resultFolderName: string
+): string {
   const base = withOptionalTag(parse(sourceFile).name, naming.tagEnabled ? naming.tagWord.trim() : undefined)
-  return join(outputFolder, `${base}.mkv`)
+  return join(resolveResultFolder(outputFolder, resultFolderName), `${base}.mkv`)
 }

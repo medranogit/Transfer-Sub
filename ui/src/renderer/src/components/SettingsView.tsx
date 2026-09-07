@@ -1,20 +1,32 @@
 // Pagina de configuracoes - MKVToolNix (status + localizar), marcacao livre
-// no final do nome de saida (uma config por modo) e o nome dado a faixa de
-// legenda quando reconhecida como PT-BR. O resto das opcoes, tipo remover
-// audio, e por operacao e fica nas paginas de Transferir/Limpeza, nao aqui.
+// no final do nome de saida (uma config por modo), o estado inicial dos
+// alternadores/chips de cada tela (Transferir/Limpeza/Renomeador - o usuario
+// ainda pode mudar a vontade durante a sessao, isso so afeta como a tela
+// comeca) e o nome dado a faixa de legenda quando reconhecida como PT-BR.
 import styled from 'styled-components'
-import { CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
-import type { MkvToolsStatus, NamingConfig } from '@shared/types'
+import { CheckCircleFilled, CloseCircleFilled, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
+import type { CleanDefaults, MkvToolsStatus, NamingConfig, RenameDefaults, TransferDefaults } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Checkbox } from '../ui/Checkbox'
+import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { TagListEditor } from '../ui/TagListEditor'
+
+// column-count (em vez de grid/flex) pra fluir os paineis em 2 colunas sem
+// precisar decidir manualmente qual painel vai em qual coluna - o navegador
+// balanceia a altura sozinho. break-inside evita partir um painel ao meio na
+// quebra de coluna.
+const SettingsColumns = styled.div`
+  column-count: 2;
+  column-gap: 14px;
+`
 
 const SettingsPanel = styled(Panel)`
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 640px;
+  break-inside: avoid;
+  margin-bottom: 14px;
 `
 
 const StatusRow = styled(Row)<{ $found: boolean }>`
@@ -72,6 +84,75 @@ function NamingConfigPanel({
   )
 }
 
+function TransferDefaultsPanel({
+  value,
+  onChange
+}: {
+  value: TransferDefaults
+  onChange: (next: TransferDefaults) => void
+}) {
+  return (
+    <Col $gap={10}>
+      <Label>Transferir Legenda - Predefinicao Padrao</Label>
+      <Row>
+        <EpisodeMovieToggle movieMode={value.movieMode} onChange={(movieMode) => onChange({ ...value, movieMode })} />
+      </Row>
+      <Row $gap={10}>
+        <Checkbox
+          checked={value.removeEnglishAudio}
+          onChange={() => onChange({ ...value, removeEnglishAudio: !value.removeEnglishAudio })}
+        />
+        <ToggleLabel>Padrao - Remover dublagens</ToggleLabel>
+      </Row>
+      <Row $gap={10}>
+        <Checkbox
+          checked={value.removeExtraSubtitles}
+          onChange={() => onChange({ ...value, removeExtraSubtitles: !value.removeExtraSubtitles })}
+        />
+        <ToggleLabel>Padrao - Limpar Legendas</ToggleLabel>
+      </Row>
+    </Col>
+  )
+}
+
+function CleanDefaultsPanel({
+  value,
+  onChange
+}: {
+  value: CleanDefaults
+  onChange: (next: CleanDefaults) => void
+}) {
+  return (
+    <Col $gap={10}>
+      <Label>Limpeza - Predefinicao Padrao</Label>
+      <Row $gap={10}>
+        <Checkbox
+          checked={value.removeEnglishAudio}
+          onChange={() => onChange({ ...value, removeEnglishAudio: !value.removeEnglishAudio })}
+        />
+        <ToggleLabel>Padrao - Remover dublagens</ToggleLabel>
+      </Row>
+    </Col>
+  )
+}
+
+function RenameDefaultsPanel({
+  value,
+  onChange
+}: {
+  value: RenameDefaults
+  onChange: (next: RenameDefaults) => void
+}) {
+  return (
+    <Col $gap={10}>
+      <Label>Renomeador - Predefinicao Padrao</Label>
+      <Row>
+        <EpisodeMovieToggle movieMode={value.movieMode} onChange={(movieMode) => onChange({ ...value, movieMode })} />
+      </Row>
+    </Col>
+  )
+}
+
 export function SettingsView({
   mkvStatus,
   onChooseMkvDir,
@@ -79,6 +160,18 @@ export function SettingsView({
   onNamingTransferChange,
   namingClean,
   onNamingCleanChange,
+  transferDefaults,
+  onTransferDefaultsChange,
+  cleanDefaults,
+  onCleanDefaultsChange,
+  renameDefaults,
+  onRenameDefaultsChange,
+  outputFolderName,
+  onOutputFolderNameChange,
+  muteSounds,
+  onMuteSoundsChange,
+  onExportConfig,
+  onImportConfig,
   ptBrTrackName,
   onPtBrTrackNameChange,
   renameFansubPresets,
@@ -92,6 +185,18 @@ export function SettingsView({
   onNamingTransferChange: (next: NamingConfig) => void
   namingClean: NamingConfig
   onNamingCleanChange: (next: NamingConfig) => void
+  transferDefaults: TransferDefaults
+  onTransferDefaultsChange: (next: TransferDefaults) => void
+  cleanDefaults: CleanDefaults
+  onCleanDefaultsChange: (next: CleanDefaults) => void
+  renameDefaults: RenameDefaults
+  onRenameDefaultsChange: (next: RenameDefaults) => void
+  outputFolderName: string
+  onOutputFolderNameChange: (next: string) => void
+  muteSounds: boolean
+  onMuteSoundsChange: (next: boolean) => void
+  onExportConfig: () => void
+  onImportConfig: () => void
   ptBrTrackName: string
   onPtBrTrackNameChange: (next: string) => void
   renameFansubPresets: string[]
@@ -100,7 +205,7 @@ export function SettingsView({
   onRenameTagPresetsChange: (next: string[]) => void
 }) {
   return (
-    <Col $gap={14}>
+    <SettingsColumns>
       <SettingsPanel>
         <Col $gap={6}>
           <Label>MKVToolNix</Label>
@@ -119,6 +224,33 @@ export function SettingsView({
       </SettingsPanel>
 
       <SettingsPanel>
+        <SectionTitle>Geral</SectionTitle>
+        <Col $gap={6}>
+          <Label htmlFor="output-folder-name">
+            Nome da subpasta de saida (Transferir/Limpeza)
+          </Label>
+          <Input
+            id="output-folder-name"
+            value={outputFolderName}
+            onChange={(e) => onOutputFolderNameChange(e.target.value)}
+            placeholder="TS - Result"
+          />
+        </Col>
+        <Row $gap={10}>
+          <Checkbox checked={muteSounds} onChange={() => onMuteSoundsChange(!muteSounds)} />
+          <ToggleLabel>Silenciar sons de conclusao/aviso</ToggleLabel>
+        </Row>
+        <Row $gap={8}>
+          <Button type="button" $variant="secondary" onClick={onExportConfig}>
+            <UploadOutlined /> Exportar configuracoes...
+          </Button>
+          <Button type="button" $variant="secondary" onClick={onImportConfig}>
+            <DownloadOutlined /> Importar configuracoes...
+          </Button>
+        </Row>
+      </SettingsPanel>
+
+      <SettingsPanel>
         <SectionTitle>Nome do arquivo de saida</SectionTitle>
         <NamingConfigPanel
           id="tag-word-transfer"
@@ -127,6 +259,13 @@ export function SettingsView({
           onChange={onNamingTransferChange}
         />
         <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
+      </SettingsPanel>
+
+      <SettingsPanel>
+        <SectionTitle>Estado inicial de cada tela</SectionTitle>
+        <TransferDefaultsPanel value={transferDefaults} onChange={onTransferDefaultsChange} />
+        <CleanDefaultsPanel value={cleanDefaults} onChange={onCleanDefaultsChange} />
+        <RenameDefaultsPanel value={renameDefaults} onChange={onRenameDefaultsChange} />
       </SettingsPanel>
 
       <SettingsPanel>
@@ -155,6 +294,6 @@ export function SettingsView({
           <TagListEditor values={renameTagPresets} onChange={onRenameTagPresetsChange} />
         </Col>
       </SettingsPanel>
-    </Col>
+    </SettingsColumns>
   )
 }

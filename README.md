@@ -26,9 +26,12 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 
 ## Funcionalidades
 
-- 🔀 **Cinco páginas** no menu lateral: **Transferir Legenda** (entre pastas de origem/destino),
+- 🔀 **Seis páginas** no menu lateral: **Transferir Legenda** (entre pastas de origem/destino),
   **Limpeza** (trata os arquivos de uma única pasta, sem transferir nada), **Renomeador**,
-  **Histórico** e **Configurações**.
+  **Histórico**, **Log da Sessão** (log bruto de qualquer sessão anterior do app, gravado em disco
+  por sessão) e **Configurações**. O escaneamento de Transferir/Limpeza fica guardado ao trocar de
+  página e volta do jeito que estava; o app também impede abrir uma segunda janela ao mesmo tempo
+  (foca a já aberta).
 - 🎞️ **Modo Filme** — filmes não têm número de episódio pra casar/detectar automaticamente. Um
   alternador **Episódio / Filme** (sempre começa em Episódio) aparece tanto no Transferir Legenda
   quanto no Renomeador: no Transferir, os campos de pasta viram seletor de **arquivo** (origem e
@@ -66,9 +69,21 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
   deve aparecer, ou um deslocamento manual em milissegundos, ou use **Sincronizar** para comparar
   lado a lado a legenda em inglês do destino com a PT-BR da origem, clicar na mesma fala nos dois
   lados e deixar o app calcular o deslocamento — as duas legendas são buscadas em paralelo, então o
-  modal abre bem mais rápido.
+  modal abre bem mais rápido. Funciona também com legendas **de imagem** (PGS/`.sup`, comuns em BDs)
+  quando a faixa em inglês é desse tipo: o app decodifica cada frame e mostra a própria imagem da
+  legenda lado a lado, já que não há texto pra comparar.
+- ⚠️ **Aviso de episódio faltando** — ao escanear uma pasta, se a numeração dos episódios tiver um
+  buraco (ex.: do 01 ao 25, falta o 14), aparece um aviso no log e no sino de notificações — fácil
+  de não perceber só olhando a tabela quando há muitos arquivos.
 - 🔔 **Som de conclusão e de aviso** — toca ao terminar uma transferência/limpeza, e um som diferente
-  quando um escaneamento traz avisos ou episódios sem correspondência pro sino de notificações.
+  quando um escaneamento traz avisos, episódio faltando ou sem correspondência pro sino de
+  notificações.
+- 🔎 **Zoom da interface** — `Ctrl` `+`/`Ctrl` `-`/`Ctrl` `0` aumentam, diminuem e restauram o zoom da
+  janela (padrão 100%, entre 80% e 120%); cada mudança fica registrada no log.
+- 📝 **Log completo** — o painel de log em tela tem botão para limpar e o texto pode ser selecionado/
+  copiado; **todo** erro (inclusive os que só apareceriam num modal, como falha ao preparar a
+  sincronização) também vai para o log. Cada sessão do app fica gravada num arquivo próprio,
+  navegável na página **Log da Sessão** (mais recente primeiro).
 - 🧩 **Não sobrescreve com duplicados** — o resultado é sempre salvo com nome fixo por
   episódio/arquivo; rodar de novo substitui o anterior em vez de criar `(1)`, `(2)`, etc. Em
   Configurações dá pra ligar, por modo, uma marcação extra no final do nome (ex: `[legendado]`/
