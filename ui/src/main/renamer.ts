@@ -2,7 +2,7 @@
 // dos videos de uma pasta, a partir dos 4 campos (ver domain/renamePattern.ts).
 import { existsSync } from 'fs'
 import { basename, dirname, join } from 'path'
-import { findEpisode } from './domain/episodeMatcher'
+import { describeEpisodeGaps, findEpisode } from './domain/episodeMatcher'
 import { buildRenamedName, detectRenameFields, formatSeasonEpisode } from './domain/renamePattern'
 import { renameFile } from './infra/fileRename'
 import { appendTransferLog } from './infra/transferLog'
@@ -66,7 +66,17 @@ export function previewRename(folder: string, fields: RenameFields): RenamePrevi
     : fields
 
   const rows = buildPreviewRows(paths, effectiveFields)
-  return { rows, detected }
+
+  const warnings: string[] = []
+  if (!effectiveFields.movieMode) {
+    const episodeNumbers = paths
+      .map((p) => findEpisode(basename(p))[1])
+      .filter((e): e is number => e !== null)
+    const gaps = describeEpisodeGaps(episodeNumbers)
+    if (gaps) warnings.push(`Pasta: ${gaps}`)
+  }
+
+  return { rows, detected, warnings }
 }
 
 // Reaplica os campos atuais sobre os MESMOS arquivos de uma pre-visualizacao

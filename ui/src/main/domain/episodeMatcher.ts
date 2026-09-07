@@ -99,3 +99,28 @@ export function episodeKey(season: number | null, episode: number | null): strin
   if (season !== null) return `S${String(season).padStart(2, '0')}E${String(episode).padStart(3, '0')}`
   return `E${String(episode).padStart(3, '0')}`
 }
+
+// Detecta "buracos" na sequencia de numeros de episodio de uma pasta (ex: do
+// 01 ao 25, falta o 14) - facil de nao perceber so olhando a tabela quando ha
+// muitos arquivos. So faz sentido com pelo menos 2 numeros diferentes (um
+// unico episodio nao tem sequencia pra comparar).
+export function findEpisodeGaps(episodes: number[]): number[] {
+  const unique = [...new Set(episodes)].sort((a, b) => a - b)
+  if (unique.length < 2) return []
+  const present = new Set(unique)
+  const gaps: number[] = []
+  for (let e = unique[0]; e <= unique[unique.length - 1]; e++) {
+    if (!present.has(e)) gaps.push(e)
+  }
+  return gaps
+}
+
+// Mensagem pronta pra warnings/log a partir de findEpisodeGaps - null quando
+// nao ha nenhum buraco.
+export function describeEpisodeGaps(episodes: number[]): string | null {
+  const gaps = findEpisodeGaps(episodes)
+  if (gaps.length === 0) return null
+  const unique = [...new Set(episodes)].sort((a, b) => a - b)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+  return `possivel episodio faltando entre ${pad(unique[0])} e ${pad(unique[unique.length - 1])}: ${gaps.map(pad).join(', ')}`
+}

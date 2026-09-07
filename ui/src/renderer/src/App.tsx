@@ -369,9 +369,14 @@ function AppContent() {
     }
     await persistConfig({ renameFolder })
     setRenameScanning(true)
+    setScanWarnings([])
+    setUnmatchedSource([])
     try {
-      const { rows: result, detected } = await window.api.previewRename(renameFolder, renameFields)
+      const { rows: result, detected, warnings } = await window.api.previewRename(renameFolder, renameFields)
       setRenameRows(result)
+      setScanWarnings(warnings)
+      if (warnings.length > 0) playWarningSound()
+      warnings.forEach((w) => pushLog(w, 'warn'))
       if (detected) {
         const fansubKnown =
           !detected.fansub || renameFansubPresets.some((p) => p.toLowerCase() === detected.fansub.toLowerCase())

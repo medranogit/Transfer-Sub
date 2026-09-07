@@ -213,6 +213,9 @@ export interface RenamePreviewRow {
 export interface RenamePreviewResult {
   rows: RenamePreviewRow[]
   detected: DetectedRenameFields | null
+  // Ex: "possivel episodio faltando entre 01 e 25: 14" - so calculado fora do
+  // modo filme (que nao tem numero de episodio). Vazio quando nao ha buraco.
+  warnings: string[]
 }
 
 export interface RenameSummary {

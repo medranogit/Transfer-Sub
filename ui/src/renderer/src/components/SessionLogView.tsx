@@ -127,9 +127,13 @@ export function SessionLogView() {
       .finally(() => setLoadingContent(false))
   }, [selectedId])
 
+  // Mais recente primeiro - mais facil de achar o que aconteceu por ultimo
+  // sem rolar ate o fim (diferente do LogPanel da tela, que e ao vivo e faz
+  // sentido crescer pra baixo).
   const lines = content
     .split('\n')
     .filter((line, i, arr) => !(i === arr.length - 1 && line === ''))
+    .reverse()
 
   return (
     <Col $gap={10} style={{ flex: 1, minHeight: 0 }}>

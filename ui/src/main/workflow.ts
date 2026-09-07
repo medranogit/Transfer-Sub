@@ -2,7 +2,7 @@ import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { mkdtemp, readFile, rm } from 'fs/promises'
 import { join, basename, extname, resolve } from 'path'
-import { episodeKey, findEpisode } from './domain/episodeMatcher'
+import { describeEpisodeGaps, episodeKey, findEpisode } from './domain/episodeMatcher'
 import {
   guessPtBrFromContent,
   pickBestTrackIndex,
@@ -189,6 +189,11 @@ export async function scanFolders(
   const sourceByEpisode = indexByEpisode(sourceFiles, 'origem')
   const destByEpisode = indexByEpisode(destFiles, 'destino')
 
+  const sourceGaps = describeEpisodeGaps([...sourceByEpisode.keys()])
+  if (sourceGaps) warnings.push(`Pasta de origem: ${sourceGaps}`)
+  const destGaps = describeEpisodeGaps([...destByEpisode.keys()])
+  if (destGaps) warnings.push(`Pasta de destino: ${destGaps}`)
+
   // Casa pelo numero do episodio; a temporada so desempata quando ha mais de
   // um arquivo com o mesmo numero de um lado (pasta com varias temporadas
   // juntas). Fansubs raramente incluem a temporada no nome do arquivo (ex:
@@ -281,6 +286,8 @@ export async function scanForClean(
     warnings.push(`Nenhum arquivo de video na pasta: ${folder}`)
   }
 
+  const episodeNumbers: number[] = []
+
   for (const file of files) {
     if (token?.aborted) break
 
@@ -293,6 +300,7 @@ export async function scanForClean(
     }
 
     const [season, episode] = findEpisode(basename(file))
+    if (episode !== null) episodeNumbers.push(episode)
     const key = episodeKey(season, episode) ?? basename(file)
 
     rows.push({
@@ -308,6 +316,9 @@ export async function scanForClean(
       manualOffsetText: ''
     })
   }
+
+  const folderGaps = describeEpisodeGaps(episodeNumbers)
+  if (folderGaps) warnings.push(`Pasta: ${folderGaps}`)
 
   const aborted = token?.aborted ?? false
   onLog({
