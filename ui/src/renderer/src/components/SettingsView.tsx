@@ -4,7 +4,13 @@
 // ainda pode mudar a vontade durante a sessao, isso so afeta como a tela
 // comeca) e o nome dado a faixa de legenda quando reconhecida como PT-BR.
 import styled from 'styled-components'
-import { CheckCircleFilled, CloseCircleFilled, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
+import {
+  CheckCircleFilled,
+  CloseCircleFilled,
+  CloudDownloadOutlined,
+  DownloadOutlined,
+  UploadOutlined
+} from '@ant-design/icons'
 import type { CleanDefaults, MkvToolsStatus, NamingConfig, RenameDefaults, TransferDefaults } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Checkbox } from '../ui/Checkbox'
@@ -172,6 +178,7 @@ export function SettingsView({
   onMuteSoundsChange,
   onExportConfig,
   onImportConfig,
+  onCheckForUpdates,
   ptBrTrackName,
   onPtBrTrackNameChange,
   renameFansubPresets,
@@ -197,6 +204,7 @@ export function SettingsView({
   onMuteSoundsChange: (next: boolean) => void
   onExportConfig: () => void
   onImportConfig: () => void
+  onCheckForUpdates: () => void
   ptBrTrackName: string
   onPtBrTrackNameChange: (next: string) => void
   renameFansubPresets: string[]
@@ -245,6 +253,16 @@ export function SettingsView({
             </Button>
             <Button type="button" $variant="secondary" onClick={onImportConfig}>
               <DownloadOutlined /> Importar configuracoes...
+            </Button>
+          </Row>
+          <Row $gap={8}>
+            <Button
+              type="button"
+              $variant="secondary"
+              onClick={onCheckForUpdates}
+              title="So funciona no instalador (.exe) - em modo desenvolvimento nao ha o que comparar"
+            >
+              <CloudDownloadOutlined /> Verificar atualizacoes
             </Button>
           </Row>
         </SettingsPanel>

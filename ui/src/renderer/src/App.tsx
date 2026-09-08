@@ -395,6 +395,12 @@ function AppContent() {
     }
   }
 
+  // O resultado (baixando/atualizado/erro) chega pelo canal 'log' normal
+  // (ver setupAutoUpdater em main/index.ts), nao precisa de retorno aqui.
+  function handleCheckForUpdates() {
+    window.api.checkForUpdates().catch((err) => pushLog(`Erro ao verificar atualizacoes: ${(err as Error).message}`, 'error'))
+  }
+
   function handlePtBrTrackNameChange(next: string) {
     setPtBrTrackName(next)
     persistConfig({ ptBrTrackName: next })
@@ -814,6 +820,7 @@ function AppContent() {
             onMuteSoundsChange={handleMuteSoundsChange}
             onExportConfig={handleExportConfig}
             onImportConfig={handleImportConfig}
+            onCheckForUpdates={handleCheckForUpdates}
             ptBrTrackName={ptBrTrackName}
             onPtBrTrackNameChange={handlePtBrTrackNameChange}
             renameFansubPresets={renameFansubPresets}

@@ -28,6 +28,11 @@ const api = {
 
   chooseFile: (initialPath?: string): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFile', initialPath),
 
+  openFolder: (folderPath: string): Promise<void> => ipcRenderer.invoke('shell:openFolder', folderPath),
+  showItemInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+
+  checkForUpdates: (): Promise<void> => ipcRenderer.invoke('updates:check'),
+
   locateMkvTools: (configuredDir?: string): Promise<MkvToolsStatus> =>
     ipcRenderer.invoke('mkvtools:locate', configuredDir),
   chooseMkvToolsDir: (): Promise<MkvToolsStatus> => ipcRenderer.invoke('mkvtools:chooseDir'),

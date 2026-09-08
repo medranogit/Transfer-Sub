@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { join } from 'path'
 import { exportConfig, importConfig, loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
@@ -115,6 +116,57 @@ function tryLocate(configuredDir?: string): MkvToolsStatus {
   }
 }
 
+function sendLog(level: LogEvent['level'], message: string): void {
+  mainWindow?.webContents.send('log', { level, message })
+}
+
+// Auto-update via GitHub Releases (mesmo publish do electron-builder/
+// release.yml) - so' roda no build empacotado, ja' que em dev nao ha
+// instalador pra comparar contra. Nunca reinicia sozinho: so' oferece via
+// dialog quando a atualizacao ja' esta baixada, entao nunca derruba uma
+// transferencia em andamento sem o usuario mandar.
+let autoUpdaterInitialized = false
+
+function setupAutoUpdater(): void {
+  if (!app.isPackaged || autoUpdaterInitialized) return
+  autoUpdaterInitialized = true
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('checking-for-update', () => sendLog('info', 'Verificando atualizacoes...'))
+  autoUpdater.on('update-not-available', () =>
+    sendLog('info', 'Nenhuma atualizacao disponivel - esta e a versao mais recente.')
+  )
+  autoUpdater.on('update-available', (info) =>
+    sendLog('info', `Atualizacao disponivel: v${info.version} - baixando...`)
+  )
+  autoUpdater.on('error', (err) => sendLog('error', `Falha ao verificar atualizacoes: ${err.message}`))
+  autoUpdater.on('update-downloaded', async (info) => {
+    sendLog('success', `Atualizacao v${info.version} baixada.`)
+    const result = await dialog.showMessageBox(mainWindow!, {
+      type: 'question',
+      buttons: ['Reiniciar agora', 'Depois'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Atualizacao pronta',
+      message: `A versao ${info.version} foi baixada.`,
+      detail:
+        'Reinicie agora pra aplicar, ou continue usando normalmente - a atualizacao e instalada ' +
+        'sozinha na proxima vez que voce fechar o app.'
+    })
+    if (result.response === 0) autoUpdater.quitAndInstall()
+  })
+
+  checkForUpdates()
+}
+
+function checkForUpdates(): void {
+  autoUpdater
+    .checkForUpdates()
+    .catch((err) => sendLog('error', `Falha ao verificar atualizacoes: ${(err as Error).message}`))
+}
+
 if (gotSingleInstanceLock) {
 app.whenReady().then(() => {
   ipcMain.handle('config:load', (): AppConfig => loadConfig())
@@ -194,6 +246,19 @@ app.whenReady().then(() => {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
+  })
+
+  // Botao "abrir pasta" ao lado de "Procurar..." nos campos de pasta/arquivo -
+  // abre no Explorer em vez de dentro do app. openFolder abre a pasta em si;
+  // showItemInFolder (campos de arquivo, modo Filme) abre a pasta MAE com o
+  // arquivo ja selecionado. Ignora silenciosamente caminho vazio/inexistente
+  // (shell.openPath ja devolve string de erro nesse caso, sem lancar).
+  ipcMain.handle('shell:openFolder', (_e, folderPath: string) => {
+    if (folderPath) shell.openPath(folderPath)
+  })
+
+  ipcMain.handle('shell:showItemInFolder', (_e, filePath: string) => {
+    if (filePath) shell.showItemInFolder(filePath)
   })
 
   ipcMain.handle('mkvtools:locate', (_e, configuredDir?: string) => tryLocate(configuredDir))
@@ -409,7 +474,18 @@ app.whenReady().then(() => {
     )
   })
 
+  // Verificacao manual (botao em Configuracoes) - a automatica ja roda
+  // sozinha ao abrir (ver setupAutoUpdater).
+  ipcMain.handle('updates:check', () => {
+    if (!app.isPackaged) {
+      sendLog('info', 'Verificacao de atualizacoes desativada em modo desenvolvimento.')
+      return
+    }
+    checkForUpdates()
+  })
+
   createWindow()
+  setupAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

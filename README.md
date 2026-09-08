@@ -72,7 +72,8 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
   lados e deixar o app calcular o deslocamento — as duas legendas são buscadas em paralelo, então o
   modal abre bem mais rápido. Funciona também com legendas **de imagem** (PGS/`.sup`, comuns em BDs)
   quando a faixa em inglês é desse tipo: o app decodifica cada frame e mostra a própria imagem da
-  legenda lado a lado, já que não há texto pra comparar.
+  legenda lado a lado, já que não há texto pra comparar. Cada coluna do modal tem um campo de busca
+  (aperte **Enter** pra filtrar — não filtra a cada tecla, pra não travar com legendas grandes).
 - ⚠️ **Aviso de episódio faltando** — ao escanear uma pasta, se a numeração dos episódios tiver um
   buraco (ex.: do 01 ao 25, falta o 14), aparece um aviso no log e no sino de notificações — fácil
   de não perceber só olhando a tabela quando há muitos arquivos.
@@ -98,6 +99,11 @@ extraindo e remuxando cada faixa, é tedioso. O Transfer Sub faz isso em lote.
 - 💾 **Exportar/Importar configurações** — leva todas as configurações (pastas, predefinições, nome
   da faixa PT-BR, presets do Renomeador...) para outra máquina ou guarda um backup manual, como um
   arquivo `.json`.
+- 📂 **Abrir no Explorer** — cada campo de pasta/arquivo tem um botão ao lado de "Procurar..." pra
+  abrir a pasta (ou revelar o arquivo) direto no Explorer do Windows.
+- 🔄 **Atualização automática** — a versão instalada (`.exe`) verifica sozinha se há uma versão nova
+  publicada no GitHub, baixa em segundo plano e pergunta se quer reiniciar agora ou depois — nunca
+  reinicia sozinho.
 - 📊 Log colorido em tempo real (info/sucesso/aviso/erro) e histórico salvo em
   `transfer-log.json`.
 

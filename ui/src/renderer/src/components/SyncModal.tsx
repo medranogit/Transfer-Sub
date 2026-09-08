@@ -110,6 +110,23 @@ const ColumnHeader = styled.div<{ $accent: string }>`
   color: ${(p) => p.$accent};
 `
 
+const FilterInput = styled.input`
+  background: ${(p) => p.theme.colors.panelAlt};
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.sm};
+  padding: 5px 8px;
+  font-size: 12px;
+  color: ${(p) => p.theme.colors.text};
+
+  &::placeholder {
+    color: ${(p) => p.theme.colors.textFaint};
+  }
+
+  &:focus {
+    border-color: ${(p) => p.theme.colors.accent};
+  }
+`
+
 const ColumnList = styled.div`
   height: 360px;
   overflow-y: auto;
@@ -193,6 +210,13 @@ export function SyncModal({
   const [loadingEnEvents, setLoadingEnEvents] = useState(false)
   const [selectedEnIndex, setSelectedEnIndex] = useState<number | null>(null)
   const [selectedPtIndex, setSelectedPtIndex] = useState<number | null>(null)
+  // O texto do campo (atualiza a cada tecla) fica separado do filtro
+  // realmente aplicado (so' muda ao apertar Enter) - filtrar a cada tecla
+  // digitada fica lento com muitas falas na lista.
+  const [enFilterInput, setEnFilterInput] = useState('')
+  const [enFilter, setEnFilter] = useState('')
+  const [ptFilterInput, setPtFilterInput] = useState('')
+  const [ptFilter, setPtFilter] = useState('')
 
   useEscapeToClose(onClose)
 
@@ -247,6 +271,20 @@ export function SyncModal({
   const selectedEn = selectedEnIndex !== null ? enEvents[selectedEnIndex] : null
   const selectedPt = selectedPtIndex !== null ? ptEvents[selectedPtIndex] : null
   const offsetMs = selectedEn && selectedPt ? selectedEn.startMs - selectedPt.startMs : null
+
+  // Guarda o indice original (no array completo) junto de cada item filtrado -
+  // a selecao (selectedEnIndex/selectedPtIndex) e o calculo de deslocamento
+  // dependem desse indice bater com enEvents/ptEvents, nao com a lista
+  // filtrada exibida.
+  function filterEvents(events: SubtitleEvent[], filter: string): { evt: SubtitleEvent; i: number }[] {
+    const needle = filter.trim().toLowerCase()
+    return events
+      .map((evt, i) => ({ evt, i }))
+      .filter(({ evt }) => !needle || evt.text.toLowerCase().includes(needle))
+  }
+
+  const enEventsFiltered = filterEvents(enEvents, enFilter)
+  const ptEventsFiltered = filterEvents(ptEvents, ptFilter)
 
   const enTrack = destTracks.find((t) => t.trackId === enTrackId)
   const enTrackUnsupported = enTrack !== undefined && !canSyncTrack(enTrack.codecId)
@@ -326,11 +364,22 @@ export function SyncModal({
               <>
                 <ColumnsRow>
                   <Column>
-                    <ColumnHeader $accent={theme.colors.info}>Ingles ({enEvents.length})</ColumnHeader>
+                    <ColumnHeader $accent={theme.colors.info}>
+                      Ingles ({enFilter ? `${enEventsFiltered.length}/${enEvents.length}` : enEvents.length})
+                    </ColumnHeader>
+                    <FilterInput
+                      type="text"
+                      placeholder="Filtrar (Enter para pesquisar)..."
+                      value={enFilterInput}
+                      onChange={(e) => setEnFilterInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setEnFilter(enFilterInput)
+                      }}
+                    />
                     <ColumnList>
                       {loadingEnEvents && <div style={{ padding: 10 }}>Carregando...</div>}
                       {!loadingEnEvents &&
-                        enEvents.map((evt, i) => (
+                        enEventsFiltered.map(({ evt, i }) => (
                           <ColumnItem
                             key={i}
                             type="button"
@@ -350,9 +399,20 @@ export function SyncModal({
                   </Column>
 
                   <Column>
-                    <ColumnHeader $accent={theme.colors.success}>PT-BR ({ptEvents.length})</ColumnHeader>
+                    <ColumnHeader $accent={theme.colors.success}>
+                      PT-BR ({ptFilter ? `${ptEventsFiltered.length}/${ptEvents.length}` : ptEvents.length})
+                    </ColumnHeader>
+                    <FilterInput
+                      type="text"
+                      placeholder="Filtrar (Enter para pesquisar)..."
+                      value={ptFilterInput}
+                      onChange={(e) => setPtFilterInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') setPtFilter(ptFilterInput)
+                      }}
+                    />
                     <ColumnList>
-                      {ptEvents.map((evt, i) => (
+                      {ptEventsFiltered.map(({ evt, i }) => (
                         <ColumnItem
                           key={i}
                           type="button"

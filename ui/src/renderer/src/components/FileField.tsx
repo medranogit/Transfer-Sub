@@ -1,3 +1,4 @@
+import { FolderOpenOutlined } from '@ant-design/icons'
 import { Button, Input, Label, Row } from '../ui/primitives'
 
 export function FileField({
@@ -24,6 +25,15 @@ export function FileField({
       <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="C:\...\arquivo.mkv" disabled={disabled} />
       <Button $variant="secondary" onClick={browse} disabled={disabled}>
         Procurar...
+      </Button>
+      <Button
+        type="button"
+        $variant="ghost"
+        onClick={() => window.api.showItemInFolder(value)}
+        disabled={disabled || !value}
+        title="Mostrar este arquivo no Explorer"
+      >
+        <FolderOpenOutlined />
       </Button>
     </Row>
   )

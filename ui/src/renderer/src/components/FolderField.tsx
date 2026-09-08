@@ -1,3 +1,4 @@
+import { FolderOpenOutlined } from '@ant-design/icons'
 import { Button, Input, Label, Row } from '../ui/primitives'
 
 export function FolderField({
@@ -28,6 +29,15 @@ export function FolderField({
       <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder="C:\..." disabled={disabled} />
       <Button $variant="secondary" onClick={browse} disabled={disabled}>
         Procurar...
+      </Button>
+      <Button
+        type="button"
+        $variant="ghost"
+        onClick={() => window.api.openFolder(value)}
+        disabled={disabled || !value}
+        title="Abrir esta pasta no Explorer"
+      >
+        <FolderOpenOutlined />
       </Button>
     </Row>
   )

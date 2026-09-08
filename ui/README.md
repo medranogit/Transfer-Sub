@@ -171,6 +171,28 @@ git tag v2.3.0
 git push origin v2.3.0
 ```
 
+A release sai como **rascunho (Draft)** — comportamento padrão do
+`electron-builder` quando `build.publish.draft` não é definido — de
+propósito, pra dar chance de conferir os assets/notas antes de publicar de
+verdade (**GitHub → Releases → editar a release → "Publish release"**).
+Enquanto estiver em rascunho ela não conta como "Latest" nem é enxergada pelo
+auto-update (ver seção abaixo), que só olha releases já publicadas.
+
+### Auto-update
+
+`src/main/index.ts:setupAutoUpdater` usa `electron-updater` (pacote
+irmão do `electron-builder`, mesma config `build.publish`) pra checar
+sozinho, ao abrir o app empacotado (`app.isPackaged` — não roda em
+`npm run dev`, não há instalador pra comparar), se existe uma release mais
+nova publicada no GitHub. Se tiver, baixa em segundo plano; quando termina de
+baixar, um `dialog.showMessageBox` pergunta "Reiniciar agora" ou "Depois" —
+**nunca reinicia sozinho**, pra não derrubar uma transferência em andamento.
+Escolhendo "Depois", a atualização é aplicada sozinha da próxima vez que o
+app for fechado (`autoInstallOnAppQuit`). Cada etapa (verificando, baixando,
+sem atualização, erro) também vira uma linha no log, igual o resto do app.
+Também dá pra disparar manualmente pelo botão **Verificar atualizações** em
+Configurações → Geral (IPC `updates:check`).
+
 ## Seleção automática de legenda em PT-BR
 
 A função `isPtBrTrack` em `src/main/domain/subtitleLanguage.ts` marca uma
@@ -204,6 +226,16 @@ origem (fansubs sempre embutem as delas). Sem levar essas fontes junto, a
 legenda transferida perde a formatação porque o player cai numa fonte
 genérica. `transferRows` copia os attachments do arquivo de origem para o
 final via `--attach-file`/`--attachment-name`/`--attachment-mime-type`.
+
+## Abrir pasta/arquivo no Explorer
+
+Todo campo de pasta (`FolderField.tsx`) e de arquivo (`FileField.tsx`, modo
+Filme) tem um botão com ícone de pasta ao lado de "Procurar...", desabilitado
+quando o campo está vazio. Campo de pasta abre a pasta em si
+(`shell.openPath`, IPC `shell:openFolder`); campo de arquivo abre a pasta MÃE
+com o arquivo já selecionado (`shell.showItemInFolder`, IPC
+`shell:showItemInFolder`) — os dois via `electron`'s `shell`, chamado só do
+processo principal (o preload só expõe o `invoke`).
 
 ## Nome e idioma da faixa transferida
 
@@ -268,6 +300,13 @@ fica limitado pela mais lenta, não pela soma das duas.
 
 Qualquer valor calculado vira um `--sync` no `mkvmerge` para deslocar toda a
 legenda. Deixe todos os campos em branco para manter o timing original.
+
+Cada coluna tem um campo de filtro por texto (case-insensitive) - filtra so'
+ao apertar **Enter**, nao a cada tecla digitada, ja' que recalcular a lista
+inteira em tempo real fica perceptivelmente lento em episodios com muitas
+falas. O indice original de cada evento (usado pela selecao e pelo calculo de
+deslocamento) e' preservado mesmo com a lista filtrada - `filterEvents` em
+`SyncModal.tsx` devolve pares `{ evt, i }` em vez de reindexar.
 
 ![Modal de sincronização, com as duas colunas de legenda lado a lado](../docs/sync-modal.png)
 
@@ -562,6 +601,9 @@ presets do Renomeador), agora tem:
   Importar sempre mescla sobre os valores padrão (mesmo esquema do
   `loadConfig`), então um arquivo exportado de uma versão mais antiga (sem
   algum campo novo) continua carregando sem quebrar.
+- **Verificar atualizações** — dispara manualmente a mesma checagem que roda
+  sozinha ao abrir o app (ver "Auto-update" em "Build / instalador");
+  desabilitado em `npm run dev` (sem instalador pra comparar).
 
 `config.json` fica em `app.getPath('userData')` (fora da pasta de instalação
 do app) — sobrevive normalmente a atualizações/reinstalações, já que o
