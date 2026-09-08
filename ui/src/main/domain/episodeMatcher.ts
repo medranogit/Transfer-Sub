@@ -76,11 +76,25 @@ function matchFallbackNumber(name: string): EpisodeMatch | null {
   return { season: null, episode: parseInt(last[1], 10), matchStart: last.index!, matchEnd: last.index! + last[0].length }
 }
 
+// Fansubs que usam "_" como separador em vez de espaco/ponto/traco (ex:
+// "Accel_World_-_01_[Blu-Ray_1280x720]") quebravam TODOS os patterns acima:
+// "_" conta como caractere de palavra pro \b e pro (?<!\w)/(?!\w) do regex,
+// entao um numero ou termo de ruido colado a "_" dos dois lados (ex: "_01_",
+// "_1280x720_") ficava "grudado numa palavra" e nenhuma fronteira batia -
+// nem o episodio nem o ruido (resolucao/bit depth) eram reconhecidos.
+// Troca "_" por espaco antes de qualquer match - 1 caractere por 1 caractere,
+// entao matchStart/matchEnd calculados em cima do nome normalizado continuam
+// batendo com o nome ORIGINAL (usado pelo Renomeador pra cortar o nome).
+function normalizeSeparators(name: string): string {
+  return name.replace(/_/g, ' ')
+}
+
 // Tenta os EPISODE_PATTERNS primeiro (mais especificos, tem temporada); so
 // cai no fallback quando nenhum bate.
 function matchEpisode(name: string): EpisodeMatch | null {
-  if (NON_EPISODE_TOKENS.test(name)) return null
-  return matchEpisodePatterns(name) ?? matchFallbackNumber(name)
+  const normalized = normalizeSeparators(name)
+  if (NON_EPISODE_TOKENS.test(normalized)) return null
+  return matchEpisodePatterns(normalized) ?? matchFallbackNumber(normalized)
 }
 
 // Igual findEpisode, mas devolve tambem onde o episodio foi encontrado no

@@ -16,6 +16,21 @@ export interface RenameResult {
 // Fansub original quase sempre marca o nome com "[Tag]" no inicio.
 const FANSUB_TAG = /^\[([^\]]+)\]/
 
+// Fansubs que usam "_" como separador (ex: "Accel_World_-_01_[...]") deixavam
+// o nome/tags detectados cheios de "_" literal (o "_" so e' normalizado pra
+// espaco dentro de episodeMatcher, pra fins de casamento - o texto aqui
+// ainda vem do nome ORIGINAL). Normaliza espacos/underscore e tira
+// separador solto (espaco/traco) das pontas so' nos campos DETECTADOS -
+// o nome do arquivo em si nao muda.
+function cleanDetectedText(text: string): string {
+  return text
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^-+\s*|\s*-+$/g, '')
+    .trim()
+}
+
 // Formato usado no nome gerado (2 digitos - ex: "S01E05") - diferente do
 // episodeKey() de episodeMatcher.ts (3 digitos no episodio), que serve pro
 // casamento origem/destino, nao pra exibicao aqui.
@@ -80,16 +95,10 @@ export function detectRenameFields(originalFileName: string): DetectedRenameFiel
   let tags = ''
   if (episodeMatch) {
     const cutPoint = episodeMatch.matchStart - fansubLen
-    animeName = afterFansub
-      .slice(0, Math.max(0, cutPoint))
-      .trim()
-      .replace(/[-\s]+$/, '')
+    animeName = cleanDetectedText(afterFansub.slice(0, Math.max(0, cutPoint)))
 
     const tagsStart = episodeMatch.matchEnd - fansubLen
-    tags = afterFansub
-      .slice(Math.max(0, tagsStart))
-      .trim()
-      .replace(/^[-\s]+/, '')
+    tags = cleanDetectedText(afterFansub.slice(Math.max(0, tagsStart)))
   }
 
   return { fansub, animeName, season, tags }
