@@ -61,7 +61,7 @@ const Title = styled.h1`
 
 const VIEW_TITLES: Record<ViewId, string> = {
   transfer: 'Transferir Legenda',
-  clean: 'Limpeza',
+  clean: 'Editar Arquivo',
   rename: 'Renomeador',
   history: 'Historico',
   sessionLog: 'Log da Sessao',
@@ -429,7 +429,7 @@ function AppContent() {
     }
     if (cleanOnly) {
       if (!destDir) {
-        pushLog('Selecione a pasta com os arquivos a limpar.', 'error')
+        pushLog('Selecione a pasta com os arquivos a processar.', 'error')
         return
       }
     } else if (movieMode) {

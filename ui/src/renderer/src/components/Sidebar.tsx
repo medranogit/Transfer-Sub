@@ -4,8 +4,8 @@
 import type { ReactNode } from 'react'
 import styled from 'styled-components'
 import {
-  ClearOutlined,
   EditOutlined,
+  FileSyncOutlined,
   FileTextOutlined,
   HistoryOutlined,
   SettingOutlined,
@@ -17,7 +17,7 @@ export type ViewId = 'transfer' | 'clean' | 'rename' | 'history' | 'sessionLog' 
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: ReactNode }[] = [
   { id: 'transfer', label: 'Transferir Legenda', icon: <SwapOutlined /> },
-  { id: 'clean', label: 'Limpeza', icon: <ClearOutlined /> },
+  { id: 'clean', label: 'Editar Arquivo', icon: <FileSyncOutlined /> },
   { id: 'rename', label: 'Renomeador', icon: <EditOutlined /> },
   { id: 'history', label: 'Historico', icon: <HistoryOutlined /> },
   { id: 'sessionLog', label: 'Log da Sessao', icon: <FileTextOutlined /> },

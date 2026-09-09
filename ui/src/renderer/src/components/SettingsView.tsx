@@ -130,7 +130,7 @@ function CleanDefaultsPanel({
 }) {
   return (
     <Col $gap={10}>
-      <Label>Limpeza - Predefinicao Padrao</Label>
+      <Label>Editar Arquivo - Predefinicao Padrao</Label>
       <Row $gap={10}>
         <Checkbox
           checked={value.removeEnglishAudio}
@@ -235,7 +235,7 @@ export function SettingsView({
         <SettingsPanel>
           <SectionTitle>Geral</SectionTitle>
           <Col $gap={6}>
-            <Label htmlFor="output-folder-name">Nome da subpasta de saida (Transferir/Limpeza)</Label>
+            <Label htmlFor="output-folder-name">Nome da subpasta de saida (Transferir/Editar Arquivo)</Label>
             <Input
               id="output-folder-name"
               value={outputFolderName}
@@ -284,7 +284,7 @@ export function SettingsView({
             value={namingTransfer}
             onChange={onNamingTransferChange}
           />
-          <NamingConfigPanel id="tag-word-clean" title="Limpeza" value={namingClean} onChange={onNamingCleanChange} />
+          <NamingConfigPanel id="tag-word-clean" title="Editar Arquivo" value={namingClean} onChange={onNamingCleanChange} />
         </SettingsPanel>
 
         <SettingsPanel>

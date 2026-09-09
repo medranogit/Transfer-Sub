@@ -192,10 +192,10 @@ export function WorkflowView({
             <Button onClick={onTransfer} disabled={transferring || rows.length === 0}>
               {transferring
                 ? cleanOnly
-                  ? 'Limpando...'
+                  ? 'Processando...'
                   : 'Transferindo...'
                 : cleanOnly
-                  ? 'Limpar selecionados'
+                  ? 'Processar selecionados'
                   : 'Transferir selecionados'}
             </Button>
             {(transferring || scanning) && (

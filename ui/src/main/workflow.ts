@@ -745,8 +745,8 @@ export async function cleanRows(
   onLog({
     level: aborted ? 'warn' : failed ? 'warn' : 'success',
     message: aborted
-      ? `Limpeza abortada: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
-      : `Limpeza concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+      ? `Processamento abortado: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
+      : `Processamento concluido: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 
   return { total, success, failed, aborted }

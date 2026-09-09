@@ -33,7 +33,7 @@ function adjustmentLabel(entry: TransferLogEntry): string {
 
 const KIND_LABELS: Record<NonNullable<TransferLogEntry['kind']>, string> = {
   transfer: 'Transferir Legenda',
-  clean: 'Limpeza',
+  clean: 'Editar Arquivo',
   rename: 'Renomeador'
 }
 
