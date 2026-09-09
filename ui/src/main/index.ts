@@ -103,7 +103,12 @@ function sendLog(level: LogEvent['level'], message: string): void {
   mainWindow?.webContents.send('log', { level, message })
 }
 
+function sendNotification(message: string): void {
+  mainWindow?.webContents.send('notification', message)
+}
+
 let autoUpdaterInitialized = false
+let manualUpdateCheckPending = false
 
 function setupAutoUpdater(): void {
   if (!app.isPackaged || autoUpdaterInitialized) return
@@ -113,13 +118,21 @@ function setupAutoUpdater(): void {
   autoUpdater.autoInstallOnAppQuit = true
 
   autoUpdater.on('checking-for-update', () => sendLog('info', 'Verificando atualizacoes...'))
-  autoUpdater.on('update-not-available', () =>
+  autoUpdater.on('update-not-available', () => {
     sendLog('info', 'Nenhuma atualizacao disponivel - esta e a versao mais recente.')
-  )
-  autoUpdater.on('update-available', (info) =>
+    if (manualUpdateCheckPending) {
+      sendNotification('Nenhuma atualizacao disponivel - voce ja esta na versao mais recente.')
+      manualUpdateCheckPending = false
+    }
+  })
+  autoUpdater.on('update-available', (info) => {
     sendLog('info', `Atualizacao disponivel: v${info.version} - baixando...`)
-  )
-  autoUpdater.on('error', (err) => sendLog('error', `Falha ao verificar atualizacoes: ${err.message}`))
+    manualUpdateCheckPending = false
+  })
+  autoUpdater.on('error', (err) => {
+    sendLog('error', `Falha ao verificar atualizacoes: ${err.message}`)
+    manualUpdateCheckPending = false
+  })
   autoUpdater.on('update-downloaded', async (info) => {
     sendLog('success', `Atualizacao v${info.version} baixada.`)
     const result = await dialog.showMessageBox(mainWindow!, {
@@ -439,6 +452,7 @@ app.whenReady().then(() => {
       sendLog('info', 'Verificacao de atualizacoes desativada em modo desenvolvimento.')
       return
     }
+    manualUpdateCheckPending = true
     checkForUpdates()
   })
 

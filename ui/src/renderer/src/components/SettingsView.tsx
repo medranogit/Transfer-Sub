@@ -245,8 +245,6 @@ export function SettingsView({
             <Button type="button" $variant="secondary" onClick={onImportConfig}>
               <DownloadOutlined /> Importar configuracoes...
             </Button>
-          </Row>
-          <Row $gap={8}>
             <Button
               type="button"
               $variant="secondary"

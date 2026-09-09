@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import styled from 'styled-components'
-import { BellOutlined } from '@ant-design/icons'
+import { BellOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useEscapeToClose } from '../utils/useEscapeToClose'
 
 const Wrap = styled.div`
@@ -73,14 +73,41 @@ const GroupTitle = styled.div`
 `
 
 const Item = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   color: ${(p) => p.theme.colors.text};
   padding: 6px 8px;
   border-radius: ${(p) => p.theme.radius.sm};
-  word-break: break-word;
 
   &:hover {
     background: ${(p) => p.theme.colors.panelAlt};
+  }
+`
+
+const ItemText = styled.span`
+  flex: 1;
+  word-break: break-word;
+`
+
+const DismissButton = styled.button`
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: ${(p) => p.theme.radius.sm};
+  background: transparent;
+  color: ${(p) => p.theme.colors.textMuted};
+  cursor: pointer;
+  font-size: 12px;
+
+  &:hover {
+    background: ${(p) => p.theme.colors.panel};
+    color: ${(p) => p.theme.colors.danger};
   }
 `
 
@@ -91,15 +118,15 @@ const EmptyState = styled.div`
   font-size: 12px;
 `
 
-export function NotificationsMenu({
-  warnings,
-  unmatchedSource
-}: {
-  warnings: string[]
-  unmatchedSource: string[]
-}) {
+export interface NotificationGroup {
+  title: string
+  items: string[]
+  onDismiss: (index: number) => void
+}
+
+export function NotificationsMenu({ groups }: { groups: NotificationGroup[] }) {
   const [open, setOpen] = useState(false)
-  const total = warnings.length + unmatchedSource.length
+  const total = groups.reduce((sum, g) => sum + g.items.length, 0)
 
   useEscapeToClose(() => setOpen(false))
 
@@ -113,26 +140,28 @@ export function NotificationsMenu({
         <>
           <Overlay onClick={() => setOpen(false)} />
           <Panel onClick={(e) => e.stopPropagation()}>
-            {total === 0 && <EmptyState>Nenhum alerta no ultimo escaneamento.</EmptyState>}
-            {unmatchedSource.length > 0 && (
-              <>
-                <GroupTitle>Sem correspondencia no destino ({unmatchedSource.length})</GroupTitle>
-                {unmatchedSource.map((name, i) => (
-                  <Item key={i} title={name}>
-                    {name}
-                  </Item>
-                ))}
-              </>
-            )}
-            {warnings.length > 0 && (
-              <>
-                <GroupTitle>Avisos do escaneamento ({warnings.length})</GroupTitle>
-                {warnings.map((w, i) => (
-                  <Item key={i} title={w}>
-                    {w}
-                  </Item>
-                ))}
-              </>
+            {total === 0 && <EmptyState>Nenhuma notificacao.</EmptyState>}
+            {groups.map(
+              (group) =>
+                group.items.length > 0 && (
+                  <div key={group.title}>
+                    <GroupTitle>
+                      {group.title} ({group.items.length})
+                    </GroupTitle>
+                    {group.items.map((item, i) => (
+                      <Item key={i} title={item}>
+                        <ItemText>{item}</ItemText>
+                        <DismissButton
+                          type="button"
+                          onClick={() => group.onDismiss(i)}
+                          title="Remover notificacao"
+                        >
+                          <DeleteOutlined />
+                        </DismissButton>
+                      </Item>
+                    ))}
+                  </div>
+                )
             )}
           </Panel>
         </>

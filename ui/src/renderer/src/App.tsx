@@ -90,6 +90,7 @@ function AppContent() {
   const [logs, setLogs] = useState<LogEvent[]>([])
   const [scanWarnings, setScanWarnings] = useState<string[]>([])
   const [unmatchedSource, setUnmatchedSource] = useState<string[]>([])
+  const [updateNotifications, setUpdateNotifications] = useState<string[]>([])
   const [transferSnapshot, setTransferSnapshot] = useState<WorkflowSnapshot | null>(null)
   const [cleanSnapshot, setCleanSnapshot] = useState<WorkflowSnapshot | null>(null)
 
@@ -182,9 +183,13 @@ function AppContent() {
     const offProgress = window.api.onTransferProgress(({ rowId, status }) => {
       setStatuses((prev) => ({ ...prev, [rowId]: status }))
     })
+    const offNotification = window.api.onNotification((message) => {
+      setUpdateNotifications((prev) => [...prev, message])
+    })
     return () => {
       offLog()
       offProgress()
+      offNotification()
     }
   }, [])
 
@@ -665,7 +670,25 @@ function AppContent() {
       <MainArea>
         <Header>
           <Title>{VIEW_TITLES[view]}</Title>
-          <NotificationsMenu warnings={scanWarnings} unmatchedSource={unmatchedSource} />
+          <NotificationsMenu
+            groups={[
+              {
+                title: 'Sem correspondencia no destino',
+                items: unmatchedSource,
+                onDismiss: (i) => setUnmatchedSource((prev) => prev.filter((_, idx) => idx !== i))
+              },
+              {
+                title: 'Avisos do escaneamento',
+                items: scanWarnings,
+                onDismiss: (i) => setScanWarnings((prev) => prev.filter((_, idx) => idx !== i))
+              },
+              {
+                title: 'Atualizacoes',
+                items: updateNotifications,
+                onDismiss: (i) => setUpdateNotifications((prev) => prev.filter((_, idx) => idx !== i))
+              }
+            ]}
+          />
         </Header>
 
         {(view === 'transfer' || view === 'clean') && (

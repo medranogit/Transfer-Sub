@@ -87,6 +87,12 @@ const api = {
     return () => ipcRenderer.removeListener('log', listener)
   },
 
+  onNotification: (callback: (message: string) => void): (() => void) => {
+    const listener = (_e: unknown, message: string): void => callback(message)
+    ipcRenderer.on('notification', listener)
+    return () => ipcRenderer.removeListener('notification', listener)
+  },
+
   onTransferProgress: (callback: (event: TransferProgressEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: TransferProgressEvent): void => callback(payload)
     ipcRenderer.on('transfer:progress', listener)
