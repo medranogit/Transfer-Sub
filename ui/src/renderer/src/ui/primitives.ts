@@ -1,5 +1,3 @@
-// Primitivas genericas de UI (sem regra de negocio) reaproveitadas por
-// varios componentes do app.
 import styled, { css } from 'styled-components'
 
 export const Panel = styled.div`

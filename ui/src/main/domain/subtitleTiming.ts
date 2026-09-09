@@ -1,7 +1,3 @@
-// Regras de dominio: converter texto de timecode ("MM:SS,mmm" ou
-// "H:MM:SS,mmm") em milissegundos, encontrar o instante da primeira legenda
-// num arquivo .ass/.ssa/.srt e formatar milissegundos de volta em texto.
-// Nenhuma dependencia de I/O.
 import type { SubtitleEvent } from '@shared/types'
 import { stripSubtitleMarkup } from './subtitleLanguage'
 
@@ -36,8 +32,6 @@ export function formatMsAsTimeCode(ms: number): string {
 const ASS_DIALOGUE_START = /^Dialogue:\s*\d+,(\d+):(\d{2}):(\d{2})\.(\d{2})/gm
 const SRT_TIMESTAMP = /(\d{2}):(\d{2}):(\d{2}),(\d{3})/g
 
-// Encontra o menor timestamp entre todos os eventos do arquivo de legenda -
-// ou seja, o instante em que a primeira legenda aparece.
 export function parseFirstEventStartMs(content: string, extension: string): number | null {
   const timesMs: number[] = []
 
@@ -79,9 +73,6 @@ function parseSrtEvents(content: string): SubtitleEvent[] {
   return events
 }
 
-// Um evento "Dialogue:" do ASS/SSA tem 10 campos separados por virgula, mas
-// o ultimo (Text) pode conter virgulas - por isso so dividimos os 9
-// primeiros e deixamos o resto inteiro como texto.
 function splitAssFields(rest: string): string[] {
   const parts: string[] = []
   let idx = 0
@@ -115,9 +106,6 @@ function parseAssEvents(content: string): SubtitleEvent[] {
   return events
 }
 
-// Extrai todas as falas (timestamp + texto limpo) de uma legenda, ordenadas
-// por tempo - usado pela tela de auto-sync manual (escolher visualmente a
-// "mesma fala" em ingles e ptbr).
 export function parseSubtitleEvents(content: string, extension: string): SubtitleEvent[] {
   const events = extension === '.srt' ? parseSrtEvents(content) : parseAssEvents(content)
   return events.sort((a, b) => a.startMs - b.startMs)

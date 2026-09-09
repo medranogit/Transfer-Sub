@@ -1,17 +1,3 @@
-// Regras de dominio: decodificar um arquivo de legenda PGS (.sup, formato
-// "S_HDMV/PGS" do Matroska - legenda de imagem comum em releases de
-// Blu-ray) em uma lista de eventos com timestamp + a propria imagem da
-// legenda (PNG, como data URL) - usado pela tela de auto-sync manual quando
-// a faixa de referencia nao tem texto codificado pra comparar (ver
-// subtitleTiming.ts, usado pro caso ASS/SSA/SRT). Nenhuma dependencia de
-// I/O - so transforma o buffer ja extraido pelo mkvextract.
-//
-// Formato PGS (documentado publicamente, ex: especificacao "Blu-ray Disc
-// Read-Only Format" / paginas da comunidade tipo "PGS subtitle format"):
-// sequencia de segmentos, cada um com header de 13 bytes (magic "PG",
-// PTS/DTS de 4 bytes cada, tipo, tamanho) seguido dos dados do segmento.
-// So os 4 tipos usados aqui: PDS (paleta), ODS (bitmap RLE), PCS
-// (composicao - quando/qual objeto mostrar) e END (fim do "display set").
 import { deflateSync } from 'zlib'
 import type { SubtitleEvent } from '@shared/types'
 
@@ -41,12 +27,6 @@ interface Composition {
   height: number
 }
 
-// Maior canvas de composicao que o PGS suporta e 1920x1080 - um objeto
-// isolado nunca excede isso. Serve so pra descartar um objeto obviamente
-// corrompido (leitura desalinhada) antes de tentar alocar um bitmap gigante
-// pra ele - sem isso, um unico frame malformado (ex: um display set com 2
-// objetos de composicao simultaneos, onde so o primeiro era rastreado)
-// travava ou derrubava a extracao do episodio inteiro.
 const MAX_OBJECT_PIXELS = 1920 * 1080
 
 interface DecodedImage {
@@ -57,9 +37,6 @@ interface DecodedImage {
   palette: Map<number, PaletteEntry>
 }
 
-// Conversao YCbCr -> RGB (BT.601, faixa completa) - precisao broadcast exata
-// nao importa aqui, e so pra gerar uma miniatura legivel; texto de legenda
-// e proximo de branco/preto, onde qualquer formula razoavel bate certo.
 function ycbcrToRgb(y: number, cr: number, cb: number): [number, number, number] {
   const r = y + 1.402 * (cr - 128)
   const g = y - 0.344136 * (cb - 128) - 0.714136 * (cr - 128)
@@ -68,10 +45,6 @@ function ycbcrToRgb(y: number, cr: number, cb: number): [number, number, number]
   return [clamp(r), clamp(g), clamp(b)]
 }
 
-// RLE dos bitmaps PGS: cada byte != 0 e um pixel isolado (indice de cor =
-// o proprio byte); byte 0x00 introduz uma run (0x00 0x00 = fim de linha,
-// os outros 3 casos codificam comprimento/cor conforme os 2 bits mais altos
-// do 2o byte - ver os 4 ramos abaixo).
 function decodeRle(data: Buffer, width: number, height: number): Uint8Array {
   const pixels = new Uint8Array(width * height)
   let p = 0
@@ -118,28 +91,23 @@ function decodeRle(data: Buffer, width: number, height: number): Uint8Array {
 function decodeImages(buffer: Buffer): DecodedImage[] {
   const images: DecodedImage[] = []
   let offset = 0
-  // Um "display set" pode ter mais de um objeto de composicao ao mesmo tempo
-  // (ex: legenda + um efeito separado) - cada um com seu proprio stream de
-  // segmentos ODS (as vezes intercalados). Precisa rastrear por object_id,
-  // nao um unico "objeto atual", senao o segundo objeto acaba lendo o
-  // cabecalho (largura/altura) na posicao errada.
   const pendingObjects = new Map<number, PendingObject>()
   let currentPalette: Map<number, PaletteEntry> | null = null
   let currentComposition: Composition | null = null
 
   while (offset + 13 <= buffer.length) {
-    if (buffer[offset] !== 0x50 || buffer[offset + 1] !== 0x47) break // magic "PG"
+    if (buffer[offset] !== 0x50 || buffer[offset + 1] !== 0x47) break 
 
     const pts = buffer.readUInt32BE(offset + 2)
     const segType = buffer[offset + 10]
     const segSize = buffer.readUInt16BE(offset + 11)
     const dataStart = offset + 13
     const data = buffer.subarray(dataStart, dataStart + segSize)
-    const startMs = Math.round(pts / 90) // PTS e um clock de 90kHz
+    const startMs = Math.round(pts / 90) 
 
     if (segType === SEG_PDS) {
       const palette = new Map<number, PaletteEntry>()
-      let i = 2 // pula palette_id + palette_version
+      let i = 2 
       while (i + 5 <= data.length) {
         const idx = data[i]
         const [r, g, b] = ycbcrToRgb(data[i + 1], data[i + 2], data[i + 3])
@@ -153,22 +121,14 @@ function decodeImages(buffer: Buffer): DecodedImage[] {
       const first = (seqFlag & 0x40) !== 0
       const last = (seqFlag & 0x80) !== 0
       if (first) {
-        // Bytes 4-6: tamanho total do RLE (3 bytes, ignorado - so usamos os
-        // proprios bytes recebidos). 7-8: largura, 9-10: altura.
         const width = data.readUInt16BE(7)
         const height = data.readUInt16BE(9)
-        // Descarta objeto com dimensao maior que o canvas maximo do PGS -
-        // sinal de leitura desalinhada (ver comentario de MAX_OBJECT_PIXELS),
-        // nao um bitmap real.
         if (width * height <= MAX_OBJECT_PIXELS) {
           pendingObjects.set(objectId, { width, height, chunks: [Buffer.from(data.subarray(11))] })
         } else {
           pendingObjects.delete(objectId)
         }
       } else {
-        // Continuacao de um objeto grande (varios segmentos ODS) - sem
-        // repetir o cabecalho, so mais bytes de RLE. Se nao ha objeto
-        // pendente com esse id (stream truncado/fora de ordem), ignora.
         pendingObjects.get(objectId)?.chunks.push(Buffer.from(data))
       }
       if (last) {
@@ -180,13 +140,10 @@ function decodeImages(buffer: Buffer): DecodedImage[] {
             currentComposition.width = pending.width
             currentComposition.height = pending.height
           } catch {
-            // Bitmap malformado - so pula esse frame, nao trava o resto.
           }
         }
       }
     } else if (segType === SEG_PCS) {
-      // Byte 10: numero de composition objects. Quando 0, este "display set"
-      // e so um "limpa a tela" (sem imagem nova) - ignorado.
       const numComposition = data[10]
       currentComposition =
         numComposition > 0
@@ -211,8 +168,6 @@ function decodeImages(buffer: Buffer): DecodedImage[] {
   return images
 }
 
-// --- Encoder PNG minimo (RGBA, sem filtro por linha, so o necessario pra
-// gerar uma imagem que o <img> da UI consiga exibir) ---
 const CRC_TABLE = (() => {
   const table = new Uint32Array(256)
   for (let n = 0; n < 256; n++) {
@@ -243,7 +198,7 @@ function encodePng(image: DecodedImage): Buffer {
   const raw = Buffer.alloc(height * (1 + width * 4))
   let pos = 0
   for (let y = 0; y < height; y++) {
-    raw[pos++] = 0 // filtro "None"
+    raw[pos++] = 0 
     for (let x = 0; x < width; x++) {
       const entry = palette.get(pixels[y * width + x]) ?? { r: 0, g: 0, b: 0, a: 0 }
       raw[pos++] = entry.r
@@ -256,8 +211,8 @@ function encodePng(image: DecodedImage): Buffer {
   const ihdr = Buffer.alloc(13)
   ihdr.writeUInt32BE(width, 0)
   ihdr.writeUInt32BE(height, 4)
-  ihdr[8] = 8 // bit depth
-  ihdr[9] = 6 // color type RGBA
+  ihdr[8] = 8 
+  ihdr[9] = 6 
 
   const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
   return Buffer.concat([
@@ -268,11 +223,6 @@ function encodePng(image: DecodedImage): Buffer {
   ])
 }
 
-// Decodifica um .sup (PGS) inteiro em eventos prontos pra tela de auto-sync -
-// mesmo formato (SubtitleEvent) usado pelas legendas de texto, so que com
-// imageDataUrl no lugar de text. Uma imagem individual que falhar ao
-// codificar (bitmap malformado que passou pelas checagens acima) e so
-// pulada - nao derruba a extracao do episodio inteiro.
 export function parsePgsSubtitle(buffer: Buffer): SubtitleEvent[] {
   const events: SubtitleEvent[] = []
   for (const image of decodeImages(buffer).sort((a, b) => a.startMs - b.startMs)) {
@@ -283,7 +233,6 @@ export function parsePgsSubtitle(buffer: Buffer): SubtitleEvent[] {
         imageDataUrl: `data:image/png;base64,${encodePng(image).toString('base64')}`
       })
     } catch {
-      // pula essa imagem
     }
   }
   return events

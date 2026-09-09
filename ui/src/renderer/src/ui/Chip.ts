@@ -1,7 +1,3 @@
-// Chip de alternancia (on/off) generico e reaproveitavel - fica verde quando
-// ativo, neutro quando nao. Usado para as opcoes de configuracao (remover
-// dublagem, limpar legendas extras etc.) e preparado pra crescer com mais
-// opcoes no futuro (quebra linha sozinho via flex-wrap).
 import styled from 'styled-components'
 
 export const ChipRow = styled.div`

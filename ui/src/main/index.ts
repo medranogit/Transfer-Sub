@@ -27,15 +27,9 @@ import type {
   TransferRequest
 } from '@shared/types'
 
-// Tamanho inicial da janela do app - ajuste aqui.
 const WINDOW_WIDTH = 1750
 const WINDOW_HEIGHT = 1000
 
-// Escala inicial da interface (1 = 100%, igual o zoom de navegador) - o
-// Ctrl+/Ctrl-/Ctrl+0 do app (ver useZoomShortcuts no renderer) ajusta isso
-// via zoom:in/out/reset, sem persistir entre sessoes. Limitado a 2 passos
-// pra cima e 2 pra baixo do padrao - alem disso a interface comeca a
-// quebrar (fontes gigantes ou ilegiveis demais).
 const DEFAULT_ZOOM_FACTOR = 1
 const ZOOM_STEP = 0.1
 const MAX_ZOOM_STEPS = 2
@@ -43,15 +37,8 @@ const MIN_ZOOM_FACTOR = DEFAULT_ZOOM_FACTOR - ZOOM_STEP * MAX_ZOOM_STEPS
 const MAX_ZOOM_FACTOR = DEFAULT_ZOOM_FACTOR + ZOOM_STEP * MAX_ZOOM_STEPS
 
 let mainWindow: BrowserWindow | null = null
-// So uma transferencia/limpeza roda por vez (o botao fica desabilitado
-// enquanto isso) - guarda o token da operacao atual pro botao "Abortar".
 let activeToken: CancellationToken | null = null
 
-// So uma instancia do app por vez - abrir um segundo .exe enquanto o
-// primeiro ja esta rodando poderia gerar dois processos mexendo nos mesmos
-// arquivos (mkvpropedit, config.json, transfer-log.json) ao mesmo tempo.
-// A 2a instancia perde a corrida, nao ganha janela propria, e so foca a
-// janela da 1a antes de sair.
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
@@ -73,8 +60,6 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     backgroundColor: '#14151a',
-    // Empacotado, o icone ja vem embutido no .exe (build.win.icon); em
-    // desenvolvimento nao ha .exe, entao precisa apontar pro arquivo direto.
     icon: is_dev() ? join(__dirname, '../../build/icon.ico') : undefined,
     title: `Transfer Sub - v${app.getVersion()}`,
     webPreferences: {
@@ -86,8 +71,6 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => mainWindow?.show())
   mainWindow.webContents.setZoomFactor(DEFAULT_ZOOM_FACTOR)
 
-  // O React seta document.title (via index.html) e isso sobrescreveria o
-  // titulo com a versao definido acima assim que a pagina carrega.
   mainWindow.on('page-title-updated', (event) => event.preventDefault())
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -120,11 +103,6 @@ function sendLog(level: LogEvent['level'], message: string): void {
   mainWindow?.webContents.send('log', { level, message })
 }
 
-// Auto-update via GitHub Releases (mesmo publish do electron-builder/
-// release.yml) - so' roda no build empacotado, ja' que em dev nao ha
-// instalador pra comparar contra. Nunca reinicia sozinho: so' oferece via
-// dialog quando a atualizacao ja' esta baixada, entao nunca derruba uma
-// transferencia em andamento sem o usuario mandar.
 let autoUpdaterInitialized = false
 
 function setupAutoUpdater(): void {
@@ -172,9 +150,6 @@ app.whenReady().then(() => {
   ipcMain.handle('config:load', (): AppConfig => loadConfig())
   ipcMain.handle('config:save', (_e, config: AppConfig) => saveConfig(config))
 
-  // Exportar/Importar configuracoes (Configuracoes) - arquivo .json a parte
-  // do config.json interno, pra levar as configuracoes pra outra maquina ou
-  // guardar um backup manual.
   ipcMain.handle('config:export', async (): Promise<boolean> => {
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: 'Exportar configuracoes',
@@ -200,11 +175,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // Zoom da janela (Ctrl+/Ctrl-/Ctrl+0) - Electron nao vincula esses atalhos
-  // sozinho sem um menu de aplicativo (este app roda com autoHideMenuBar e
-  // sem menu customizado), entao o renderer escuta o teclado e chama esses
-  // 3 handlers, que so ajustam o zoomFactor real da BrowserWindow. Devolve o
-  // novo fator pro renderer poder mostrar no log (ver App.tsx).
   ipcMain.handle('zoom:in', (): number => {
     const wc = mainWindow?.webContents
     if (!wc) return DEFAULT_ZOOM_FACTOR
@@ -233,8 +203,6 @@ app.whenReady().then(() => {
     return result.filePaths[0]
   })
 
-  // Modo filme: escolhe um arquivo de video especifico em vez de uma pasta
-  // inteira (nao ha varios episodios pra escanear).
   ipcMain.handle('dialog:chooseFile', async (_e, initialPath?: string) => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile'],
@@ -248,11 +216,6 @@ app.whenReady().then(() => {
     return result.filePaths[0]
   })
 
-  // Botao "abrir pasta" ao lado de "Procurar..." nos campos de pasta/arquivo -
-  // abre no Explorer em vez de dentro do app. openFolder abre a pasta em si;
-  // showItemInFolder (campos de arquivo, modo Filme) abre a pasta MAE com o
-  // arquivo ja selecionado. Ignora silenciosamente caminho vazio/inexistente
-  // (shell.openPath ja devolve string de erro nesse caso, sem lancar).
   ipcMain.handle('shell:openFolder', (_e, folderPath: string) => {
     if (folderPath) shell.openPath(folderPath)
   })
@@ -404,10 +367,6 @@ app.whenReady().then(() => {
   ipcMain.handle('transferLog:load', () => loadTransferLog())
   ipcMain.handle('transferLog:clear', () => clearTransferLog())
 
-  // A UI e a unica origem de LogEvent (tanto os despachados pelo processo
-  // principal via canal 'log' quanto os gerados localmente na renderer, ex:
-  // validacoes) - ela reenvia cada um pra ca assim que aparece na tela, o
-  // que garante que o .txt da sessao bate exatamente com o que foi exibido.
   ipcMain.handle('sessionLog:append', (_e, entry: LogEvent) => appendSessionLog(entry))
   ipcMain.handle('sessionLog:list', () => listSessionLogs())
   ipcMain.handle('sessionLog:read', (_e, id: string) => readSessionLog(id))
@@ -475,8 +434,6 @@ app.whenReady().then(() => {
     )
   })
 
-  // Verificacao manual (botao em Configuracoes) - a automatica ja roda
-  // sozinha ao abrir (ver setupAutoUpdater).
   ipcMain.handle('updates:check', () => {
     if (!app.isPackaged) {
       sendLog('info', 'Verificacao de atualizacoes desativada em modo desenvolvimento.')

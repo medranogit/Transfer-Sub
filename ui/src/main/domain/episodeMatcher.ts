@@ -1,43 +1,23 @@
-// Regras de dominio: identificar (temporada, episodio) a partir de um nome
-// de arquivo. Nenhuma dependencia de I/O — puramente funcoes de texto.
 import { parse } from 'path'
 
 const NOISE_TOKENS =
   /\[[0-9A-Fa-f]{8}\]|\b\d{3,4}x\d{3,4}\b|\b(2160|1080|720|480|360)p?\b|\b[xh]\.?26[45]\b|\bhevc\b|\bavc\b|\b(flac|aac|ac3|dts|opus)\b|\b(bdrip|bd|webrip|web-?dl|remux|hdtv)\b|\b\d{1,2}bit\b|\b(dual|multi)[\s._-]?audio\b/gi
 
 const EPISODE_PATTERNS: RegExp[] = [
-  /[Ss](\d{1,2})[Ee](\d{1,3})/, // S01E05
-  /\b(\d{1,2})[xX](\d{1,3})\b/, // 1x05
-  /\bEp(?:isod[ei]o?|isode)?\.?\s*(\d{1,3})\b/i, // Episodio 05 / Ep 05
-  /\bE(\d{1,3})\b/ // E05
+  /[Ss](\d{1,2})[Ee](\d{1,3})/, 
+  /\b(\d{1,2})[xX](\d{1,3})\b/, 
+  /\bEp(?:isod[ei]o?|isode)?\.?\s*(\d{1,3})\b/i, 
+  /\bE(\d{1,3})\b/ 
 ]
 
-// Numero isolado - nem colado a outro digito NEM a uma letra (\w cobre os
-// dois). So checar "nao colado a outro digito" deixava passar coisas como
-// "Top3" (titulo de episodio terminando em numero): o "3" ali nao tem digito
-// vizinho, mas tem a letra "p" colada antes - nao e um numero de episodio,
-// e o antigo regex pegava ele por engano quando aparecia depois do numero
-// real (ex: "Blue Lock - 013 - Top3" virava episodio 3 em vez de 13, porque
-// o fallback usa o ULTIMO numero isolado que encontrar).
 const FALLBACK_NUMBER = /(?<!\w)(\d{1,3})(?!\w)/g
 
-// Arquivos de abertura/encerramento/extras tem um numero no nome (ex:
-// "Opening 2.mkv", "NCED 1.mkv") que o fallback acima confundiria com numero
-// de episodio - colidindo com o episodio real de mesmo numero (ex: episodio
-// 02 e "Ending 2" cairiam no mesmo balde em scanFolders, quebrando o
-// pareamento 1-para-1 quando a temporada nao e detectavel dos dois lados).
-// Tratados como "sem episodio identificado" em vez de participar do
-// pareamento por numero.
 const NON_EPISODE_TOKENS =
   /\b(nced|ncop|opening|ending|creditless|special|specials|ova|oad|pv|trailer|teaser)\b/i
 
 export interface EpisodeMatch {
   season: number | null
   episode: number
-  // Posicao do match dentro do nome (sem extensao) - usado pelo Renomeador
-  // pra cortar o nome do anime antes da marcacao de episodio. Disponivel
-  // tanto quando um EPISODE_PATTERNS bateu direto quanto no fallback (ver
-  // stripNoise abaixo pra como isso fica confiavel nos dois casos).
   matchStart: number
   matchEnd: number
 }
@@ -54,19 +34,10 @@ function matchEpisodePatterns(name: string): EpisodeMatch | null {
   return null
 }
 
-// Troca cada trecho de ruido (resolucao, codec, crc...) por espacos do MESMO
-// tamanho, em vez de colapsar tudo num unico espaco - assim qualquer numero
-// que sobrar depois da limpeza mantem a mesma posicao que tinha no nome
-// ORIGINAL, permitindo ao fallback abaixo tambem reportar matchStart/matchEnd
-// utilizavel (antes so os EPISODE_PATTERNS tinham posicao confiavel).
 function stripNoise(name: string): string {
   return name.replace(NOISE_TOKENS, (token) => ' '.repeat(token.length))
 }
 
-// Fallback: pega o ULTIMO numero isolado (nem colado a outro digito nem a
-// uma letra) que sobrar depois de limpar ruido conhecido - comum em releases
-// de anime que numeram o episodio sem nenhuma marcacao tipo "E01" (ex:
-// "Erased - 01.mkv").
 function matchFallbackNumber(name: string): EpisodeMatch | null {
   const cleaned = stripNoise(name)
   const matches = [...cleaned.matchAll(FALLBACK_NUMBER)]
@@ -76,29 +47,16 @@ function matchFallbackNumber(name: string): EpisodeMatch | null {
   return { season: null, episode: parseInt(last[1], 10), matchStart: last.index!, matchEnd: last.index! + last[0].length }
 }
 
-// Fansubs que usam "_" como separador em vez de espaco/ponto/traco (ex:
-// "Accel_World_-_01_[Blu-Ray_1280x720]") quebravam TODOS os patterns acima:
-// "_" conta como caractere de palavra pro \b e pro (?<!\w)/(?!\w) do regex,
-// entao um numero ou termo de ruido colado a "_" dos dois lados (ex: "_01_",
-// "_1280x720_") ficava "grudado numa palavra" e nenhuma fronteira batia -
-// nem o episodio nem o ruido (resolucao/bit depth) eram reconhecidos.
-// Troca "_" por espaco antes de qualquer match - 1 caractere por 1 caractere,
-// entao matchStart/matchEnd calculados em cima do nome normalizado continuam
-// batendo com o nome ORIGINAL (usado pelo Renomeador pra cortar o nome).
 function normalizeSeparators(name: string): string {
   return name.replace(/_/g, ' ')
 }
 
-// Tenta os EPISODE_PATTERNS primeiro (mais especificos, tem temporada); so
-// cai no fallback quando nenhum bate.
 function matchEpisode(name: string): EpisodeMatch | null {
   const normalized = normalizeSeparators(name)
   if (NON_EPISODE_TOKENS.test(normalized)) return null
   return matchEpisodePatterns(normalized) ?? matchFallbackNumber(normalized)
 }
 
-// Igual findEpisode, mas devolve tambem onde o episodio foi encontrado no
-// nome - usado pelo Renomeador pra cortar o nome do anime antes dessa marcacao.
 export function findEpisodeMatch(filename: string): EpisodeMatch | null {
   return matchEpisode(parse(filename).name)
 }
@@ -114,10 +72,6 @@ export function episodeKey(season: number | null, episode: number | null): strin
   return `E${String(episode).padStart(3, '0')}`
 }
 
-// Detecta "buracos" na sequencia de numeros de episodio de uma pasta (ex: do
-// 01 ao 25, falta o 14) - facil de nao perceber so olhando a tabela quando ha
-// muitos arquivos. So faz sentido com pelo menos 2 numeros diferentes (um
-// unico episodio nao tem sequencia pra comparar).
 export function findEpisodeGaps(episodes: number[]): number[] {
   const unique = [...new Set(episodes)].sort((a, b) => a - b)
   if (unique.length < 2) return []
@@ -129,8 +83,6 @@ export function findEpisodeGaps(episodes: number[]): number[] {
   return gaps
 }
 
-// Mensagem pronta pra warnings/log a partir de findEpisodeGaps - null quando
-// nao ha nenhum buraco.
 export function describeEpisodeGaps(episodes: number[]): string | null {
   const gaps = findEpisodeGaps(episodes)
   if (gaps.length === 0) return null

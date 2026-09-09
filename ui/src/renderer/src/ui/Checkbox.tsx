@@ -1,6 +1,3 @@
-// Checkbox customizado (o nativo do navegador fica minusculo e sem estilo no
-// tema escuro) - input real escondido por cima de uma caixinha estilizada,
-// pra manter acessibilidade (foco por teclado, leitor de tela) intacta.
 import styled from 'styled-components'
 import { CheckOutlined } from '@ant-design/icons'
 

@@ -1,5 +1,3 @@
-// Toque minimalista de conclusao (dois tons curtos em sequencia), gerado via
-// Web Audio API - evita depender de um arquivo de audio embutido no app.
 export function playCompletionSound(): void {
   try {
     const ctx = new AudioContext()
@@ -22,6 +20,5 @@ export function playCompletionSound(): void {
     })
     setTimeout(() => ctx.close(), 500)
   } catch {
-    // ambiente sem suporte a Web Audio - ignora, som e so um extra
   }
 }

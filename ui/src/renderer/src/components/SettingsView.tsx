@@ -1,8 +1,3 @@
-// Pagina de configuracoes - MKVToolNix (status + localizar), marcacao livre
-// no final do nome de saida (uma config por modo), o estado inicial dos
-// alternadores/chips de cada tela (Transferir/Limpeza/Renomeador - o usuario
-// ainda pode mudar a vontade durante a sessao, isso so afeta como a tela
-// comeca) e o nome dado a faixa de legenda quando reconhecida como PT-BR.
 import styled from 'styled-components'
 import {
   CheckCircleFilled,
@@ -17,10 +12,6 @@ import { Checkbox } from '../ui/Checkbox'
 import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { TagListEditor } from '../ui/TagListEditor'
 
-// Grid com 2 colunas explicitas (em vez de column-count, que balanceia a
-// altura sozinho e pode mudar qual painel cai em qual coluna conforme o
-// conteudo cresce) - cada painel e atribuido a uma coluna fixa no JSX abaixo,
-// entao a posicao nao muda de lugar sozinha.
 const SettingsGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;

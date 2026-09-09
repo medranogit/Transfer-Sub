@@ -29,9 +29,6 @@ import { ConfirmDialog } from './ui/ConfirmDialog'
 import { playCompletionSound } from './utils/completionSound'
 import { playWarningSound } from './utils/warningSound'
 
-// ---------------------------------------------------------------------------
-// Layout - especifico desta tela, sem uso fora daqui.
-// ---------------------------------------------------------------------------
 
 const Shell = styled.div`
   height: 100%;
@@ -68,8 +65,6 @@ const VIEW_TITLES: Record<ViewId, string> = {
   settings: 'Configuracoes'
 }
 
-// Snapshot do resultado de um scan (Transferir ou Limpeza) - ver
-// transferSnapshot/cleanSnapshot em AppContent.
 interface WorkflowSnapshot {
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
@@ -84,12 +79,6 @@ function AppContent() {
   const [sourceDir, setSourceDir] = useState('')
   const [destDir, setDestDir] = useState('')
   const [outputDir, setOutputDir] = useState('')
-  // Modo Filme (so no Transferir Legenda): filmes nao tem numero de episodio
-  // pra parear automaticamente por pasta, entao o usuario escolhe os dois
-  // arquivos direto em vez de pastas inteiras. O estado em si nao e
-  // persistido durante a sessao (so o valor DEFAULT ao abrir o app, vindo de
-  // config.transferDefaults - configuravel em Configuracoes), assim como os
-  // ultimos arquivos escolhidos.
   const [movieMode, setMovieMode] = useState(false)
   const [movieSourceFile, setMovieSourceFile] = useState('')
   const [movieDestFile, setMovieDestFile] = useState('')
@@ -101,20 +90,12 @@ function AppContent() {
   const [logs, setLogs] = useState<LogEvent[]>([])
   const [scanWarnings, setScanWarnings] = useState<string[]>([])
   const [unmatchedSource, setUnmatchedSource] = useState<string[]>([])
-  // Guarda o ultimo scan de cada modo (Transferir/Limpeza) enquanto o
-  // usuario esta no outro - sem isso, trocar de aba e voltar perderia a
-  // tabela escaneada (os dois modos compartilham os mesmos estados acima).
   const [transferSnapshot, setTransferSnapshot] = useState<WorkflowSnapshot | null>(null)
   const [cleanSnapshot, setCleanSnapshot] = useState<WorkflowSnapshot | null>(null)
 
   const [scanning, setScanning] = useState(false)
   const [transferring, setTransferring] = useState(false)
   const [aborting, setAborting] = useState(false)
-  // Remover dublagem/Limpar legendas extras sao por tela (Transferir e
-  // Limpeza NAO compartilham o mesmo valor, diferente de rows/statuses/...) -
-  // cada par comeca no valor configurado em Configuracoes (transferDefaults/
-  // cleanDefaults) e so o par da tela ativa e exibido/alterado (ver
-  // removeEnglishAudio/onToggleRemoveEnglishAudio abaixo).
   const [transferRemoveEnglishAudio, setTransferRemoveEnglishAudio] = useState(true)
   const [transferRemoveExtraSubtitles, setTransferRemoveExtraSubtitles] = useState(false)
   const [cleanRemoveEnglishAudio, setCleanRemoveEnglishAudio] = useState(true)
@@ -128,8 +109,6 @@ function AppContent() {
     tagEnabled: false,
     tagWord: 'limpo'
   })
-  // Config editada na pagina Configuracoes (o DEFAULT aplicado aos estados
-  // acima ao abrir o app - ver useEffect de loadConfig).
   const [transferDefaults, setTransferDefaults] = useState<TransferDefaults>({
     movieMode: false,
     removeEnglishAudio: true,
@@ -154,16 +133,11 @@ function AppContent() {
   const [renameRows, setRenameRows] = useState<RenamePreviewRow[]>([])
   const [renameScanning, setRenameScanning] = useState(false)
   const [renameUpdating, setRenameUpdating] = useState(false)
-  // Fansub detectada no escaneamento que ainda nao esta na lista conhecida -
-  // preenchida so enquanto o modal de confirmacao esta aberto perguntando se
-  // adiciona a lista e aplica no campo (ver handleRenameScan).
   const [pendingFansub, setPendingFansub] = useState<DetectedRenameFields | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [renamingTracks, setRenamingTracks] = useState(false)
 
   const cleanOnly = view === 'clean'
-  // A tela ativa decide qual dos dois pares fica visivel/editavel - ver
-  // comentario acima de transferRemoveEnglishAudio.
   const removeEnglishAudio = cleanOnly ? cleanRemoveEnglishAudio : transferRemoveEnglishAudio
   const removeExtraSubtitles = transferRemoveExtraSubtitles
 
@@ -176,10 +150,6 @@ function AppContent() {
     setTransferRemoveExtraSubtitles((v) => !v)
   }
 
-  // Aplica um AppConfig inteiro a todos os estados que vem dele - usado tanto
-  // no carregamento inicial (useEffect abaixo) quanto ao importar
-  // configuracoes de um arquivo (handleImportConfig), pra nao duplicar essa
-  // lista em dois lugares.
   function applyConfig(config: AppConfig): void {
     setSourceDir(config.sourceDir)
     setDestDir(config.destDir)
@@ -222,8 +192,6 @@ function AppContent() {
     pushLog(`Zoom da tela: ${Math.round(factor * 100)}%`)
   }
 
-  // Ctrl/Cmd +/-/0 pra ajustar o zoom da janela - Electron nao vincula isso
-  // sozinho sem um menu de aplicativo (ver zoom:in/out/reset em main/index.ts).
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
       if (!e.ctrlKey && !e.metaKey) return
@@ -240,14 +208,8 @@ function AppContent() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Unico ponto que adiciona ao log em tela (main via canal 'log', ou
-  // renderer via pushLog) - tambem reenvia pro processo principal gravar no
-  // .txt da sessao atual (ver infra/sessionLog.ts), garantindo que o arquivo
-  // bate exatamente com o que foi exibido, sem duplicar logica em dois
-  // lugares.
   function addLog(event: LogEvent): void {
     setLogs((prev) => [...prev, event])
     window.api.appendSessionLog(event).catch(() => {})
@@ -261,16 +223,6 @@ function AppContent() {
     setLogs([])
   }
 
-  // Com um escaneamento/transferencia/limpeza em andamento a Sidebar ja
-  // desabilita todo o resto (so a aba ativa fica clicavel) - essa checagem e
-  // so uma segunda camada de protecao. Transferir Legenda e Limpeza
-  // compartilham os mesmos estados (rows/statuses/...) porque so um dos dois
-  // fica visivel por vez - guarda o scan de QUALQUER modo ao sair dele e
-  // restaura ao entrar de novo nele, mesmo que o caminho passe por outras
-  // abas no meio (rename/historico/config/etc) - antes isso so acontecia
-  // numa troca DIRETA entre os dois modos, entao ir por uma 3a aba no meio
-  // perdia o scan (o snapshot nunca era salvo, ou era restaurado de um
-  // snapshot errado).
   function handleNavigate(next: ViewId) {
     if (next === view) return
     if (scanning || transferring) return
@@ -343,9 +295,6 @@ function AppContent() {
     persistConfig({ namingClean: next })
   }
 
-  // Muda tanto o valor DEFAULT (persistido, vale a partir da proxima vez que
-  // a tela abrir) quanto o estado ao vivo da tela agora mesmo - senao mudar
-  // aqui pareceria nao ter feito nada ate reiniciar o app.
   function handleTransferDefaultsChange(next: TransferDefaults) {
     setTransferDefaults(next)
     setMovieMode(next.movieMode)
@@ -395,8 +344,6 @@ function AppContent() {
     }
   }
 
-  // O resultado (baixando/atualizado/erro) chega pelo canal 'log' normal
-  // (ver setupAutoUpdater em main/index.ts), nao precisa de retorno aqui.
   function handleCheckForUpdates() {
     window.api.checkForUpdates().catch((err) => pushLog(`Erro ao verificar atualizacoes: ${(err as Error).message}`, 'error'))
   }
@@ -441,9 +388,6 @@ function AppContent() {
       pushLog('Selecione as pastas de origem e destino.', 'error')
       return
     }
-    // Sem pasta de saida definida, cai na pasta do destino - no modo filme
-    // isso e a pasta que contem o arquivo de destino, ja que nao ha uma
-    // "pasta de destino" escolhida separadamente.
     const fallbackOutput = movieMode ? movieDestFile.replace(/[\\/][^\\/]+$/, '') : destDir
     const effectiveOutput = outputDir || fallbackOutput
     if (!outputDir) setOutputDir(effectiveOutput)
@@ -578,9 +522,6 @@ function AppContent() {
     }
   }
 
-  // So mexe no metadado da faixa (nome + idioma) de arquivos .mkv/.webm ja
-  // escaneados - nao muda o nome do arquivo, entao (diferente de
-  // handleRenameApply) nao limpa renameRows no final.
   async function handleRenameTracks() {
     const targets = renameRows.filter((r) => /\.(mkv|webm)$/i.test(r.originalName)).map((r) => r.originalPath)
     if (targets.length === 0) {
@@ -605,9 +546,6 @@ function AppContent() {
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, selectedTrackId: trackId } : r)))
   }
 
-  // So no modo Limpar: copia a faixa escolhida na 1a linha pras demais, pra
-  // evitar selecionar a mesma faixa manualmente episodio por episodio
-  // quando todos vem do mesmo release (mesma estrutura de faixas).
   function handleApplyTrackToAll() {
     const template = rows[0]?.selectedTrackId ?? null
     setRows((prev) =>
@@ -645,11 +583,6 @@ function AppContent() {
     if (row) pushLog(`[${row.episodeKey}] deslocamento de ${offsetMs}ms aplicado via auto-sync`, 'success')
   }
 
-  // Selecionar uma linha marca a intencao de (re)processa-la agora - se ela
-  // ainda carregava um status 'done'/'error' de uma transferencia anterior
-  // nesta mesma sessao, isso deixava a % de progresso ja alta so por causa
-  // de linhas que nem entraram nesta leva, dando a falsa impressao de que a
-  // transferencia pulou o arquivo (sem pular - o mkvmerge sempre sobrescreve).
   function selectRows(nextIds: Set<string>) {
     const added = [...nextIds].filter((id) => !selectedIds.has(id))
     setSelectedIds(nextIds)

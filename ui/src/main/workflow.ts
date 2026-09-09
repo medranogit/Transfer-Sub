@@ -50,19 +50,10 @@ import type {
 
 type LogFn = (event: LogEvent) => void
 
-// mkvmerge nao suporta ler e escrever no mesmo arquivo ao mesmo tempo - sem
-// nenhuma marcacao no nome (tag desligada), apontar a pasta de saida pra
-// mesma pasta de origem/destino faria o output bater com o proprio arquivo
-// de entrada. Comparacao normalizada (resolve + minusculo) pois no Windows
-// o path nao diferencia maiusculas/minusculas.
 function samePath(a: string, b: string): boolean {
   return resolve(a).toLowerCase() === resolve(b).toLowerCase()
 }
 
-// Quando nenhuma faixa foi reconhecida como PT-BR por idioma/nome, tenta
-// como ultimo recurso extrair cada faixa e olhar o proprio texto - fansubs
-// as vezes rotulam a faixa com o idioma errado. Para no primeiro palpite
-// positivo para nao gastar tempo extraindo faixas a mais.
 async function tagPtBrGuesses(
   mkvextractPath: string,
   sourcePath: string,
@@ -86,7 +77,6 @@ async function tagPtBrGuesses(
           break
         }
       } catch {
-        // faixa nao pode ser extraida/lida - ignora e tenta a proxima
       }
     }
   } finally {
@@ -94,11 +84,6 @@ async function tagPtBrGuesses(
   }
 }
 
-// Monta uma linha (sondagem de faixas + deteccao/palpite de PT-BR + escolha
-// da faixa padrao) pra um par origem/destino ja definido - reaproveitada
-// tanto pelo pareamento automatico por episodio (scanFolders) quanto pelo
-// modo filme (scanMovie, que ja recebe os dois arquivos escolhidos direto,
-// sem precisar identificar numero de episodio).
 async function buildEpisodeRow(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -153,10 +138,6 @@ export async function scanFolders(
 
   const warnings: string[] = []
 
-  // listVideoFiles devolve [] silenciosamente tanto pra pasta vazia quanto
-  // pra pasta inexistente - sem isso, uma pasta com caminho desatualizado
-  // (ex: renomeada depois de selecionada) fazia todo mundo da origem cair
-  // em "sem correspondencia no destino" sem nenhuma pista do motivo real.
   if (!existsSync(sourceDir)) {
     warnings.push(`Pasta de origem nao encontrada: ${sourceDir}`)
   } else if (sourceFiles.length === 0) {
@@ -196,12 +177,6 @@ export async function scanFolders(
   const destGaps = describeEpisodeGaps([...destByEpisode.keys()])
   if (destGaps) warnings.push(`Pasta de destino: ${destGaps}`)
 
-  // Casa pelo numero do episodio; a temporada so desempata quando ha mais de
-  // um arquivo com o mesmo numero de um lado (pasta com varias temporadas
-  // juntas). Fansubs raramente incluem a temporada no nome do arquivo (ex:
-  // "Nome - 01.mkv"), enquanto bibliotecas organizadas costumam usar
-  // "Nome - S01E01.mkv" - exigir que os dois lados concordassem em
-  // temporada deixava de casar episodios legitimos como esse.
   function pickPair(sourceCandidates: Candidate[], destCandidates: Candidate[]): [Candidate, Candidate] | null {
     if (sourceCandidates.length === 1 && destCandidates.length === 1) {
       return [sourceCandidates[0], destCandidates[0]]
@@ -248,12 +223,6 @@ export async function scanFolders(
   return { rows, warnings, unmatchedSource, aborted }
 }
 
-// Modo "filme": filmes nao tem numero de episodio pra parear automaticamente
-// (scanFolders exigiria isso e so geraria avisos de "nao identifiquei
-// episodio"), entao aqui o usuario ja escolhe direto os dois arquivos - o de
-// origem (com a legenda ptbr) e o de destino (sem legenda) - e o app monta
-// uma unica linha pra esse par, reaproveitando a mesma logica de
-// sondagem/deteccao de faixa PT-BR do pareamento automatico.
 export async function scanMovie(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -267,11 +236,6 @@ export async function scanMovie(
   return { rows: [row], warnings: [], unmatchedSource: [], aborted: false }
 }
 
-// Modo "apenas limpar": nao ha par origem/destino, cada arquivo da pasta
-// informada e tratado sozinho (sourcePath === destPath). O dropdown de
-// legenda usa as proprias faixas do arquivo; selectedTrackId comeca em
-// null (mantem todas as legendas) - o usuario escolhe manualmente qual
-// faixa manter quando quiser remover as demais.
 export async function scanForClean(
   mkvmergePath: string,
   folder: string,
@@ -334,11 +298,6 @@ export async function scanForClean(
   return { rows, warnings, unmatchedSource: [], aborted }
 }
 
-// Se removeEnglishAudio estiver ligado, devolve a lista de IDs de faixas de
-// audio a manter (todas menos as em ingles). Retorna undefined quando nao ha
-// nada a filtrar (recurso desligado, sem faixas em ingles, ou remover as
-// faixas em ingles deixaria o arquivo sem nenhum audio) - nesses casos o
-// mkvmerge mantem todas as faixas de audio originais.
 async function resolveAudioTrackFilter(
   mkvmergePath: string,
   destPath: string,
@@ -360,7 +319,7 @@ async function resolveAudioTrackFilter(
   }
 
   const keepIds = audioTracks.filter((t) => !isEnglishAudio(t.language)).map((t) => t.trackId)
-  if (keepIds.length === audioTracks.length) return undefined // nenhuma faixa em ingles encontrada
+  if (keepIds.length === audioTracks.length) return undefined 
   if (keepIds.length === 0) {
     onLog({
       level: 'warn',
@@ -371,11 +330,6 @@ async function resolveAudioTrackFilter(
   return keepIds
 }
 
-// Calcula o deslocamento (ms) a aplicar via --sync, comparando o instante
-// da primeira legenda extraida com o instante desejado (row.firstLineTargetText).
-// Retorna 0 quando nao ha alvo definido ou quando algo nao pode ser
-// interpretado (formato invalido, arquivo sem nenhum evento) - nesses casos
-// a legenda mantem o timing original, sem travar a transferencia.
 async function resolveOffsetMs(
   subPath: string,
   extension: string,
@@ -412,10 +366,6 @@ async function resolveOffsetMs(
   return offsetMs
 }
 
-// Deslocamento manual informado diretamente pelo usuario (em ms, positivo
-// atrasa e negativo adianta), como alternativa ao calculo automatico feito
-// por resolveOffsetMs. A UI garante que so um dos dois esteja preenchido por
-// vez; aqui so cuidamos de um valor invalido nao travar a transferencia.
 function resolveManualOffsetMs(text: string, episodeKeyForLog: string, onLog: LogFn): number {
   const value = Number(text.trim())
   if (!Number.isFinite(value)) {
@@ -483,9 +433,6 @@ export async function transferRows(
       const subPath = join(tmpDir, `sub${extension}`)
       await extractSubtitle(mkvextractPath, row.sourcePath, track.trackId, subPath)
 
-      // Legendas ASS costumam depender de fontes customizadas anexadas ao
-      // mkv de origem - sem levar essas fontes junto, a legenda transferida
-      // perde a formatacao (o player cai pra uma fonte generica).
       let attachments: Awaited<ReturnType<typeof extractAttachments>> = []
       try {
         const sourceAttachments = await probeAttachments(mkvmergePath, row.sourcePath)
@@ -509,11 +456,6 @@ export async function transferRows(
         onLog
       )
 
-      // Legendas que ja existem no destino (ex: signs/songs de um raw) nao
-      // podem continuar marcadas como padrao, senao o arquivo final fica
-      // com duas faixas de legenda "padrao" ao mesmo tempo. So precisa
-      // disso quando elas vao ser mantidas - se removeExtraSubtitles esta
-      // ligado, elas nem entram no arquivo final.
       let destSubtitleTrackIds: number[] = []
       if (!removeExtraSubtitles) {
         try {
@@ -567,9 +509,6 @@ export async function transferRows(
       })
     } catch (err) {
       if (err instanceof OperationAbortedError) {
-        // Mata o arquivo de saida parcial (mkvmerge morto no meio da escrita
-        // deixa um .mkv truncado/invalido) - melhor esforco, sem travar o
-        // abort se a exclusao falhar por qualquer motivo.
         await rm(outputFile, { force: true }).catch(() => {})
         onProgress(row.id, 'idle')
         onLog({ level: 'warn', message: `[${row.episodeKey}] abortado pelo usuario` })
@@ -611,9 +550,6 @@ export async function transferRows(
   return { total, success, failed, aborted }
 }
 
-// Modo "apenas limpar": remuxa cada arquivo (row.destPath) filtrando faixas -
-// mantem so a legenda escolhida (ou todas, se null) e, opcionalmente, remove
-// audio em ingles. Sem extracao/adicao de legenda externa.
 export async function cleanRows(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -752,9 +688,6 @@ export async function cleanRows(
   return { total, success, failed, aborted }
 }
 
-// Extrai uma faixa de legenda e devolve suas falas ja parseadas (timestamp +
-// texto), para a tela de auto-sync manual (escolher visualmente a "mesma
-// fala" em ingles e ptbr).
 async function extractSubtitleEvents(
   mkvextractPath: string,
   filePath: string,
@@ -766,9 +699,6 @@ async function extractSubtitleEvents(
     const tmpPath = join(tmpDir, `evt${extension}`)
     await extractSubtitle(mkvextractPath, filePath, track.trackId, tmpPath)
     if (track.codecId === 'S_HDMV/PGS') {
-      // Legenda de imagem (sem texto codificado) - decodifica os bitmaps em
-      // vez de tentar ler como texto, pra tela de auto-sync poder mostrar a
-      // propria imagem da legenda.
       return parsePgsSubtitle(await readFile(tmpPath))
     }
     const content = decodeSubtitleBuffer(await readFile(tmpPath))
@@ -778,17 +708,6 @@ async function extractSubtitleEvents(
   }
 }
 
-// Monta os dados iniciais da tela de auto-sync manual: as falas da legenda
-// ptbr ja escolhida na linha (origem), a lista de faixas de legenda do
-// destino, e as falas ja extraidas da faixa em ingles (preferida de um
-// episodio anterior, ou a sugerida por idioma).
-//
-// O lado da origem (sondar + extrair a legenda ptbr) e o lado do destino
-// (sondar + extrair a legenda em ingles) nao dependem um do outro - rodar em
-// paralelo via Promise.all faz o tempo total ficar limitado pelo lado mais
-// lento, nao pela soma dos dois. A extracao do lado do destino ja acontece
-// aqui dentro (em vez de uma segunda chamada separada depois) porque so
-// assim ela roda de fato em paralelo com a da origem.
 export async function prepareSync(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -823,8 +742,6 @@ export async function prepareSync(
   return { ptEvents, ...destResult }
 }
 
-// Devolve as falas de uma faixa de legenda especifica - usado pela tela de
-// auto-sync manual quando o usuario troca a faixa em ingles sugerida.
 export async function getTrackEvents(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -836,13 +753,6 @@ export async function getTrackEvents(
   return track ? extractSubtitleEvents(mkvextractPath, filePath, track) : []
 }
 
-// Renomeador: corrige em lote o rotulo (nome + idioma) da faixa de legenda
-// PT-BR de arquivos .mkv que ja tem essa faixa embutida - sem remuxar nada,
-// so edita o metadado (mkvpropedit). Util pra arquivos transferidos antes de
-// existir a config "Nome da faixa de legenda", ou renomeados manualmente.
-// Mesma deteccao usada no Transferir (idioma/nome reconhecido, com palpite
-// pelo conteudo como ultimo recurso) - sempre reforca o idioma como "por",
-// igual resolveTransferLanguage faz numa transferencia nova.
 export async function renameSubtitleTracks(
   mkvmergePath: string,
   mkvextractPath: string,
@@ -881,10 +791,6 @@ export async function renameSubtitleTracks(
       continue
     }
 
-    // ptTrack.isPtBr ja confirma que o idioma e reconhecido como PT-BR (o
-    // mkvpropedit tambem preenche language_ietf junto - ex: definir
-    // language=por faz language_ietf virar "pt", entao comparar com o
-    // literal "por" falharia sempre depois da 1a rotulagem).
     if (ptTrack.trackName === ptBrTrackName && ptTrack.isPtBr) {
       onLog({ level: 'info', message: `${label}: faixa ja rotulada como "${ptBrTrackName}", nada a fazer` })
       continue

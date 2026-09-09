@@ -1,5 +1,3 @@
-// Helpers puros de formatacao/apresentacao para dados de legenda e timing -
-// sem estado, sem I/O, reaproveitados por EpisodeTable e SyncModal.
 import type { EpisodeRow, SubtitleTrack } from '@shared/types'
 
 export function trackLabel(track: SubtitleTrack): string {
@@ -7,27 +5,18 @@ export function trackLabel(track: SubtitleTrack): string {
   return `#${track.trackId} [${track.language}]${name}`
 }
 
-// PGS/VobSub (S_HDMV/PGS, S_VOBSUB) sao legendas de imagem (bitmaps, sem
-// texto codificado) - comuns em releases de Blu-ray.
 const TEXT_SUBTITLE_CODECS = new Set(['S_TEXT/ASS', 'S_TEXT/SSA', 'S_TEXT/UTF8'])
 
 export function isTextSubtitleCodec(codecId: string): boolean {
   return TEXT_SUBTITLE_CODECS.has(codecId)
 }
 
-// PGS tem suporte a auto-sync mesmo sem texto: o processo principal
-// decodifica os bitmaps da legenda em imagens (ver domain/pgsSubtitle.ts),
-// que a tela de sync mostra no lugar do texto - o usuario le a imagem pra
-// reconhecer a "mesma fala". VobSub (formato mais antigo, estilo DVD) ainda
-// nao tem decodificador - so os campos manuais funcionam pra essas faixas.
 const IMAGE_SYNC_CODECS = new Set(['S_HDMV/PGS'])
 
 export function canSyncTrack(codecId: string): boolean {
   return isTextSubtitleCodec(codecId) || IMAGE_SYNC_CODECS.has(codecId)
 }
 
-// Resumo curto do ajuste de timing configurado numa linha, para exibir como
-// indicador na tabela. Null quando a linha nao tem nenhum ajuste.
 export function syncAdjustmentLabel(row: EpisodeRow): string | null {
   if (row.manualOffsetText) return `Ajuste: ${row.manualOffsetText}ms`
   if (row.firstLineTargetText) return `1a fala: ${row.firstLineTargetText}`
@@ -41,8 +30,6 @@ export function formatEventTime(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-// Mascara de digitacao: conforme o usuario digita numeros, monta
-// progressivamente o formato MM:SS,mmm (ex: "0025130" vira "00:25,130").
 export function maskTimeInput(raw: string): string {
   const digits = raw.replace(/\D/g, '').slice(0, 7)
   if (digits.length <= 2) return digits
@@ -50,8 +37,6 @@ export function maskTimeInput(raw: string): string {
   return `${digits.slice(0, 2)}:${digits.slice(2, 4)},${digits.slice(4)}`
 }
 
-// Mascara de digitacao: mantem um "-" opcional no inicio (adianta) seguido
-// so de digitos (sem sinal = atrasa), ex: "-500" ou "1200".
 export function maskOffsetInput(raw: string): string {
   const negative = raw.trim().startsWith('-')
   const digits = raw.replace(/\D/g, '').slice(0, 6)

@@ -1,7 +1,3 @@
-// Pagina de historico persistido em transfer-log.json (sobrevive a
-// reinicios do app) - deixa ver transferencias/limpezas de sessoes
-// anteriores, nao so o log da sessao atual (LogPanel, que e so em memoria).
-// Antes era um modal (HistoryModal); virou pagina propria da Sidebar.
 import { useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 import { DeleteOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
@@ -12,8 +8,6 @@ import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
 import { StatusBadge } from './StatusBadge'
 
-// 100 por pagina - o arquivo pode ter ate 5000 entradas (MAX_LOG_ENTRIES em
-// transferLog.ts), renderizar tudo de uma vez deixaria a tabela pesada.
 const PAGE_SIZE = 100
 
 function fileName(path: string): string {
@@ -41,15 +35,6 @@ function folderOf(path: string): string {
   return path.replace(/[\\/][^\\/]*$/, '').toLowerCase()
 }
 
-// Entradas gravadas antes do campo "kind" existir nao tem como saber com
-// certeza qual operacao gerou cada uma - o palpite usa o que da pra inferir
-// dos caminhos:
-// - sourceFile !== destFile so acontece no modo Transferir (par
-//   origem/destino).
-// - sourceFile === destFile cobre tanto Limpeza quanto Renomeador (os dois
-//   trabalham numa unica pasta) - o desempate e a pasta do arquivo gerado:
-//   Renomeador sempre renomeia no lugar (mesma pasta do original), enquanto
-//   Limpeza normalmente escreve numa pasta de saida separada.
 function resolveKind(entry: TransferLogEntry): NonNullable<TransferLogEntry['kind']> {
   if (entry.kind) return entry.kind
   if (entry.sourceFile !== entry.destFile) return 'transfer'

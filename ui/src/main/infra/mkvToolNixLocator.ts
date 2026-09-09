@@ -1,4 +1,3 @@
-// Infraestrutura: localizar a instalacao do MKVToolNix no disco.
 import { existsSync } from 'fs'
 import { join } from 'path'
 

@@ -1,7 +1,3 @@
-// Editor generico de uma lista de textos curtos (ex: fansubs/tags
-// conhecidas em Configuracoes) - mostra cada valor como uma pilula com botao
-// de remover, mais um campo pra adicionar um novo. Reaproveitavel: so recebe
-// os valores atuais e um onChange, sem saber pra que lista serve.
 import { useState } from 'react'
 import styled from 'styled-components'
 import { CloseOutlined, PlusOutlined } from '@ant-design/icons'

@@ -1,8 +1,3 @@
-// Auto-sync manual: duas colunas com as falas (ingles do destino e ptbr da
-// origem), cada uma com scroll proprio. Clica numa fala de cada lado pra
-// marcar o par "mesma fala nos dois idiomas" e calcular o deslocamento em
-// ms. Tambem reune os dois campos manuais (1a fala / atraso-adiantamento)
-// que ate entao viviam na tabela.
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import type { EpisodeRow, SubtitleEvent, SubtitleTrack } from '@shared/types'
@@ -245,11 +240,6 @@ export function SyncModal({
         if (cancelled) return
         setPtEvents(result.ptEvents)
         setDestTracks(result.destTracks)
-        // enEvents ja vem extraida da faixa escolhida (preferida de um episodio
-        // anterior, ou a sugerida) - o processo principal decidiu e ja extraiu
-        // em paralelo com a legenda de origem, entao nao precisa de uma segunda
-        // chamada (sync:trackEvents) so pra carregar a selecao inicial - isso
-        // que permite as duas cadeias rodarem de fato em paralelo.
         setEnTrackId(result.chosenEnTrackId)
         setEnEvents(result.enEvents)
       })
@@ -264,7 +254,6 @@ export function SyncModal({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id])
 
   function handleEnTrackChange(trackId: number) {
@@ -300,10 +289,6 @@ export function SyncModal({
   const selectedPt = selectedPtIndex !== null ? ptEvents[selectedPtIndex] : null
   const offsetMs = selectedEn && selectedPt ? selectedEn.startMs - selectedPt.startMs : null
 
-  // Guarda o indice original (no array completo) junto de cada item filtrado -
-  // a selecao (selectedEnIndex/selectedPtIndex) e o calculo de deslocamento
-  // dependem desse indice bater com enEvents/ptEvents, nao com a lista
-  // filtrada exibida.
   function filterEvents(events: SubtitleEvent[], filter: string): { evt: SubtitleEvent; i: number }[] {
     const needle = filter.trim().toLowerCase()
     return events

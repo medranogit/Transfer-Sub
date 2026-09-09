@@ -1,7 +1,3 @@
-// Primitivas genericas de tabela (sem regra de negocio) - extraidas pra
-// reaproveitar entre paginas com listagem tabular simples (Historico,
-// Renomeador). EpisodeTable tem sua propria variante (linhas clicaveis,
-// colunas com controles) e continua a parte.
 import styled from 'styled-components'
 
 export const TableWrap = styled.div`

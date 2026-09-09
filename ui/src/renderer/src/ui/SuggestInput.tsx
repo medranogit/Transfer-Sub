@@ -1,13 +1,3 @@
-// Inputs com sugestoes em dropdown, customizados (nao usa <input list>/
-// <datalist> nativo - no Chromium/Electron desse app o navegador ignora o
-// CSS do campo quando ele tem "list" associado a um datalist, deixando o
-// fundo branco). Dois modos, compartilhando a mesma base visual:
-// - SuggestInput: escolher UM valor (ex: Fansub) - clicar numa sugestao
-//   substitui o campo inteiro e fecha o dropdown.
-// - TagPickerInput: compor uma lista de palavras num unico campo de texto
-//   (ex: Tags) - clicar numa sugestao soma/remove ela do texto (toggle) e o
-//   dropdown continua aberto, pra dar pra clicar varias seguidas; so fecha
-//   quando o campo perde o foco.
 import { useState } from 'react'
 import styled from 'styled-components'
 import { CheckOutlined } from '@ant-design/icons'
@@ -18,10 +8,6 @@ const Wrap = styled.div`
   width: 100%;
 `
 
-// Input depende de "flex: 1" (primitives.ts) pra esticar - so funciona
-// quando ele e filho direto de um container flex. Aqui ele fica dentro do
-// Wrap (uma div comum), entao sem isso ele volta a largura padrao do
-// navegador (~inline-block) e passa por cima do campo vizinho.
 const StyledInput = styled(Input)`
   width: 100%;
 `
@@ -110,12 +96,6 @@ export function SuggestInput({
   )
 }
 
-// Compoe uma lista de palavras separadas por espaco num unico campo de
-// texto (ex: "BD HEVC 1080p") - clicar numa sugestao soma ela ao texto se
-// ainda nao estiver la, ou remove se ja estiver (toggle), sem diferenciar
-// maiusculas/minusculas. O dropdown fica aberto enquanto o campo tem foco,
-// pra dar pra clicar varias sugestoes seguidas sem reabrir a cada uma;
-// digitar direto no campo continua funcionando normalmente.
 export function TagPickerInput({
   value,
   onChange,

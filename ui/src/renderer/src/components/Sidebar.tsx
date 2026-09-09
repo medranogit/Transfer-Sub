@@ -1,6 +1,3 @@
-// Navegacao lateral principal do app: Transferir Legenda / Limpeza
-// (os dois modos de trabalho, antes um toggle dentro da mesma tela) mais
-// Historico e Configuracoes como paginas proprias.
 import type { ReactNode } from 'react'
 import styled from 'styled-components'
 import {
@@ -95,10 +92,6 @@ export function Sidebar({
 }: {
   active: ViewId
   onNavigate: (id: ViewId) => void
-  // Enquanto um escaneamento/transferencia/limpeza esta rodando, navegar pra
-  // qualquer outra pagina (inclusive Historico/Configuracoes) esconderia o
-  // progresso/log em andamento e, no caso de Transferir<->Limpar, invalidaria
-  // a tabela escaneada - trava tudo menos a aba ativa ate a operacao acabar.
   navigationLocked: boolean
 }) {
   return (

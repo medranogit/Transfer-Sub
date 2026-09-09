@@ -1,13 +1,7 @@
-// Regras de dominio: reconhecer legendas em PT-BR e escolher a melhor faixa
-// para pre-selecionar. Nenhuma dependencia de I/O.
 import type { SubtitleTrack } from '@shared/types'
 
-// Codigos de idioma (ISO 639-1/2/3 e variantes usadas por ferramentas de
-// fansub) que identificam portugues do Brasil.
 const PT_BR_LANG_CODES = new Set(['por', 'pt', 'ptbr', 'pob', 'ptb'])
 
-// Palavras-chave (ja normalizadas: minusculas, sem acento, sem pontuacao)
-// procuradas no nome da faixa para reconhecer legendas em PT-BR.
 const PT_BR_NAME_KEYWORDS = [
   'portugues',
   'portuguese',
@@ -22,7 +16,7 @@ const PT_BR_NAME_KEYWORDS = [
 function normalize(text: string): string {
   return text
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // remove acentos
+    .replace(/[̀-ͯ]/g, '') 
     .toLowerCase()
 }
 
@@ -43,23 +37,12 @@ export function isPtBrTrack(language: string, trackName: string): boolean {
   })
 }
 
-// Nome padrao (configuravel em Configuracoes - AppConfig.ptBrTrackName) para
-// a faixa de legenda PT-BR ao ser transferida - identifica facilmente qual
-// faixa foi adicionada pelo Transfer Sub em players que listam o nome da
-// faixa, em vez de manter o nome original (que varia de fansub pra fansub,
-// as vezes vazio).
 export const DEFAULT_PT_BR_TRANSFER_TRACK_NAME = 'TS Portugues BR'
 
-// So renomeia quando a faixa foi reconhecida como PT-BR (por idioma/nome ou
-// pelo palpite de conteudo) - outras faixas mantem o nome original.
 export function resolveTransferTrackName(track: SubtitleTrack, ptBrTrackName: string): string {
   return track.isPtBr || track.isPtBrGuess ? ptBrTrackName : track.trackName
 }
 
-// Rotula explicitamente como portugues ("por", codigo ISO 639-2) quando a
-// faixa foi reconhecida como PT-BR - independente do que a faixa original
-// tinha (fansubs variam, as vezes vem "und"/errado). Fora desse caso, mantem
-// o idioma original.
 export function resolveTransferLanguage(track: SubtitleTrack): string {
   return track.isPtBr || track.isPtBrGuess ? 'por' : track.language
 }
@@ -81,14 +64,6 @@ export function pickBestTrackIndex(tracks: SubtitleTrack[]): number {
   return bestIndex
 }
 
-// Palavras bem caracteristicas do portugues (ja sem acento, pra comparar
-// com o texto normalizado) - usadas so como ultimo recurso, quando nenhuma
-// faixa foi reconhecida por idioma/nome. Fansubs as vezes rotulam a faixa
-// com o idioma errado (ex: uma faixa "italiano" que na verdade e PT-BR).
-// Ficam de fora palavras identicas ou quase identicas em espanhol/italiano
-// (ex: "aqui", "nunca", "sempre", "quando", "vamos", "esta") - testado
-// contra faixas reais em ingles/alemao/espanhol/frances/italiano para
-// garantir que nao dao falso positivo.
 const PT_CONTENT_WORDS = [
   'nao',
   'voce',
@@ -112,24 +87,12 @@ const PT_CONTENT_WORDS = [
   'ficou'
 ]
 
-// Terminacao "-cao"/"-coes" (de "-ção"/"-ções", apos remover acento) e
-// quase exclusiva do portugues entre as linguas latinas - espanhol usa
-// "-cion", italiano "-zione", frances "-tion". Conta em dobro por ser um
-// sinal bem mais forte que uma palavra isolada.
 const PT_SUFFIX_PATTERN = /\w+c(ao|oes)\b/g
 
-// Remove tags de formatacao do ASS/SSA ({\...}) e quebras de linha (\N)
-// pra nao poluir a contagem de palavras com codigo de estilo. Tambem usada
-// por subtitleTiming.ts para limpar o texto exibido na tela de auto-sync.
 export function stripSubtitleMarkup(content: string): string {
   return content.replace(/\{[^}]*\}/g, ' ').replace(/\\[Nn]/g, ' ')
 }
 
-// Heuristica rapida, nao uma deteccao de idioma de verdade: conta quantas
-// vezes palavras/padroes bem tipicos do portugues aparecem no texto da
-// legenda. So e chamada como fallback (ver workflow.ts), entao um falso
-// positivo ocasional so gera um aviso a mais pro usuario conferir - nao
-// trava nada.
 export function guessPtBrFromContent(content: string): boolean {
   const text = normalize(stripSubtitleMarkup(content))
   if (text.length < 200) return false

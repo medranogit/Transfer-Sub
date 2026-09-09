@@ -1,12 +1,3 @@
-// Pagina "Renomeador" - renomeia em lote os videos de uma pasta a partir de
-// 4 campos simples (fansub, nome do anime, temporada, tags), pra facilitar
-// quando o usuario quer trocar o padrao de nome de uma leva de arquivos sem
-// editar um por um. O episodio e detectado automaticamente por arquivo (ver
-// domain/renamePattern.ts); fansub/nome/temporada sao sugeridos ao escanear
-// pela primeira vez (so quando os campos ainda estao em branco). Mesma
-// estrutura de sempre (config -> escanear -> tabela de pre-visualizacao ->
-// aplicar -> log), mais um botao "Atualizar" que reaplica os campos sem
-// reler a pasta do disco.
 import styled from 'styled-components'
 import { CheckCircleFilled, ClearOutlined, ReloadOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'

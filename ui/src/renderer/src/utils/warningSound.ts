@@ -1,7 +1,3 @@
-// Toque minimalista de aviso (dois tons curtos e graves, descendentes -
-// diferente do som de conclusao, que e ascendente) - via Web Audio API,
-// tocado quando um escaneamento traz algo novo pro sino de notificacoes
-// (avisos/sem correspondencia).
 export function playWarningSound(): void {
   try {
     const ctx = new AudioContext()
@@ -24,6 +20,5 @@ export function playWarningSound(): void {
     })
     setTimeout(() => ctx.close(), 500)
   } catch {
-    // ambiente sem suporte a Web Audio - ignora, som e so um extra
   }
 }

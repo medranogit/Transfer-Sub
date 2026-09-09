@@ -1,16 +1,9 @@
-// Infraestrutura: log bruto (texto) de tudo que o usuario fez numa sessao do
-// app (do momento que abre ate fechar) - um arquivo .txt por sessao. Usado
-// pela pagina "Log da Sessao" pra navegar sessoes anteriores sem precisar
-// copiar o log da tela manualmente antes de fechar o app. So gravado
-// (append:true) - a UI apenas lista/le, nunca escreve.
 import { app } from 'electron'
 import { appendFile, mkdir, readdir, readFile, unlink } from 'fs/promises'
 import { join } from 'path'
 import type { LogEvent, SessionLogInfo } from '@shared/types'
 
 const SESSION_LOG_DIR_NAME = 'session-logs'
-// Numero de sessoes (arquivos) mantidas - as mais antigas sao apagadas
-// automaticamente, senao a pasta cresce pra sempre num uso continuo por anos.
 const MAX_SESSIONS = 200
 
 function sessionLogDir(): string {
@@ -18,9 +11,6 @@ function sessionLogDir(): string {
   return join(dir, SESSION_LOG_DIR_NAME)
 }
 
-// Timestamp de quando o processo do app comecou a rodar - usado como nome
-// do arquivo (ordenavel, sem ambiguidade de fuso/formato) e como id da
-// sessao atual pro lado da UI.
 const sessionStartedAt = Date.now()
 
 function filePathFor(id: string): string {
@@ -32,8 +22,6 @@ function formatLine(entry: LogEvent): string {
   return `[${time}] [${entry.level.toUpperCase()}] ${entry.message}\n`
 }
 
-// Serializa gravacoes (mesmo padrao do transferLog.ts) - uma transferencia/
-// renomeacao em lote dispara varios logs em sequencia rapida.
 let writeQueue: Promise<void> = Promise.resolve()
 
 export function appendSessionLog(entry: LogEvent): Promise<void> {
@@ -41,7 +29,6 @@ export function appendSessionLog(entry: LogEvent): Promise<void> {
     await mkdir(sessionLogDir(), { recursive: true })
     await appendFile(filePathFor(String(sessionStartedAt)), formatLine(entry), 'utf-8')
   })
-  // Mesmo se essa escrita falhar, a fila segue livre para a proxima chamada.
   writeQueue = task.catch(() => {})
   return task
 }
@@ -54,8 +41,6 @@ function idToLabel(id: string): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)} - ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-// Lista as sessoes com arquivo gravado, mais recente primeiro - sessoes em
-// que nada foi feito nunca chegam a criar o arquivo (nada pra mostrar).
 export async function listSessionLogs(): Promise<SessionLogInfo[]> {
   let names: string[]
   try {
@@ -78,7 +63,6 @@ export async function readSessionLog(id: string): Promise<string> {
   }
 }
 
-// Poda sessoes antigas alem do limite - chamada uma vez no inicio do app.
 export async function pruneOldSessionLogs(): Promise<void> {
   const sessions = await listSessionLogs()
   const toDelete = sessions.slice(MAX_SESSIONS)

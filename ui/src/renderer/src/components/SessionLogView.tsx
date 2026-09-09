@@ -1,8 +1,3 @@
-// Pagina "Log da Sessao" - mostra o log bruto gravado em disco (um .txt por
-// sessao do app, do momento que abre ate fechar - ver infra/sessionLog.ts).
-// Diferente do Historico (so eventos estruturados de transferencia/limpeza/
-// renomeacao): aqui e o log completo, linha por linha, igual ao painel da
-// tela (LogPanel), mas de qualquer sessao anterior, nao so a atual.
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import { ReloadOutlined } from '@ant-design/icons'
@@ -89,7 +84,6 @@ const LineTime = styled.span`
   margin-right: 6px;
 `
 
-// Formato gravado por infra/sessionLog.ts: "[HH:MM:SS] [NIVEL] mensagem".
 const LINE_PATTERN = /^\[(\d{2}:\d{2}:\d{2})\] \[(INFO|SUCCESS|WARN|ERROR)\] (.*)$/
 
 export function SessionLogView() {
@@ -127,9 +121,6 @@ export function SessionLogView() {
       .finally(() => setLoadingContent(false))
   }, [selectedId])
 
-  // Mais recente primeiro - mais facil de achar o que aconteceu por ultimo
-  // sem rolar ate o fim (diferente do LogPanel da tela, que e ao vivo e faz
-  // sentido crescer pra baixo).
   const lines = content
     .split('\n')
     .filter((line, i, arr) => !(i === arr.length - 1 && line === ''))

@@ -1,7 +1,3 @@
-// Sino de notificacoes no canto superior direito: alertas do ultimo
-// escaneamento que antes so apareciam de passagem no log (ou nem apareciam -
-// unmatchedSource era calculado e nunca exibido). Fica sempre visivel, com
-// contador, pra revisar sem precisar rolar o painel de log.
 import { useState } from 'react'
 import styled from 'styled-components'
 import { BellOutlined } from '@ant-design/icons'

@@ -1,7 +1,3 @@
-// Modal de confirmacao generico e reutilizavel, pra qualquer acao
-// destrutiva/irreversivel do app. Quando `acknowledgeLabel` e passado, exige
-// marcar uma caixinha antes de habilitar o botao de confirmar - a "dupla
-// verificacao" pra acoes mais sensiveis (ex: apagar o historico).
 import { useState } from 'react'
 import styled from 'styled-components'
 import { ExclamationCircleFilled } from '@ant-design/icons'
@@ -77,7 +73,6 @@ export function ConfirmDialog({
   confirmLabel?: string
   cancelLabel?: string
   danger?: boolean
-  // Se preenchido, exige marcar essa caixinha antes de liberar o confirmar.
   acknowledgeLabel?: string
   onConfirm: () => void
   onCancel: () => void

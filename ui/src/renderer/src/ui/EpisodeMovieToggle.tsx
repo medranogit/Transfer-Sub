@@ -1,8 +1,3 @@
-// Alternancia "Episodio" / "Filme" reaproveitada no Transferir Legenda e no
-// Renomeador: os dois tem a mesma ideia (filme nao tem numero de episodio
-// pra detectar/parear automaticamente, entao o fluxo muda quando ativado).
-// Sempre nessa ordem (Episodio primeiro) e sempre comecando em Episodio -
-// quem usa este componente decide isso no estado inicial, nao aqui.
 import styled from 'styled-components'
 
 const Wrap = styled.div`
