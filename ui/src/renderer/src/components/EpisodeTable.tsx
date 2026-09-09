@@ -138,10 +138,10 @@ export function EpisodeTable({
               <Checkbox checked={allSelected} onChange={onToggleSelectAll} title="Selecionar todos" />
             </th>
             <th style={{ width: 90 }}>Episodio</th>
-            {!cleanOnly && <th style={{ width: 150 }}>Sincronizacao</th>}
+            <th style={{ width: 150 }}>Sincronizacao</th>
             <th>
               <Row $gap={8} style={{ alignItems: 'center' }}>
-                <span>{cleanOnly ? 'Legenda a manter' : 'Faixa de legenda'}</span>
+                <span>{cleanOnly ? 'Limpeza' : 'Faixa de legenda'}</span>
                 {cleanOnly && rows.length > 1 && onApplyTrackToAll && (
                   <Button
                     type="button"
@@ -170,22 +170,20 @@ export function EpisodeTable({
                   <Checkbox checked={selectedIds.has(row.id)} onChange={() => onToggleSelect(row.id)} />
                 </Td>
                 <Td>{row.episodeKey}</Td>
-                {!cleanOnly && (
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    <Row $gap={8}>
-                      {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
-                      <Button
-                        type="button"
-                        $variant="secondary"
-                        onClick={() => onOpenSync(row.id)}
-                        disabled={row.selectedTrackId === null}
-                        title="Ajustar o timing da legenda transferida (sincronizar com a legenda em ingles, definir a 1a fala ou um deslocamento manual)"
-                      >
-                        <SyncOutlined /> Sincronizar
-                      </Button>
-                    </Row>
-                  </Td>
-                )}
+                <Td onClick={(e) => e.stopPropagation()}>
+                  <Row $gap={8}>
+                    {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
+                    <Button
+                      type="button"
+                      $variant="secondary"
+                      onClick={() => onOpenSync(row.id)}
+                      disabled={cleanOnly ? row.tracks.length < 2 : row.selectedTrackId === null}
+                      title="Ajustar o timing de uma legenda (sincronizar com outra faixa, definir a 1a fala ou um deslocamento manual)"
+                    >
+                      <SyncOutlined /> Sincronizar
+                    </Button>
+                  </Row>
+                </Td>
                 <Td onClick={(e) => e.stopPropagation()}>
                   <Row $gap={6} style={{ flexWrap: 'wrap' }}>
                     {row.tracks.length > 0 ? (

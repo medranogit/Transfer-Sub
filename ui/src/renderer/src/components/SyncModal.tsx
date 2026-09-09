@@ -48,14 +48,6 @@ const ModalTitle = styled.h3`
   margin: 0;
 `
 
-const FieldRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12.5px;
-  color: ${(p) => p.theme.colors.textMuted};
-`
-
 const TimingInput = styled.input`
   width: 110px;
   background: ${(p) => p.theme.colors.panelAlt};
@@ -86,6 +78,11 @@ const Select = styled.select`
   padding: 5px 8px;
   color: ${(p) => p.theme.colors.text};
   flex: 1;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `
 
 const ColumnsRow = styled.div`
@@ -182,8 +179,20 @@ const ModalFooter = styled.div`
   gap: 8px;
 `
 
+function defaultPtTrackId(row: EpisodeRow): number | null {
+  return (
+    row.syncTrackId ??
+    row.tracks.find((t) => t.isPtBr)?.trackId ??
+    row.tracks.find((t) => t.isPtBrGuess)?.trackId ??
+    row.selectedTrackId ??
+    row.tracks[0]?.trackId ??
+    null
+  )
+}
+
 export function SyncModal({
   row,
+  cleanOnly,
   onClose,
   onApply,
   onFirstLineTargetChange,
@@ -193,8 +202,9 @@ export function SyncModal({
   onError
 }: {
   row: EpisodeRow
+  cleanOnly: boolean
   onClose: () => void
-  onApply: (offsetMs: number) => void
+  onApply: (offsetMs: number, syncTrackId: number) => void
   onFirstLineTargetChange: (value: string) => void
   onManualOffsetChange: (value: string) => void
   preferredEnTrackId: number | null
@@ -203,6 +213,7 @@ export function SyncModal({
 }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [ptTrackId, setPtTrackId] = useState<number | null>(null)
   const [ptEvents, setPtEvents] = useState<SubtitleEvent[]>([])
   const [destTracks, setDestTracks] = useState<SubtitleTrack[]>([])
   const [enTrackId, setEnTrackId] = useState<number | null>(null)
@@ -210,9 +221,6 @@ export function SyncModal({
   const [loadingEnEvents, setLoadingEnEvents] = useState(false)
   const [selectedEnIndex, setSelectedEnIndex] = useState<number | null>(null)
   const [selectedPtIndex, setSelectedPtIndex] = useState<number | null>(null)
-  // O texto do campo (atualiza a cada tecla) fica separado do filtro
-  // realmente aplicado (so' muda ao apertar Enter) - filtrar a cada tecla
-  // digitada fica lento com muitas falas na lista.
   const [enFilterInput, setEnFilterInput] = useState('')
   const [enFilter, setEnFilter] = useState('')
   const [ptFilterInput, setPtFilterInput] = useState('')
@@ -224,8 +232,15 @@ export function SyncModal({
     let cancelled = false
     setLoading(true)
     setError(null)
+    const initialPtTrackId = cleanOnly ? defaultPtTrackId(row) : (row.selectedTrackId as number)
+    setPtTrackId(initialPtTrackId)
+    if (initialPtTrackId === null) {
+      setError('Nenhuma faixa de legenda disponivel neste arquivo.')
+      setLoading(false)
+      return
+    }
     window.api
-      .prepareSync(row.sourcePath, row.selectedTrackId as number, row.destPath, preferredEnTrackId)
+      .prepareSync(row.sourcePath, initialPtTrackId, row.destPath, preferredEnTrackId)
       .then((result) => {
         if (cancelled) return
         setPtEvents(result.ptEvents)
@@ -268,6 +283,19 @@ export function SyncModal({
       .finally(() => setLoadingEnEvents(false))
   }
 
+  function handlePtTrackChange(trackId: number) {
+    setPtTrackId(trackId)
+    setSelectedPtIndex(null)
+    window.api
+      .getTrackEvents(row.sourcePath, trackId)
+      .then(setPtEvents)
+      .catch((err) => {
+        const message = (err as Error).message
+        setError(message)
+        onError(`[${row.episodeKey}] falha ao carregar falas da faixa: ${message}`)
+      })
+  }
+
   const selectedEn = selectedEnIndex !== null ? enEvents[selectedEnIndex] : null
   const selectedPt = selectedPtIndex !== null ? ptEvents[selectedPtIndex] : null
   const offsetMs = selectedEn && selectedPt ? selectedEn.startMs - selectedPt.startMs : null
@@ -288,6 +316,9 @@ export function SyncModal({
 
   const enTrack = destTracks.find((t) => t.trackId === enTrackId)
   const enTrackUnsupported = enTrack !== undefined && !canSyncTrack(enTrack.codecId)
+  const ptTrack = row.tracks.find((t) => t.trackId === ptTrackId)
+  const ptTrackUnsupported = ptTrack !== undefined && !canSyncTrack(ptTrack.codecId)
+  const anyTrackUnsupported = enTrackUnsupported || ptTrackUnsupported
 
   return (
     <Overlay onClick={onClose}>
@@ -329,44 +360,37 @@ export function SyncModal({
 
         {!loading && !error && destTracks.length === 0 && (
           <div style={{ color: theme.colors.warning }}>
-            O arquivo de destino nao tem nenhuma legenda para usar como referencia - nao e possivel
-            sincronizar automaticamente neste episodio. Use os campos acima.
+            Este arquivo nao tem nenhuma outra legenda para usar como referencia - nao e possivel
+            sincronizar automaticamente. Use os campos acima.
           </div>
         )}
 
         {!loading && !error && destTracks.length > 0 && (
           <>
-            <FieldRow>
-              Legenda em ingles (destino):
-              <Select value={enTrackId ?? ''} onChange={(e) => handleEnTrackChange(Number(e.target.value))}>
-                {enTrackId === null && <option value="">Selecione a faixa...</option>}
-                {destTracks.map((t) => (
-                  <option key={t.trackId} value={t.trackId}>
-                    {trackLabel(t)}
-                  </option>
-                ))}
-              </Select>
-              {enTrackId === null && (
-                <span style={{ color: theme.colors.warning }}>Nao detectei automaticamente - escolha a faixa</span>
-              )}
-            </FieldRow>
-
-            {enTrackUnsupported && (
-              <div style={{ color: theme.colors.warning }}>
-                Esta faixa e uma legenda de imagem em formato ainda nao suportado (VobSub, comum em
-                rips de DVD) - nao da pra gerar uma previa pra comparar. Escolha outra faixa acima
-                (PGS e suportado, mostra a imagem da legenda) ou ajuste manualmente pelos campos no
-                topo.
-              </div>
+            {enTrackId === null && (
+              <span style={{ color: theme.colors.warning }}>Nao detectei automaticamente - escolha a faixa</span>
             )}
 
-            {!enTrackUnsupported && (
-              <>
-                <ColumnsRow>
-                  <Column>
-                    <ColumnHeader $accent={theme.colors.info}>
-                      Ingles ({enFilter ? `${enEventsFiltered.length}/${enEvents.length}` : enEvents.length})
-                    </ColumnHeader>
+            <ColumnsRow>
+              <Column>
+                <ColumnHeader $accent={theme.colors.info}>
+                  Legenda base ({enFilter ? `${enEventsFiltered.length}/${enEvents.length}` : enEvents.length})
+                </ColumnHeader>
+                <Select value={enTrackId ?? ''} onChange={(e) => handleEnTrackChange(Number(e.target.value))}>
+                  {enTrackId === null && <option value="">Selecione a faixa...</option>}
+                  {destTracks.map((t) => (
+                    <option key={t.trackId} value={t.trackId}>
+                      {trackLabel(t)}
+                    </option>
+                  ))}
+                </Select>
+                {enTrackUnsupported ? (
+                  <div style={{ color: theme.colors.warning }}>
+                    Legenda de imagem em formato ainda nao suportado (VobSub) - escolha outra faixa
+                    (PGS e suportado).
+                  </div>
+                ) : (
+                  <>
                     <FilterInput
                       type="text"
                       placeholder="Filtrar (Enter para pesquisar)..."
@@ -396,12 +420,32 @@ export function SyncModal({
                           </ColumnItem>
                         ))}
                     </ColumnList>
-                  </Column>
+                  </>
+                )}
+              </Column>
 
-                  <Column>
-                    <ColumnHeader $accent={theme.colors.success}>
-                      PT-BR ({ptFilter ? `${ptEventsFiltered.length}/${ptEvents.length}` : ptEvents.length})
-                    </ColumnHeader>
+              <Column>
+                <ColumnHeader $accent={theme.colors.success}>
+                  Legenda destino ({ptFilter ? `${ptEventsFiltered.length}/${ptEvents.length}` : ptEvents.length})
+                </ColumnHeader>
+                <Select
+                  value={ptTrackId ?? ''}
+                  disabled={!cleanOnly}
+                  onChange={(e) => handlePtTrackChange(Number(e.target.value))}
+                >
+                  {row.tracks.map((t) => (
+                    <option key={t.trackId} value={t.trackId}>
+                      {trackLabel(t)}
+                    </option>
+                  ))}
+                </Select>
+                {ptTrackUnsupported ? (
+                  <div style={{ color: theme.colors.warning }}>
+                    Legenda de imagem em formato ainda nao suportado (VobSub) - escolha outra faixa
+                    (PGS e suportado).
+                  </div>
+                ) : (
+                  <>
                     <FilterInput
                       type="text"
                       placeholder="Filtrar (Enter para pesquisar)..."
@@ -429,17 +473,19 @@ export function SyncModal({
                         </ColumnItem>
                       ))}
                     </ColumnList>
-                  </Column>
-                </ColumnsRow>
+                  </>
+                )}
+              </Column>
+            </ColumnsRow>
 
-                <OffsetPreview>
-                  {offsetMs !== null
-                    ? `Deslocamento calculado: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms (${
-                        offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'
-                      } a legenda)`
-                    : 'Selecione uma fala em cada coluna para calcular o deslocamento'}
-                </OffsetPreview>
-              </>
+            {!anyTrackUnsupported && (
+              <OffsetPreview>
+                {offsetMs !== null
+                  ? `Deslocamento calculado: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms (${
+                      offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'
+                    } a legenda)`
+                  : 'Selecione uma fala em cada coluna para calcular o deslocamento'}
+              </OffsetPreview>
             )}
           </>
         )}
@@ -448,8 +494,8 @@ export function SyncModal({
           <ModalFooter>
             <Button
               $variant="primary"
-              disabled={offsetMs === null}
-              onClick={() => offsetMs !== null && onApply(offsetMs)}
+              disabled={offsetMs === null || ptTrackId === null}
+              onClick={() => offsetMs !== null && ptTrackId !== null && onApply(offsetMs, ptTrackId)}
             >
               Usar este deslocamento
             </Button>

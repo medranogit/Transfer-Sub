@@ -36,6 +36,7 @@ export interface EpisodeRow {
   // como alternativa a firstLineTargetText. Vazio = nao aplicar deslocamento
   // manual (usa firstLineTargetText, se preenchido, ou o timing original).
   manualOffsetText: string
+  syncTrackId: number | null
 }
 
 export interface ScanResult {

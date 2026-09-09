@@ -638,8 +638,9 @@ function AppContent() {
     )
   }
 
-  function handleApplySync(rowId: string, offsetMs: number) {
+  function handleApplySync(rowId: string, offsetMs: number, syncTrackId: number) {
     const row = rows.find((r) => r.id === rowId)
+    setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, syncTrackId } : r)))
     handleManualOffsetChange(rowId, String(offsetMs))
     if (row) pushLog(`[${row.episodeKey}] deslocamento de ${offsetMs}ms aplicado via auto-sync`, 'success')
   }
@@ -834,8 +835,9 @@ function AppContent() {
       {syncRow && (
         <SyncModal
           row={syncRow}
+          cleanOnly={cleanOnly}
           onClose={() => setSyncRowId(null)}
-          onApply={(offsetMs) => handleApplySync(syncRow.id, offsetMs)}
+          onApply={(offsetMs, syncTrackId) => handleApplySync(syncRow.id, offsetMs, syncTrackId)}
           onFirstLineTargetChange={(value) => handleFirstLineTargetChange(syncRow.id, value)}
           onManualOffsetChange={(value) => handleManualOffsetChange(syncRow.id, value)}
           preferredEnTrackId={preferredEnTrackId}

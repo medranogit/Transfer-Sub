@@ -416,7 +416,7 @@ app.whenReady().then(() => {
   ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {
     const config = loadConfig()
     const status = tryLocate(config.mkvToolNixDir)
-    if (!status.found || !status.mkvmergePath) {
+    if (!status.found || !status.mkvmergePath || !status.mkvextractPath) {
       throw new Error('MKVToolNix nao localizado.')
     }
     const token = new CancellationToken()
@@ -424,6 +424,7 @@ app.whenReady().then(() => {
     try {
       return await cleanRows(
         status.mkvmergePath,
+        status.mkvextractPath,
         request.rows,
         request.outputDir,
         request.removeEnglishAudio,

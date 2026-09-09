@@ -135,7 +135,8 @@ async function buildEpisodeRow(
     tracks: usableTracks,
     selectedTrackId,
     firstLineTargetText: '',
-    manualOffsetText: ''
+    manualOffsetText: '',
+    syncTrackId: null
   }
 }
 
@@ -314,7 +315,8 @@ export async function scanForClean(
       tracks,
       selectedTrackId: null,
       firstLineTargetText: '',
-      manualOffsetText: ''
+      manualOffsetText: '',
+      syncTrackId: tracks.find((t) => t.isPtBr)?.trackId ?? tracks.find((t) => t.isPtBrGuess)?.trackId ?? null
     })
   }
 
@@ -614,6 +616,7 @@ export async function transferRows(
 // audio em ingles. Sem extracao/adicao de legenda externa.
 export async function cleanRows(
   mkvmergePath: string,
+  mkvextractPath: string,
   rows: EpisodeRow[],
   outputDir: string,
   removeEnglishAudio: boolean,
@@ -652,16 +655,44 @@ export async function cleanRows(
         onLog
       )
 
+      const syncTrack = row.tracks.find((t) => t.trackId === row.syncTrackId)
+      let offsetMs = 0
+      if (syncTrack) {
+        if (row.manualOffsetText.trim()) {
+          offsetMs = resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
+        } else if (row.firstLineTargetText.trim()) {
+          const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-sync-'))
+          try {
+            const extension = subtitleExtension(syncTrack.codecId)
+            const subPath = join(tmpDir, `sync${extension}`)
+            await extractSubtitle(mkvextractPath, row.destPath, syncTrack.trackId, subPath)
+            offsetMs = await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
+          } finally {
+            await rm(tmpDir, { recursive: true, force: true })
+          }
+        }
+      }
+
       const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
       const audioInfo = keepAudioTrackIds ? ' (removendo audio em ingles)' : ''
       const subInfo =
         row.selectedTrackId !== null ? ` (mantendo somente legenda #${row.selectedTrackId})` : ''
+      const syncInfo = offsetMs !== 0 ? ` (sincronizando faixa #${syncTrack!.trackId} em ${offsetMs}ms)` : ''
       onLog({
         level: 'info',
-        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}`
+        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}${syncInfo}`
       })
 
-      await cleanTracksInto(mkvmergePath, row.destPath, outputFile, row.selectedTrackId, keepAudioTrackIds, token)
+      await cleanTracksInto(
+        mkvmergePath,
+        row.destPath,
+        outputFile,
+        row.selectedTrackId,
+        keepAudioTrackIds,
+        syncTrack?.trackId ?? null,
+        offsetMs,
+        token
+      )
 
       onProgress(row.id, 'done')
       success += 1
@@ -676,8 +707,8 @@ export async function cleanRows(
         trackId: row.selectedTrackId,
         language: null,
         trackName: null,
-        firstLineTargetText: '',
-        appliedOffsetMs: null,
+        firstLineTargetText: row.firstLineTargetText,
+        appliedOffsetMs: offsetMs || null,
         status: 'done'
       })
     } catch (err) {

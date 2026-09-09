@@ -294,7 +294,9 @@ export async function cleanTracksInto(
   sourceFile: string,
   outputFile: string,
   keepSubtitleTrackId: number | null,
-  keepAudioTrackIds?: number[],
+  keepAudioTrackIds: number[] | undefined,
+  syncTrackId: number | null,
+  offsetMs: number,
   token?: CancellationToken
 ): Promise<void> {
   const args = ['-o', outputFile]
@@ -304,6 +306,9 @@ export async function cleanTracksInto(
   if (keepSubtitleTrackId !== null) {
     args.push('--subtitle-tracks', String(keepSubtitleTrackId))
     args.push('--default-track-flag', `${keepSubtitleTrackId}:yes`)
+  }
+  if (syncTrackId !== null && offsetMs !== 0) {
+    args.push('--sync', `${syncTrackId}:${offsetMs}`)
   }
   args.push(sourceFile)
 
