@@ -37,6 +37,7 @@ import {
 } from './infra/mkvProcess'
 import { appendTransferLog } from './infra/transferLog'
 import { CancellationToken, OperationAbortedError } from './infra/cancellation'
+import type { ExternalSubtitleSpec } from './infra/mkvProcess'
 import type {
   ConvertRow,
   ConvertScanResult,
@@ -51,6 +52,7 @@ import type {
   SyncPrepareResult,
   TransferSummary
 } from '@shared/types'
+import { EXTERNAL_SUBTITLE_TRACK_ID } from '@shared/types'
 
 type LogFn = (event: LogEvent) => void
 
@@ -125,7 +127,8 @@ async function buildEpisodeRow(
     selectedTrackId,
     firstLineTargetText: '',
     manualOffsetText: '',
-    syncTrackId: null
+    syncTrackId: null,
+    externalSubtitlePath: null
   }
 }
 
@@ -284,7 +287,8 @@ export async function scanForClean(
       selectedTrackId: null,
       firstLineTargetText: '',
       manualOffsetText: '',
-      syncTrackId: tracks.find((t) => t.isPtBr)?.trackId ?? tracks.find((t) => t.isPtBrGuess)?.trackId ?? null
+      syncTrackId: tracks.find((t) => t.isPtBr)?.trackId ?? tracks.find((t) => t.isPtBrGuess)?.trackId ?? null,
+      externalSubtitlePath: null
     })
   }
 
@@ -564,6 +568,7 @@ export async function cleanRows(
   onLog: LogFn,
   token: CancellationToken | undefined,
   naming: NamingConfig,
+  ptBrTrackName: string,
   resultFolderName: string
 ): Promise<TransferSummary> {
   let success = 0
@@ -595,32 +600,58 @@ export async function cleanRows(
         onLog
       )
 
-      const syncTrack = row.tracks.find((t) => t.trackId === row.syncTrackId)
+      const usingExternalSync = row.syncTrackId === EXTERNAL_SUBTITLE_TRACK_ID && row.externalSubtitlePath !== null
+      const syncTrack = !usingExternalSync ? row.tracks.find((t) => t.trackId === row.syncTrackId) : undefined
       let offsetMs = 0
-      if (syncTrack) {
+      if (usingExternalSync || syncTrack) {
         if (row.manualOffsetText.trim()) {
           offsetMs = resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
         } else if (row.firstLineTargetText.trim()) {
-          const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-sync-'))
-          try {
-            const extension = subtitleExtension(syncTrack.codecId)
-            const subPath = join(tmpDir, `sync${extension}`)
-            await extractSubtitle(mkvextractPath, row.destPath, syncTrack.trackId, subPath)
-            offsetMs = await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
-          } finally {
-            await rm(tmpDir, { recursive: true, force: true })
+          if (usingExternalSync) {
+            offsetMs = await resolveOffsetMs(
+              row.externalSubtitlePath!,
+              extname(row.externalSubtitlePath!),
+              row.firstLineTargetText,
+              row.episodeKey,
+              onLog
+            )
+          } else if (syncTrack) {
+            const tmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-sync-'))
+            try {
+              const extension = subtitleExtension(syncTrack.codecId)
+              const subPath = join(tmpDir, `sync${extension}`)
+              await extractSubtitle(mkvextractPath, row.destPath, syncTrack.trackId, subPath)
+              offsetMs = await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
+            } finally {
+              await rm(tmpDir, { recursive: true, force: true })
+            }
           }
         }
       }
+
+      const externalSubtitle: ExternalSubtitleSpec | null = row.externalSubtitlePath
+        ? {
+            path: row.externalSubtitlePath,
+            language: 'por',
+            trackName: ptBrTrackName,
+            offsetMs: usingExternalSync ? offsetMs : 0,
+            clearDefaultTrackIds:
+              row.selectedTrackId !== null ? [row.selectedTrackId] : row.tracks.map((t) => t.trackId)
+          }
+        : null
 
       const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
       const audioInfo = keepAudioTrackIds ? ' (removendo audio em ingles)' : ''
       const subInfo =
         row.selectedTrackId !== null ? ` (mantendo somente legenda #${row.selectedTrackId})` : ''
-      const syncInfo = offsetMs !== 0 ? ` (sincronizando faixa #${syncTrack!.trackId} em ${offsetMs}ms)` : ''
+      const externalInfo = row.externalSubtitlePath ? ' (adicionando legenda externa)' : ''
+      const syncInfo =
+        offsetMs !== 0
+          ? ` (sincronizando ${usingExternalSync ? 'legenda externa' : `faixa #${syncTrack?.trackId}`} em ${offsetMs}ms)`
+          : ''
       onLog({
         level: 'info',
-        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}${syncInfo}`
+        message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}${externalInfo}${syncInfo}`
       })
 
       await cleanTracksInto(
@@ -629,8 +660,9 @@ export async function cleanRows(
         outputFile,
         row.selectedTrackId,
         keepAudioTrackIds,
-        syncTrack?.trackId ?? null,
-        offsetMs,
+        usingExternalSync ? null : (syncTrack?.trackId ?? null),
+        usingExternalSync ? 0 : offsetMs,
+        externalSubtitle,
         token
       )
 
@@ -872,6 +904,11 @@ export async function getTrackEvents(
   const tracks = await probeSubtitleTracks(mkvmergePath, filePath)
   const track = tracks.find((t) => t.trackId === trackId)
   return track ? extractSubtitleEvents(mkvextractPath, filePath, track) : []
+}
+
+export async function getExternalSubtitleEvents(filePath: string): Promise<SubtitleEvent[]> {
+  const content = decodeSubtitleBuffer(await readFile(filePath))
+  return parseSubtitleEvents(content, extname(filePath))
 }
 
 export async function renameSubtitleTracks(

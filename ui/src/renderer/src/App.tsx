@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
+import { EXTERNAL_SUBTITLE_TRACK_ID } from '@shared/types'
 import type {
   AppConfig,
   CleanDefaults,
@@ -615,6 +616,21 @@ function AppContent() {
     )
   }
 
+  function handleExternalSubtitleChange(rowId: string, path: string | null) {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r
+        const syncTrackId =
+          path !== null
+            ? EXTERNAL_SUBTITLE_TRACK_ID
+            : r.syncTrackId === EXTERNAL_SUBTITLE_TRACK_ID
+              ? null
+              : r.syncTrackId
+        return { ...r, externalSubtitlePath: path, syncTrackId }
+      })
+    )
+  }
+
   function handleApplySync(rowId: string, offsetMs: number, syncTrackId: number) {
     const row = rows.find((r) => r.id === rowId)
     setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, syncTrackId } : r)))
@@ -830,6 +846,7 @@ function AppContent() {
             onTrackChange={handleTrackChange}
             onApplyTrackToAll={handleApplyTrackToAll}
             onOpenSync={setSyncRowId}
+            onExternalSubtitleChange={handleExternalSubtitleChange}
             progressPct={progressPct}
             logs={logs}
             onClearLog={handleClearLog}

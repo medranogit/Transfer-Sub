@@ -30,6 +30,9 @@ const api = {
 
   chooseFile: (initialPath?: string): Promise<string | null> => ipcRenderer.invoke('dialog:chooseFile', initialPath),
 
+  chooseSubtitleFile: (initialPath?: string): Promise<string | null> =>
+    ipcRenderer.invoke('dialog:chooseSubtitleFile', initialPath),
+
   openFolder: (folderPath: string): Promise<void> => ipcRenderer.invoke('shell:openFolder', folderPath),
   showItemInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('shell:showItemInFolder', filePath),
 
@@ -68,6 +71,9 @@ const api = {
 
   getTrackEvents: (filePath: string, trackId: number): Promise<SubtitleEvent[]> =>
     ipcRenderer.invoke('sync:trackEvents', { filePath, trackId }),
+
+  getExternalSubtitleEvents: (filePath: string): Promise<SubtitleEvent[]> =>
+    ipcRenderer.invoke('sync:externalEvents', filePath),
 
   loadTransferLog: (): Promise<TransferLogEntry[]> => ipcRenderer.invoke('transferLog:load'),
   clearTransferLog: (): Promise<void> => ipcRenderer.invoke('transferLog:clear'),

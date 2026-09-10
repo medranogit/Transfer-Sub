@@ -245,6 +245,14 @@ export function resolveOutputPath(
   return join(resolveResultFolder(outputFolder, resultFolderName), `${base}.mkv`)
 }
 
+export interface ExternalSubtitleSpec {
+  path: string
+  language: string
+  trackName: string
+  offsetMs: number
+  clearDefaultTrackIds: number[]
+}
+
 export async function cleanTracksInto(
   mkvmergePath: string,
   sourceFile: string,
@@ -253,6 +261,7 @@ export async function cleanTracksInto(
   keepAudioTrackIds: number[] | undefined,
   syncTrackId: number | null,
   offsetMs: number,
+  externalSubtitle: ExternalSubtitleSpec | null,
   token?: CancellationToken
 ): Promise<void> {
   const args = ['-o', outputFile]
@@ -261,12 +270,29 @@ export async function cleanTracksInto(
   }
   if (keepSubtitleTrackId !== null) {
     args.push('--subtitle-tracks', String(keepSubtitleTrackId))
+  }
+  if (externalSubtitle) {
+    externalSubtitle.clearDefaultTrackIds.forEach((trackId) => {
+      args.push('--default-track-flag', `${trackId}:no`)
+    })
+  } else if (keepSubtitleTrackId !== null) {
     args.push('--default-track-flag', `${keepSubtitleTrackId}:yes`)
   }
   if (syncTrackId !== null && offsetMs !== 0) {
     args.push('--sync', `${syncTrackId}:${offsetMs}`)
   }
   args.push(sourceFile)
+
+  if (externalSubtitle) {
+    args.push('--language', `0:${externalSubtitle.language}`, '--default-track-flag', '0:yes')
+    if (externalSubtitle.trackName) {
+      args.push('--track-name', `0:${externalSubtitle.trackName}`)
+    }
+    if (externalSubtitle.offsetMs) {
+      args.push('--sync', `0:${externalSubtitle.offsetMs}`)
+    }
+    args.push(externalSubtitle.path)
+  }
 
   await runMkvTool(mkvmergePath, args, token)
 }

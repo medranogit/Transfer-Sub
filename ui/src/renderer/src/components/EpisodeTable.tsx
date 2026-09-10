@@ -3,7 +3,9 @@ import {
   ArrowRightOutlined,
   CheckCircleFilled,
   ClockCircleFilled,
+  CloseOutlined,
   CopyOutlined,
+  PlusOutlined,
   SyncOutlined
 } from '@ant-design/icons'
 import type { EpisodeRow, RowStatus } from '@shared/types'
@@ -106,6 +108,10 @@ const ArrowCell = styled.td`
   font-size: 13px;
 `
 
+function fileNameOf(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path
+}
+
 export function EpisodeTable({
   rows,
   statuses,
@@ -115,7 +121,8 @@ export function EpisodeTable({
   onToggleSelectAll,
   onTrackChange,
   onOpenSync,
-  onApplyTrackToAll
+  onApplyTrackToAll,
+  onExternalSubtitleChange
 }: {
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
@@ -126,7 +133,12 @@ export function EpisodeTable({
   onTrackChange: (rowId: string, trackId: number | null) => void
   onOpenSync: (rowId: string) => void
   onApplyTrackToAll?: () => void
+  onExternalSubtitleChange: (rowId: string, path: string | null) => void
 }) {
+  async function handlePickExternalSubtitle(rowId: string): Promise<void> {
+    const path = await window.api.chooseSubtitleFile()
+    if (path) onExternalSubtitleChange(rowId, path)
+  }
   const allSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
 
   return (
@@ -156,6 +168,7 @@ export function EpisodeTable({
               </Row>
             </th>
             {cleanOnly ? <th>Arquivo</th> : <th>Arquivo origem</th>}
+            {cleanOnly && <th style={{ width: 170 }}>Legenda externa</th>}
             {!cleanOnly && <th style={{ width: 24 }} />}
             {!cleanOnly && <th>Arquivo destino</th>}
             <th style={{ width: 110 }}>Status</th>
@@ -177,7 +190,11 @@ export function EpisodeTable({
                       type="button"
                       $variant="secondary"
                       onClick={() => onOpenSync(row.id)}
-                      disabled={cleanOnly ? row.tracks.length < 2 : row.selectedTrackId === null}
+                      disabled={
+                        cleanOnly
+                          ? row.tracks.length < 2 && !row.externalSubtitlePath
+                          : row.selectedTrackId === null
+                      }
                       title="Ajustar o timing de uma legenda (sincronizar com outra faixa, definir a 1a fala ou um deslocamento manual)"
                     >
                       <SyncOutlined /> Sincronizar
@@ -217,6 +234,30 @@ export function EpisodeTable({
                 <Td>
                   <FileName title={row.sourceName}>{row.sourceName}</FileName>
                 </Td>
+                {cleanOnly && (
+                  <Td onClick={(e) => e.stopPropagation()}>
+                    <Row $gap={6} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Button
+                        type="button"
+                        $variant="secondary"
+                        onClick={() => handlePickExternalSubtitle(row.id)}
+                        title={row.externalSubtitlePath ?? 'Anexar um arquivo .ass/.srt a este video'}
+                      >
+                        <PlusOutlined /> {row.externalSubtitlePath ? fileNameOf(row.externalSubtitlePath) : 'Adicionar legenda'}
+                      </Button>
+                      {row.externalSubtitlePath && (
+                        <Button
+                          type="button"
+                          $variant="ghost"
+                          onClick={() => onExternalSubtitleChange(row.id, null)}
+                          title="Remover legenda externa"
+                        >
+                          <CloseOutlined />
+                        </Button>
+                      )}
+                    </Row>
+                  </Td>
+                )}
                 {!cleanOnly && (
                   <ArrowCell>
                     <ArrowRightOutlined />

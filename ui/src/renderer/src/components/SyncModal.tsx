@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import styled from 'styled-components'
+import { EXTERNAL_SUBTITLE_TRACK_ID } from '@shared/types'
 import type { EpisodeRow, SubtitleEvent, SubtitleTrack } from '@shared/types'
 import { theme } from '../theme'
 import { Button, Col, Label, Panel, Row } from '../ui/primitives'
@@ -174,6 +175,10 @@ const ModalFooter = styled.div`
   gap: 8px;
 `
 
+function fileNameOf(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path
+}
+
 function defaultPtTrackId(row: EpisodeRow): number | null {
   return (
     row.syncTrackId ??
@@ -234,11 +239,14 @@ export function SyncModal({
       setLoading(false)
       return
     }
-    window.api
-      .prepareSync(row.sourcePath, initialPtTrackId, row.destPath, preferredEnTrackId)
-      .then((result) => {
+    const usingExternal = initialPtTrackId === EXTERNAL_SUBTITLE_TRACK_ID && row.externalSubtitlePath
+    Promise.all([
+      window.api.prepareSync(row.sourcePath, initialPtTrackId, row.destPath, preferredEnTrackId),
+      usingExternal ? window.api.getExternalSubtitleEvents(row.externalSubtitlePath!) : null
+    ])
+      .then(([result, externalPtEvents]) => {
         if (cancelled) return
-        setPtEvents(result.ptEvents)
+        setPtEvents(externalPtEvents ?? result.ptEvents)
         setDestTracks(result.destTracks)
         setEnTrackId(result.chosenEnTrackId)
         setEnEvents(result.enEvents)
@@ -275,8 +283,11 @@ export function SyncModal({
   function handlePtTrackChange(trackId: number) {
     setPtTrackId(trackId)
     setSelectedPtIndex(null)
-    window.api
-      .getTrackEvents(row.sourcePath, trackId)
+    const promise =
+      trackId === EXTERNAL_SUBTITLE_TRACK_ID && row.externalSubtitlePath
+        ? window.api.getExternalSubtitleEvents(row.externalSubtitlePath)
+        : window.api.getTrackEvents(row.sourcePath, trackId)
+    promise
       .then(setPtEvents)
       .catch((err) => {
         const message = (err as Error).message
@@ -418,6 +429,11 @@ export function SyncModal({
                   disabled={!cleanOnly}
                   onChange={(e) => handlePtTrackChange(Number(e.target.value))}
                 >
+                  {row.externalSubtitlePath && (
+                    <option value={EXTERNAL_SUBTITLE_TRACK_ID}>
+                      Legenda externa adicionada ({fileNameOf(row.externalSubtitlePath)})
+                    </option>
+                  )}
                   {row.tracks.map((t) => (
                     <option key={t.trackId} value={t.trackId}>
                       {trackLabel(t)}

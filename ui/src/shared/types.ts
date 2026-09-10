@@ -9,6 +9,8 @@ export interface SubtitleTrack {
   isPtBrGuess: boolean
 }
 
+export const EXTERNAL_SUBTITLE_TRACK_ID = -1
+
 export interface EpisodeRow {
   id: string
   episodeKey: string
@@ -21,6 +23,7 @@ export interface EpisodeRow {
   firstLineTargetText: string
   manualOffsetText: string
   syncTrackId: number | null
+  externalSubtitlePath: string | null
 }
 
 export interface ScanResult {

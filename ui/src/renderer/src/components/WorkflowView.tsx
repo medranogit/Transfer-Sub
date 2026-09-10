@@ -71,6 +71,7 @@ export function WorkflowView({
   onTrackChange,
   onApplyTrackToAll,
   onOpenSync,
+  onExternalSubtitleChange,
   progressPct,
   logs,
   onClearLog
@@ -107,6 +108,7 @@ export function WorkflowView({
   onTrackChange: (rowId: string, trackId: number | null) => void
   onApplyTrackToAll: () => void
   onOpenSync: (rowId: string) => void
+  onExternalSubtitleChange: (rowId: string, path: string | null) => void
   progressPct: number
   logs: LogEvent[]
   onClearLog: () => void
@@ -224,6 +226,7 @@ export function WorkflowView({
           onTrackChange={onTrackChange}
           onOpenSync={onOpenSync}
           onApplyTrackToAll={onApplyTrackToAll}
+          onExternalSubtitleChange={onExternalSubtitleChange}
         />
       </Col>
 

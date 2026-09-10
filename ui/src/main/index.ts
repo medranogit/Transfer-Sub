@@ -9,6 +9,7 @@ import { CancellationToken } from './infra/cancellation'
 import {
   cleanRows,
   convertRows,
+  getExternalSubtitleEvents,
   getTrackEvents,
   prepareSync,
   renameSubtitleTracks,
@@ -232,6 +233,19 @@ app.whenReady().then(() => {
     return result.filePaths[0]
   })
 
+  ipcMain.handle('dialog:chooseSubtitleFile', async (_e, initialPath?: string) => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      properties: ['openFile'],
+      defaultPath: initialPath || undefined,
+      filters: [
+        { name: 'Legendas', extensions: ['ass', 'ssa', 'srt'] },
+        { name: 'Todos os arquivos', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
   ipcMain.handle('shell:openFolder', (_e, folderPath: string) => {
     if (folderPath) shell.openPath(folderPath)
   })
@@ -380,6 +394,8 @@ app.whenReady().then(() => {
     return getTrackEvents(status.mkvmergePath, status.mkvextractPath, filePath, trackId)
   })
 
+  ipcMain.handle('sync:externalEvents', (_e, filePath: string) => getExternalSubtitleEvents(filePath))
+
   ipcMain.handle('transferLog:load', () => loadTransferLog())
   ipcMain.handle('transferLog:clear', () => clearTransferLog())
 
@@ -411,6 +427,7 @@ app.whenReady().then(() => {
         },
         token,
         config.namingClean,
+        config.ptBrTrackName,
         config.outputFolderName
       )
     } finally {
