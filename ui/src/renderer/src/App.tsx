@@ -756,6 +756,10 @@ function AppContent() {
     }
   }
 
+  function handleConvertExternalSubtitleChange(rowId: string, path: string | null) {
+    setConvertRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, externalSubtitlePath: path } : r)))
+  }
+
   function handleConvertAbort() {
     setConvertAborting(true)
     window.api.abortOperation()
@@ -868,6 +872,7 @@ function AppContent() {
             onAbort={handleConvertAbort}
             rows={convertRows}
             statuses={convertStatuses}
+            onExternalSubtitleChange={handleConvertExternalSubtitleChange}
             progressPct={convertProgressPct}
             logs={logs}
             onClearLog={handleClearLog}

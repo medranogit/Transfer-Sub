@@ -465,6 +465,7 @@ app.whenReady().then(() => {
           mainWindow?.webContents.send('log', log)
         },
         token,
+        config.ptBrTrackName,
         config.outputFolderName
       )
     } finally {

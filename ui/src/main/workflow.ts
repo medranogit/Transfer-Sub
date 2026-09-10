@@ -737,7 +737,8 @@ export async function scanForConvert(folder: string, onLog: LogFn): Promise<Conv
   const rows: ConvertRow[] = files.map((file) => ({
     id: file,
     sourcePath: file,
-    sourceName: basename(file)
+    sourceName: basename(file),
+    externalSubtitlePath: null
   }))
 
   onLog({ level: 'info', message: `Encontrados ${rows.length} arquivo(s) .mp4 na pasta.` })
@@ -752,6 +753,7 @@ export async function convertRows(
   onProgress: (rowId: string, status: RowStatus, message?: string) => void,
   onLog: LogFn,
   token: CancellationToken | undefined,
+  ptBrTrackName: string,
   resultFolderName: string
 ): Promise<TransferSummary> {
   let success = 0
@@ -775,13 +777,17 @@ export async function convertRows(
 
     onProgress(row.id, 'muxing')
     const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
+    const externalInfo = row.externalSubtitlePath ? ' (adicionando legenda externa)' : ''
     onLog({
       level: 'info',
-      message: `[${row.sourceName}] convertendo para ${basename(outputFile)}${overwriteInfo}`
+      message: `[${row.sourceName}] convertendo para ${basename(outputFile)}${overwriteInfo}${externalInfo}`
     })
 
     try {
-      await convertToMkv(mkvmergePath, row.sourcePath, outputFile, token)
+      const externalSubtitle = row.externalSubtitlePath
+        ? { path: row.externalSubtitlePath, language: 'por', trackName: ptBrTrackName }
+        : null
+      await convertToMkv(mkvmergePath, row.sourcePath, outputFile, externalSubtitle, token)
 
       onProgress(row.id, 'done')
       success += 1

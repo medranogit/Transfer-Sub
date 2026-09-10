@@ -37,6 +37,7 @@ export interface ConvertRow {
   id: string
   sourcePath: string
   sourceName: string
+  externalSubtitlePath: string | null
 }
 
 export interface ConvertScanResult {

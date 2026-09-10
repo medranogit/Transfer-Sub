@@ -1,11 +1,15 @@
 import styled from 'styled-components'
-import { ClearOutlined, StopOutlined } from '@ant-design/icons'
+import { ClearOutlined, CloseOutlined, PlusOutlined, StopOutlined } from '@ant-design/icons'
 import type { ConvertRow, LogEvent, RowStatus } from '@shared/types'
 import { Button, Col, Panel, Row, SectionTitle } from '../ui/primitives'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
 import { FolderField } from './FolderField'
 import { LogPanel } from './LogPanel'
 import { StatusBadge } from './StatusBadge'
+
+function fileNameOf(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path
+}
 
 const ConfigPanel = styled(Panel)`
   padding: 14px 16px;
@@ -50,6 +54,7 @@ export function ConvertView({
   onAbort,
   rows,
   statuses,
+  onExternalSubtitleChange,
   progressPct,
   logs,
   onClearLog
@@ -67,10 +72,15 @@ export function ConvertView({
   onAbort: () => void
   rows: ConvertRow[]
   statuses: Record<string, RowStatus>
+  onExternalSubtitleChange: (rowId: string, path: string | null) => void
   progressPct: number
   logs: LogEvent[]
   onClearLog: () => void
 }) {
+  async function handlePickExternalSubtitle(rowId: string): Promise<void> {
+    const path = await window.api.chooseSubtitleFile()
+    if (path) onExternalSubtitleChange(rowId, path)
+  }
   return (
     <>
       <ConfigPanel>
@@ -116,6 +126,7 @@ export function ConvertView({
               <Thead>
                 <tr>
                   <th>Arquivo</th>
+                  <th>Legenda externa</th>
                   <th>Status</th>
                 </tr>
               </Thead>
@@ -124,6 +135,29 @@ export function ConvertView({
                   <Tr key={row.id}>
                     <Td>
                       <Mono>{row.sourceName}</Mono>
+                    </Td>
+                    <Td>
+                      <Row $gap={6} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Button
+                          type="button"
+                          $variant="secondary"
+                          onClick={() => handlePickExternalSubtitle(row.id)}
+                          title={row.externalSubtitlePath ?? 'Anexar um arquivo .ass/.srt a este video'}
+                        >
+                          <PlusOutlined />{' '}
+                          {row.externalSubtitlePath ? fileNameOf(row.externalSubtitlePath) : 'Adicionar legenda'}
+                        </Button>
+                        {row.externalSubtitlePath && (
+                          <Button
+                            type="button"
+                            $variant="ghost"
+                            onClick={() => onExternalSubtitleChange(row.id, null)}
+                            title="Remover legenda externa"
+                          >
+                            <CloseOutlined />
+                          </Button>
+                        )}
+                      </Row>
                     </Td>
                     <Td>
                       <StatusBadge status={statuses[row.id] ?? 'idle'} />

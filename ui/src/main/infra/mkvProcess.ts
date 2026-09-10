@@ -307,13 +307,29 @@ export function resolveCleanOutputPath(
   return join(resolveResultFolder(outputFolder, resultFolderName), `${base}.mkv`)
 }
 
+export interface ExternalSubtitleAttachment {
+  path: string
+  language: string
+  trackName: string
+}
+
 export async function convertToMkv(
   mkvmergePath: string,
   sourceFile: string,
   outputFile: string,
+  externalSubtitle: ExternalSubtitleAttachment | null,
   token?: CancellationToken
 ): Promise<void> {
-  await runMkvTool(mkvmergePath, ['-o', outputFile, sourceFile], token)
+  const args = ['-o', outputFile, sourceFile]
+  if (externalSubtitle) {
+    args.push('--language', `0:${externalSubtitle.language}`, '--default-track-flag', '0:yes')
+    if (externalSubtitle.trackName) {
+      args.push('--track-name', `0:${externalSubtitle.trackName}`)
+    }
+    args.push(externalSubtitle.path)
+  }
+
+  await runMkvTool(mkvmergePath, args, token)
 }
 
 export function resolveConvertOutputPath(sourceFile: string, outputFolder: string, resultFolderName: string): string {
