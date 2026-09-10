@@ -52,12 +52,14 @@ export function SuggestInput({
   value,
   onChange,
   options,
-  placeholder
+  placeholder,
+  onBlur
 }: {
   value: string
   onChange: (next: string) => void
   options: string[]
   placeholder?: string
+  onBlur?: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -72,7 +74,10 @@ export function SuggestInput({
           setOpen(true)
         }}
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        onBlur={() => {
+          setTimeout(() => setOpen(false), 120)
+          onBlur?.(value)
+        }}
         placeholder={placeholder}
       />
       {open && filtered.length > 0 && (

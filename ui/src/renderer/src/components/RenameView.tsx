@@ -53,6 +53,7 @@ export function RenameView({
   fields,
   onFieldsChange,
   fansubPresets,
+  onFansubBlur,
   tagPresets,
   rows,
   scanning,
@@ -71,6 +72,7 @@ export function RenameView({
   fields: RenameFields
   onFieldsChange: (next: RenameFields) => void
   fansubPresets: string[]
+  onFansubBlur: (value: string) => void
   tagPresets: string[]
   rows: RenamePreviewRow[]
   scanning: boolean
@@ -107,6 +109,7 @@ export function RenameView({
               onChange={(value) => onFieldsChange({ ...fields, fansub: value })}
               options={fansubPresets}
               placeholder="Judas"
+              onBlur={onFansubBlur}
             />
           </Field>
           <Field>

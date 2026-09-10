@@ -135,6 +135,7 @@ function AppContent() {
   const [renameScanning, setRenameScanning] = useState(false)
   const [renameUpdating, setRenameUpdating] = useState(false)
   const [pendingFansub, setPendingFansub] = useState<DetectedRenameFields | null>(null)
+  const [pendingManualFansub, setPendingManualFansub] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
   const [renamingTracks, setRenamingTracks] = useState(false)
 
@@ -509,6 +510,25 @@ function AppContent() {
     setPendingFansub(null)
   }
 
+  function handleFansubBlur(value: string) {
+    const trimmed = value.trim()
+    if (!trimmed) return
+    const known = renameFansubPresets.some((p) => p.toLowerCase() === trimmed.toLowerCase())
+    if (!known) setPendingManualFansub(trimmed)
+  }
+
+  function handleConfirmManualFansub() {
+    if (!pendingManualFansub) return
+    const next = [...renameFansubPresets, pendingManualFansub]
+    setRenameFansubPresets(next)
+    persistConfig({ renameFansubPresets: next })
+    setPendingManualFansub(null)
+  }
+
+  function handleCancelManualFansub() {
+    setPendingManualFansub(null)
+  }
+
   async function handleRenameApply() {
     const targets = renameRows.filter((r) => r.newName)
     if (targets.length === 0) {
@@ -738,6 +758,7 @@ function AppContent() {
             fields={renameFields}
             onFieldsChange={setRenameFields}
             fansubPresets={renameFansubPresets}
+            onFansubBlur={handleFansubBlur}
             tagPresets={renameTagPresets}
             rows={renameRows}
             scanning={renameScanning}
@@ -810,6 +831,17 @@ function AppContent() {
           cancelLabel="Deixar em branco"
           onConfirm={handleConfirmNewFansub}
           onCancel={handleCancelNewFansub}
+        />
+      )}
+
+      {pendingManualFansub && (
+        <ConfirmDialog
+          title="Fansub desconhecida"
+          message={`"${pendingManualFansub}" nao esta na lista de fansubs conhecidas. Adicionar a lista?`}
+          confirmLabel="Adicionar"
+          cancelLabel="Nao adicionar"
+          onConfirm={handleConfirmManualFansub}
+          onCancel={handleCancelManualFansub}
         />
       )}
     </Shell>
