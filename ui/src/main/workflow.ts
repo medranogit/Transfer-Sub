@@ -18,9 +18,10 @@ import {
   parseSubtitleEvents,
   parseTimeCodeToMs
 } from './domain/subtitleTiming'
-import { listVideoFiles } from './infra/videoFiles'
+import { listMp4Files, listVideoFiles } from './infra/videoFiles'
 import {
   cleanTracksInto,
+  convertToMkv,
   extractAttachments,
   extractSubtitle,
   muxSubtitleInto,
@@ -28,6 +29,7 @@ import {
   probeAudioTracks,
   probeSubtitleTracks,
   resolveCleanOutputPath,
+  resolveConvertOutputPath,
   resolveOutputPath,
   resolveResultFolder,
   setSubtitleTrackLabel,
@@ -36,6 +38,8 @@ import {
 import { appendTransferLog } from './infra/transferLog'
 import { CancellationToken, OperationAbortedError } from './infra/cancellation'
 import type {
+  ConvertRow,
+  ConvertScanResult,
   EpisodeRow,
   LogEvent,
   NamingConfig,
@@ -683,6 +687,123 @@ export async function cleanRows(
     message: aborted
       ? `Processamento abortado: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
       : `Processamento concluido: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+  })
+
+  return { total, success, failed, aborted }
+}
+
+export async function scanForConvert(folder: string, onLog: LogFn): Promise<ConvertScanResult> {
+  const files = listMp4Files(folder)
+  const warnings: string[] = []
+
+  if (!existsSync(folder)) {
+    warnings.push(`Pasta nao encontrada: ${folder}`)
+  } else if (files.length === 0) {
+    warnings.push(`Nenhum arquivo .mp4 na pasta: ${folder}`)
+  }
+
+  const rows: ConvertRow[] = files.map((file) => ({
+    id: file,
+    sourcePath: file,
+    sourceName: basename(file)
+  }))
+
+  onLog({ level: 'info', message: `Encontrados ${rows.length} arquivo(s) .mp4 na pasta.` })
+
+  return { rows, warnings }
+}
+
+export async function convertRows(
+  mkvmergePath: string,
+  rows: ConvertRow[],
+  outputDir: string,
+  onProgress: (rowId: string, status: RowStatus, message?: string) => void,
+  onLog: LogFn,
+  token: CancellationToken | undefined,
+  resultFolderName: string
+): Promise<TransferSummary> {
+  let success = 0
+  let failed = 0
+
+  await mkdir(resolveResultFolder(outputDir, resultFolderName), { recursive: true })
+
+  for (const row of rows) {
+    if (token?.aborted) break
+
+    const outputFile = resolveConvertOutputPath(row.sourcePath, outputDir, resultFolderName)
+    if (samePath(outputFile, row.sourcePath)) {
+      failed += 1
+      onProgress(row.id, 'error', 'Pasta de saida igual a de origem geraria o mesmo arquivo')
+      onLog({
+        level: 'error',
+        message: `[${row.sourceName}] pasta de saida resultaria no mesmo arquivo de origem (${basename(outputFile)}) - escolha uma pasta de saida diferente`
+      })
+      continue
+    }
+
+    onProgress(row.id, 'muxing')
+    const overwriteInfo = existsSync(outputFile) ? ' (sobrescrevendo arquivo existente)' : ''
+    onLog({
+      level: 'info',
+      message: `[${row.sourceName}] convertendo para ${basename(outputFile)}${overwriteInfo}`
+    })
+
+    try {
+      await convertToMkv(mkvmergePath, row.sourcePath, outputFile, token)
+
+      onProgress(row.id, 'done')
+      success += 1
+      onLog({ level: 'success', message: `[${row.sourceName}] concluido: ${basename(outputFile)}` })
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        kind: 'convert',
+        episodeKey: row.sourceName,
+        sourceFile: row.sourcePath,
+        destFile: row.sourcePath,
+        outputFile,
+        trackId: null,
+        language: null,
+        trackName: null,
+        firstLineTargetText: '',
+        appliedOffsetMs: null,
+        status: 'done'
+      })
+    } catch (err) {
+      if (err instanceof OperationAbortedError) {
+        await rm(outputFile, { force: true }).catch(() => {})
+        onProgress(row.id, 'idle')
+        onLog({ level: 'warn', message: `[${row.sourceName}] abortado pelo usuario` })
+        break
+      }
+      failed += 1
+      const message = (err as Error).message
+      onProgress(row.id, 'error', message)
+      onLog({ level: 'error', message: `[${row.sourceName}] ERRO: ${message}` })
+      await appendTransferLog({
+        timestamp: new Date().toISOString(),
+        kind: 'convert',
+        episodeKey: row.sourceName,
+        sourceFile: row.sourcePath,
+        destFile: row.sourcePath,
+        outputFile,
+        trackId: null,
+        language: null,
+        trackName: null,
+        firstLineTargetText: '',
+        appliedOffsetMs: null,
+        status: 'error',
+        error: message
+      })
+    }
+  }
+
+  const aborted = token?.aborted ?? false
+  const total = rows.length
+  onLog({
+    level: aborted ? 'warn' : failed ? 'warn' : 'success',
+    message: aborted
+      ? `Conversao abortada: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
+      : `Conversao concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
 
   return { total, success, failed, aborted }

@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppConfig,
+  ConvertRequest,
+  ConvertScanResult,
   LogEvent,
   MkvToolsStatus,
   RenameFields,
@@ -49,6 +51,10 @@ const api = {
     ipcRenderer.invoke('transfer:run', request),
 
   clean: (request: TransferRequest): Promise<TransferSummary> => ipcRenderer.invoke('clean:run', request),
+
+  scanConvert: (folder: string): Promise<ConvertScanResult> => ipcRenderer.invoke('scan:convert', { folder }),
+
+  convert: (request: ConvertRequest): Promise<TransferSummary> => ipcRenderer.invoke('convert:run', request),
 
   abortOperation: (): Promise<void> => ipcRenderer.invoke('operation:abort'),
 

@@ -280,3 +280,16 @@ export function resolveCleanOutputPath(
   const base = withOptionalTag(parse(sourceFile).name, naming.tagEnabled ? naming.tagWord.trim() : undefined)
   return join(resolveResultFolder(outputFolder, resultFolderName), `${base}.mkv`)
 }
+
+export async function convertToMkv(
+  mkvmergePath: string,
+  sourceFile: string,
+  outputFile: string,
+  token?: CancellationToken
+): Promise<void> {
+  await runMkvTool(mkvmergePath, ['-o', outputFile, sourceFile], token)
+}
+
+export function resolveConvertOutputPath(sourceFile: string, outputFolder: string, resultFolderName: string): string {
+  return join(resolveResultFolder(outputFolder, resultFolderName), `${parse(sourceFile).name}.mkv`)
+}

@@ -18,3 +18,7 @@ export function listVideoFiles(folder: string): string[] {
       return episodeA - episodeB || a.localeCompare(b)
     })
 }
+
+export function listMp4Files(folder: string): string[] {
+  return listVideoFiles(folder).filter((file) => parse(file).ext.toLowerCase() === '.mp4')
+}

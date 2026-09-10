@@ -5,16 +5,18 @@ import {
   FileSyncOutlined,
   FileTextOutlined,
   HistoryOutlined,
+  RetweetOutlined,
   SettingOutlined,
   SwapOutlined,
   TranslationOutlined
 } from '@ant-design/icons'
 
-export type ViewId = 'transfer' | 'clean' | 'rename' | 'history' | 'sessionLog' | 'settings'
+export type ViewId = 'transfer' | 'clean' | 'convert' | 'rename' | 'history' | 'sessionLog' | 'settings'
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: ReactNode }[] = [
   { id: 'transfer', label: 'Transferir Legenda', icon: <SwapOutlined /> },
   { id: 'clean', label: 'Editar Arquivo', icon: <FileSyncOutlined /> },
+  { id: 'convert', label: 'Converter', icon: <RetweetOutlined /> },
   { id: 'rename', label: 'Renomeador', icon: <EditOutlined /> },
   { id: 'history', label: 'Historico', icon: <HistoryOutlined /> },
   { id: 'sessionLog', label: 'Log da Sessao', icon: <FileTextOutlined /> },

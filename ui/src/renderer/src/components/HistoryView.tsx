@@ -28,6 +28,7 @@ function adjustmentLabel(entry: TransferLogEntry): string {
 const KIND_LABELS: Record<NonNullable<TransferLogEntry['kind']>, string> = {
   transfer: 'Transferir Legenda',
   clean: 'Editar Arquivo',
+  convert: 'Converter',
   rename: 'Renomeador'
 }
 
@@ -49,6 +50,7 @@ const KindTag = styled.span<{ $kind: NonNullable<TransferLogEntry['kind']> }>`
     ({
       transfer: p.theme.colors.accent,
       clean: p.theme.colors.info,
+      convert: p.theme.colors.success,
       rename: p.theme.colors.warning
     })[p.$kind]};
 `

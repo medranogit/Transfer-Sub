@@ -30,6 +30,22 @@ export interface ScanResult {
   aborted: boolean
 }
 
+export interface ConvertRow {
+  id: string
+  sourcePath: string
+  sourceName: string
+}
+
+export interface ConvertScanResult {
+  rows: ConvertRow[]
+  warnings: string[]
+}
+
+export interface ConvertRequest {
+  rows: ConvertRow[]
+  outputDir: string
+}
+
 export type RowStatus = 'idle' | 'extracting' | 'muxing' | 'done' | 'error'
 
 export interface TransferProgressEvent {
@@ -83,6 +99,7 @@ export interface AppConfig {
   muteSounds: boolean
   ptBrTrackName: string
   renameFolder: string
+  convertFolder: string
   renameFansubPresets: string[]
   renameTagPresets: string[]
   movieSourceFile: string
@@ -119,7 +136,7 @@ export interface SyncPrepareResult {
 
 export interface TransferLogEntry {
   timestamp: string
-  kind?: 'transfer' | 'clean' | 'rename'
+  kind?: 'transfer' | 'clean' | 'rename' | 'convert'
   episodeKey: string
   sourceFile: string
   destFile: string

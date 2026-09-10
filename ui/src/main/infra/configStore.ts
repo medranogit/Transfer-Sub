@@ -18,6 +18,7 @@ const DEFAULT_CONFIG: AppConfig = {
   muteSounds: false,
   ptBrTrackName: DEFAULT_PT_BR_TRANSFER_TRACK_NAME,
   renameFolder: '',
+  convertFolder: '',
   renameFansubPresets: ['DKB', 'Erai-raws', 'EMBER', 'Judas', 'WF'],
   renameTagPresets: ['HEVC', 'BD', 'WebRip', '1080p', '720p'],
   movieSourceFile: '',

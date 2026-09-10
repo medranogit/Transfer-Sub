@@ -3,6 +3,7 @@ import styled, { ThemeProvider } from 'styled-components'
 import type {
   AppConfig,
   CleanDefaults,
+  ConvertRow,
   DetectedRenameFields,
   EpisodeRow,
   LogEvent,
@@ -19,6 +20,7 @@ import { GlobalStyle } from './GlobalStyle'
 import { Sidebar } from './components/Sidebar'
 import type { ViewId } from './components/Sidebar'
 import { WorkflowView } from './components/WorkflowView'
+import { ConvertView } from './components/ConvertView'
 import { RenameView } from './components/RenameView'
 import { HistoryView } from './components/HistoryView'
 import { SessionLogView } from './components/SessionLogView'
@@ -59,6 +61,7 @@ const Title = styled.h1`
 const VIEW_TITLES: Record<ViewId, string> = {
   transfer: 'Transferir Legenda',
   clean: 'Editar Arquivo',
+  convert: 'Converter',
   rename: 'Renomeador',
   history: 'Historico',
   sessionLog: 'Log da Sessao',
@@ -139,6 +142,13 @@ function AppContent() {
   const [renaming, setRenaming] = useState(false)
   const [renamingTracks, setRenamingTracks] = useState(false)
 
+  const [convertFolder, setConvertFolder] = useState('')
+  const [convertRows, setConvertRows] = useState<ConvertRow[]>([])
+  const [convertStatuses, setConvertStatuses] = useState<Record<string, RowStatus>>({})
+  const [convertScanning, setConvertScanning] = useState(false)
+  const [convertConverting, setConvertConverting] = useState(false)
+  const [convertAborting, setConvertAborting] = useState(false)
+
   const cleanOnly = view === 'clean'
   const removeEnglishAudio = cleanOnly ? cleanRemoveEnglishAudio : transferRemoveEnglishAudio
   const removeExtraSubtitles = transferRemoveExtraSubtitles
@@ -170,6 +180,7 @@ function AppContent() {
     setMuteSounds(config.muteSounds)
     setPtBrTrackName(config.ptBrTrackName)
     setRenameFolder(config.renameFolder)
+    setConvertFolder(config.convertFolder)
     setRenameFansubPresets(config.renameFansubPresets)
     setRenameTagPresets(config.renameTagPresets)
     setMovieSourceFile(config.movieSourceFile)
@@ -183,6 +194,7 @@ function AppContent() {
     const offLog = window.api.onLog((event) => addLog(event))
     const offProgress = window.api.onTransferProgress(({ rowId, status }) => {
       setStatuses((prev) => ({ ...prev, [rowId]: status }))
+      setConvertStatuses((prev) => ({ ...prev, [rowId]: status }))
     })
     const offNotification = window.api.onNotification((message) => {
       setUpdateNotifications((prev) => [...prev, message])
@@ -268,6 +280,7 @@ function AppContent() {
       renameTagPresets: string[]
       movieSourceFile: string
       movieDestFile: string
+      convertFolder: string
     }> = {}
   ) {
     await window.api.saveConfig({
@@ -287,7 +300,8 @@ function AppContent() {
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
       renameTagPresets: overrides.renameTagPresets ?? renameTagPresets,
       movieSourceFile: overrides.movieSourceFile ?? movieSourceFile,
-      movieDestFile: overrides.movieDestFile ?? movieDestFile
+      movieDestFile: overrides.movieDestFile ?? movieDestFile,
+      convertFolder: overrides.convertFolder ?? convertFolder
     })
   }
 
@@ -674,6 +688,64 @@ function AppContent() {
     pushLog('Abortando... interrompendo o episodio atual e cancelando os restantes.', 'warn')
   }
 
+  async function handleConvertScan() {
+    if (!mkvStatus.found) {
+      pushLog('Configure o MKVToolNix antes de escanear.', 'error')
+      return
+    }
+    if (!convertFolder) {
+      pushLog('Selecione a pasta com os arquivos .mp4.', 'error')
+      return
+    }
+    const effectiveOutput = outputDir || convertFolder
+    if (!outputDir) setOutputDir(effectiveOutput)
+
+    await persistConfig({ convertFolder, outputDir: effectiveOutput })
+    setConvertScanning(true)
+    setConvertRows([])
+    setConvertStatuses({})
+    try {
+      const result = await window.api.scanConvert(convertFolder)
+      setConvertRows(result.rows)
+      setConvertStatuses(Object.fromEntries(result.rows.map((r) => [r.id, 'idle' as RowStatus])))
+      result.warnings.forEach((w) => pushLog(w, 'warn'))
+    } catch (err) {
+      pushLog(`Erro ao escanear: ${(err as Error).message}`, 'error')
+    } finally {
+      setConvertScanning(false)
+      setConvertAborting(false)
+    }
+  }
+
+  async function handleConvertRun() {
+    if (convertRows.length === 0) {
+      pushLog('Nenhum arquivo escaneado.', 'error')
+      return
+    }
+    await persistConfig()
+    setConvertConverting(true)
+    try {
+      const summary = await window.api.convert({ rows: convertRows, outputDir: outputDir || convertFolder })
+      if (summary.aborted) {
+        pushLog(`Abortado: ${summary.success}/${summary.total} processados antes de parar.`, 'warn')
+      } else {
+        pushLog(`Concluido: ${summary.success}/${summary.total} com sucesso.`, summary.failed ? 'warn' : 'success')
+      }
+    } catch (err) {
+      pushLog(`Erro: ${(err as Error).message}`, 'error')
+    } finally {
+      setConvertConverting(false)
+      setConvertAborting(false)
+      if (!muteSounds) playCompletionSound()
+    }
+  }
+
+  function handleConvertAbort() {
+    setConvertAborting(true)
+    window.api.abortOperation()
+    pushLog('Abortando... interrompendo o arquivo atual e cancelando os restantes.', 'warn')
+  }
+
   const progressPct = useMemo(() => {
     const total = selectedIds.size
     if (total === 0) return 0
@@ -681,11 +753,24 @@ function AppContent() {
     return Math.round((finished / total) * 100)
   }, [statuses, selectedIds])
 
+  const convertProgressPct = useMemo(() => {
+    const total = convertRows.length
+    if (total === 0) return 0
+    const finished = convertRows.filter(
+      (r) => convertStatuses[r.id] === 'done' || convertStatuses[r.id] === 'error'
+    ).length
+    return Math.round((finished / total) * 100)
+  }, [convertRows, convertStatuses])
+
   const syncRow = syncRowId ? rows.find((r) => r.id === syncRowId) : undefined
 
   return (
     <Shell>
-      <Sidebar active={view} onNavigate={handleNavigate} navigationLocked={scanning || transferring} />
+      <Sidebar
+        active={view}
+        onNavigate={handleNavigate}
+        navigationLocked={scanning || transferring || convertScanning || convertConverting}
+      />
 
       <MainArea>
         <Header>
@@ -746,6 +831,27 @@ function AppContent() {
             onApplyTrackToAll={handleApplyTrackToAll}
             onOpenSync={setSyncRowId}
             progressPct={progressPct}
+            logs={logs}
+            onClearLog={handleClearLog}
+          />
+        )}
+
+        {view === 'convert' && (
+          <ConvertView
+            sourceDir={convertFolder}
+            onSourceDirChange={setConvertFolder}
+            outputDir={outputDir}
+            outputFolderName={outputFolderName}
+            onOutputDirChange={setOutputDir}
+            scanning={convertScanning}
+            converting={convertConverting}
+            aborting={convertAborting}
+            onScan={handleConvertScan}
+            onConvert={handleConvertRun}
+            onAbort={handleConvertAbort}
+            rows={convertRows}
+            statuses={convertStatuses}
+            progressPct={convertProgressPct}
             logs={logs}
             onClearLog={handleClearLog}
           />

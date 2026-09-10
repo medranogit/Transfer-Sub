@@ -8,10 +8,12 @@ import { appendSessionLog, listSessionLogs, pruneOldSessionLogs, readSessionLog 
 import { CancellationToken } from './infra/cancellation'
 import {
   cleanRows,
+  convertRows,
   getTrackEvents,
   prepareSync,
   renameSubtitleTracks,
   scanForClean,
+  scanForConvert,
   scanFolders,
   scanMovie,
   transferRows
@@ -20,6 +22,7 @@ import { VIDEO_EXTS } from './infra/videoFiles'
 import { applyRename, previewRename, recomputeRename } from './renamer'
 import type {
   AppConfig,
+  ConvertRequest,
   LogEvent,
   MkvToolsStatus,
   RenameFields,
@@ -408,6 +411,43 @@ app.whenReady().then(() => {
         },
         token,
         config.namingClean,
+        config.outputFolderName
+      )
+    } finally {
+      if (activeToken === token) activeToken = null
+    }
+  })
+
+  ipcMain.handle('scan:convert', async (_e, { folder }: { folder: string }) => {
+    const status = tryLocate(loadConfig().mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return scanForConvert(folder, (log) => {
+      mainWindow?.webContents.send('log', log)
+    })
+  })
+
+  ipcMain.handle('convert:run', async (_e, request: ConvertRequest) => {
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    const token = new CancellationToken()
+    activeToken = token
+    try {
+      return await convertRows(
+        status.mkvmergePath,
+        request.rows,
+        request.outputDir,
+        (rowId, statusValue, message) => {
+          mainWindow?.webContents.send('transfer:progress', { rowId, status: statusValue, message })
+        },
+        (log) => {
+          mainWindow?.webContents.send('log', log)
+        },
+        token,
         config.outputFolderName
       )
     } finally {
