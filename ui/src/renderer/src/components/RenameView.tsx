@@ -1,9 +1,10 @@
 import styled from 'styled-components'
-import { CheckCircleFilled, ClearOutlined, ReloadOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
+import { CheckCircleFilled, ClearOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
+import { NOT_AVAILABLE_TAG } from '@shared/types'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
-import { SuggestInput, TagPickerInput } from '../ui/SuggestInput'
+import { SuggestInput } from '../ui/SuggestInput'
 import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { FolderField } from './FolderField'
 import { LogPanel } from './LogPanel'
@@ -54,10 +55,11 @@ export function RenameView({
   onFieldsChange,
   fansubPresets,
   onFansubBlur,
-  tagPresets,
+  sourcePresets,
+  codecPresets,
+  resolutionPresets,
   rows,
   scanning,
-  updating,
   renaming,
   renamingTracks,
   onScan,
@@ -73,10 +75,11 @@ export function RenameView({
   onFieldsChange: (next: RenameFields) => void
   fansubPresets: string[]
   onFansubBlur: (value: string) => void
-  tagPresets: string[]
+  sourcePresets: string[]
+  codecPresets: string[]
+  resolutionPresets: string[]
   rows: RenamePreviewRow[]
   scanning: boolean
-  updating: boolean
   renaming: boolean
   renamingTracks: boolean
   onScan: () => void
@@ -109,7 +112,10 @@ export function RenameView({
               onChange={(value) => onFieldsChange({ ...fields, fansub: value })}
               options={fansubPresets}
               placeholder="Judas"
-              onBlur={onFansubBlur}
+              onBlur={(value) => {
+                onFansubBlur(value)
+                onUpdate()
+              }}
             />
           </Field>
           <Field>
@@ -117,6 +123,7 @@ export function RenameView({
             <Input
               value={fields.animeName}
               onChange={(e) => onFieldsChange({ ...fields, animeName: e.target.value })}
+              onBlur={onUpdate}
               placeholder="Black Clover"
             />
           </Field>
@@ -128,48 +135,61 @@ export function RenameView({
                 min={0}
                 value={fields.season}
                 onChange={(e) => onFieldsChange({ ...fields, season: Number(e.target.value) })}
+                onBlur={onUpdate}
               />
             </Field>
           )}
-          <Field style={{ flex: 1.6 }}>
-            <Label>Tags</Label>
-            <TagPickerInput
-              value={fields.tags}
-              onChange={(value) => onFieldsChange({ ...fields, tags: value })}
-              options={tagPresets}
-              placeholder="BD HEVC 1080p"
+          <Field $width={110}>
+            <Label>Fonte</Label>
+            <SuggestInput
+              value={fields.source}
+              onChange={(value) => onFieldsChange({ ...fields, source: value })}
+              options={[NOT_AVAILABLE_TAG, ...sourcePresets]}
+              placeholder="BD"
+              onBlur={onUpdate}
+            />
+          </Field>
+          <Field $width={110}>
+            <Label>Codec</Label>
+            <SuggestInput
+              value={fields.codec}
+              onChange={(value) => onFieldsChange({ ...fields, codec: value })}
+              options={[NOT_AVAILABLE_TAG, ...codecPresets]}
+              placeholder="HEVC"
+              onBlur={onUpdate}
+            />
+          </Field>
+          <Field $width={110}>
+            <Label>Resolucao</Label>
+            <SuggestInput
+              value={fields.resolution}
+              onChange={(value) => onFieldsChange({ ...fields, resolution: value })}
+              options={[NOT_AVAILABLE_TAG, ...resolutionPresets]}
+              placeholder="1080p"
+              onBlur={onUpdate}
             />
           </Field>
         </FieldsRow>
         <Hint>
           {fields.movieMode ? (
             <>
-              Filme: sem numero de episodio. Resultado: <strong>[fansub] nome do filme - tags</strong> (ex:
-              "[EMBER] Nome do Filme - BD HEVC 1080p").
+              Filme: sem numero de episodio. Resultado: <strong>[fansub] nome do filme - fonte codec resolucao</strong>{' '}
+              (ex: "[EMBER] Nome do Filme - BD HEVC 1080p").
             </>
           ) : (
             <>
               O episodio e detectado automaticamente em cada arquivo. Resultado:{' '}
-              <strong>[fansub] nome do anime - S(temporada)E(episodio) - tags</strong> (ex: "[Judas] Black Clover -
-              S01E02 - BD HEVC 1080p").
+              <strong>[fansub] nome do anime - S(temporada)E(episodio) - fonte codec resolucao</strong> (ex: "[Judas]
+              Black Clover - S01E02 - BD HEVC 1080p").
             </>
           )}{' '}
-          Fansub/nome{fields.movieMode ? '' : '/temporada'}/tags sao sugeridos a cada escaneamento da pasta. A
-          extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
+          Fansub/nome{fields.movieMode ? '' : '/temporada'}/fonte/codec/resolucao sao sugeridos a cada escaneamento
+          da pasta. A extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
         </Hint>
 
         <Row $gap={8}>
           <Button $variant="primary" onClick={onScan} disabled={scanning || !folder}>
             {scanning ? 'Escaneando...' : 'Escanear pasta'}
-          </Button>
-          <Button
-            type="button"
-            $variant="secondary"
-            onClick={onUpdate}
-            disabled={updating || rows.length === 0}
-            title="Reaplica os campos sem reler a pasta do disco"
-          >
-            <ReloadOutlined /> {updating ? 'Atualizando...' : 'Atualizar'}
           </Button>
           <Button onClick={onApply} disabled={renaming || readyCount === 0}>
             {renaming ? 'Renomeando...' : `Renomear (${readyCount})`}

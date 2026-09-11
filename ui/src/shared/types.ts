@@ -11,6 +11,8 @@ export interface SubtitleTrack {
 
 export const EXTERNAL_SUBTITLE_TRACK_ID = -1
 
+export const NOT_AVAILABLE_TAG = 'N/A'
+
 export interface EpisodeRow {
   id: string
   episodeKey: string
@@ -105,7 +107,9 @@ export interface AppConfig {
   renameFolder: string
   convertFolder: string
   renameFansubPresets: string[]
-  renameTagPresets: string[]
+  renameSourcePresets: string[]
+  renameCodecPresets: string[]
+  renameResolutionPresets: string[]
   movieSourceFile: string
   movieDestFile: string
 }
@@ -158,7 +162,9 @@ export interface RenameFields {
   fansub: string
   animeName: string
   season: number
-  tags: string
+  source: string
+  codec: string
+  resolution: string
   movieMode: boolean
 }
 
@@ -166,7 +172,9 @@ export interface DetectedRenameFields {
   fansub: string
   animeName: string
   season: number
-  tags: string
+  source: string
+  codec: string
+  resolution: string
 }
 
 export interface RenamePreviewRow {

@@ -130,11 +130,15 @@ function AppContent() {
     fansub: '',
     animeName: '',
     season: 1,
-    tags: '',
+    source: '',
+    codec: '',
+    resolution: '',
     movieMode: false
   })
   const [renameFansubPresets, setRenameFansubPresets] = useState<string[]>([])
-  const [renameTagPresets, setRenameTagPresets] = useState<string[]>([])
+  const [renameSourcePresets, setRenameSourcePresets] = useState<string[]>([])
+  const [renameCodecPresets, setRenameCodecPresets] = useState<string[]>([])
+  const [renameResolutionPresets, setRenameResolutionPresets] = useState<string[]>([])
   const [renameRows, setRenameRows] = useState<RenamePreviewRow[]>([])
   const [renameScanning, setRenameScanning] = useState(false)
   const [renameUpdating, setRenameUpdating] = useState(false)
@@ -183,7 +187,9 @@ function AppContent() {
     setRenameFolder(config.renameFolder)
     setConvertFolder(config.convertFolder)
     setRenameFansubPresets(config.renameFansubPresets)
-    setRenameTagPresets(config.renameTagPresets)
+    setRenameSourcePresets(config.renameSourcePresets)
+    setRenameCodecPresets(config.renameCodecPresets)
+    setRenameResolutionPresets(config.renameResolutionPresets)
     setMovieSourceFile(config.movieSourceFile)
     setMovieDestFile(config.movieDestFile)
     window.api.locateMkvTools(config.mkvToolNixDir).then(setMkvStatus)
@@ -278,7 +284,9 @@ function AppContent() {
       ptBrTrackName: string
       renameFolder: string
       renameFansubPresets: string[]
-      renameTagPresets: string[]
+      renameSourcePresets: string[]
+      renameCodecPresets: string[]
+      renameResolutionPresets: string[]
       movieSourceFile: string
       movieDestFile: string
       convertFolder: string
@@ -299,7 +307,9 @@ function AppContent() {
       ptBrTrackName: overrides.ptBrTrackName ?? ptBrTrackName,
       renameFolder: overrides.renameFolder ?? renameFolder,
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
-      renameTagPresets: overrides.renameTagPresets ?? renameTagPresets,
+      renameSourcePresets: overrides.renameSourcePresets ?? renameSourcePresets,
+      renameCodecPresets: overrides.renameCodecPresets ?? renameCodecPresets,
+      renameResolutionPresets: overrides.renameResolutionPresets ?? renameResolutionPresets,
       movieSourceFile: overrides.movieSourceFile ?? movieSourceFile,
       movieDestFile: overrides.movieDestFile ?? movieDestFile,
       convertFolder: overrides.convertFolder ?? convertFolder
@@ -379,9 +389,19 @@ function AppContent() {
     persistConfig({ renameFansubPresets: next })
   }
 
-  function handleRenameTagPresetsChange(next: string[]) {
-    setRenameTagPresets(next)
-    persistConfig({ renameTagPresets: next })
+  function handleRenameSourcePresetsChange(next: string[]) {
+    setRenameSourcePresets(next)
+    persistConfig({ renameSourcePresets: next })
+  }
+
+  function handleRenameCodecPresetsChange(next: string[]) {
+    setRenameCodecPresets(next)
+    persistConfig({ renameCodecPresets: next })
+  }
+
+  function handleRenameResolutionPresetsChange(next: string[]) {
+    setRenameResolutionPresets(next)
+    persistConfig({ renameResolutionPresets: next })
   }
 
   async function handleChooseMkvDir() {
@@ -469,7 +489,9 @@ function AppContent() {
           fansub: fansubKnown ? detected.fansub : '',
           animeName: detected.animeName,
           season: detected.season,
-          tags: detected.tags
+          source: detected.source,
+          codec: detected.codec,
+          resolution: detected.resolution
         }))
         if (fansubKnown) {
           pushLog(`Detectado automaticamente: fansub "${detected.fansub}", temporada ${detected.season}.`, 'info')
@@ -491,7 +513,7 @@ function AppContent() {
   }
 
   async function handleRenameUpdate() {
-    if (renameRows.length === 0) return
+    if (renameRows.length === 0 || renameUpdating) return
     if (!renameFields.movieMode && (!Number.isFinite(renameFields.season) || renameFields.season < 0)) {
       pushLog('Informe uma temporada valida.', 'error')
       return
@@ -887,10 +909,11 @@ function AppContent() {
             onFieldsChange={setRenameFields}
             fansubPresets={renameFansubPresets}
             onFansubBlur={handleFansubBlur}
-            tagPresets={renameTagPresets}
+            sourcePresets={renameSourcePresets}
+            codecPresets={renameCodecPresets}
+            resolutionPresets={renameResolutionPresets}
             rows={renameRows}
             scanning={renameScanning}
-            updating={renameUpdating}
             renaming={renaming}
             renamingTracks={renamingTracks}
             onScan={handleRenameScan}
@@ -931,8 +954,12 @@ function AppContent() {
             onPtBrTrackNameChange={handlePtBrTrackNameChange}
             renameFansubPresets={renameFansubPresets}
             onRenameFansubPresetsChange={handleRenameFansubPresetsChange}
-            renameTagPresets={renameTagPresets}
-            onRenameTagPresetsChange={handleRenameTagPresetsChange}
+            renameSourcePresets={renameSourcePresets}
+            onRenameSourcePresetsChange={handleRenameSourcePresetsChange}
+            renameCodecPresets={renameCodecPresets}
+            onRenameCodecPresetsChange={handleRenameCodecPresetsChange}
+            renameResolutionPresets={renameResolutionPresets}
+            onRenameResolutionPresetsChange={handleRenameResolutionPresetsChange}
           />
         )}
       </MainArea>

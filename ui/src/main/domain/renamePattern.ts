@@ -1,5 +1,6 @@
 import { parse } from 'path'
 import { findEpisode, findEpisodeMatch } from './episodeMatcher'
+import { NOT_AVAILABLE_TAG } from '@shared/types'
 import type { DetectedRenameFields, RenameFields } from '@shared/types'
 
 export interface RenameResult {
@@ -8,6 +9,22 @@ export interface RenameResult {
 }
 
 const FANSUB_TAG = /^\[([^\]]+)\]/
+
+const RESOLUTION_WORD = /^\d{3,4}p$/i
+const CODEC_WORDS = new Set(['hevc', 'avc', 'x264', 'x265', 'h264', 'h265', 'h.264', 'h.265'])
+
+export function categorizeTagWord(word: string): 'source' | 'codec' | 'resolution' {
+  if (RESOLUTION_WORD.test(word)) return 'resolution'
+  if (CODEC_WORDS.has(word.toLowerCase())) return 'codec'
+  return 'source'
+}
+
+function joinTags(fields: Pick<RenameFields, 'source' | 'codec' | 'resolution'>): string {
+  return [fields.source, fields.codec, fields.resolution]
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part.toLowerCase() !== NOT_AVAILABLE_TAG.toLowerCase())
+    .join(' ')
+}
 
 function cleanDetectedText(text: string): string {
   return text
@@ -30,7 +47,7 @@ export function buildRenamedName(originalFileName: string, fields: RenameFields)
     const namePart = [fansub ? `[${fansub}]` : '', fields.animeName.trim()]
       .filter((part) => part.length > 0)
       .join(' ')
-    const newBase = [namePart, fields.tags.trim()].filter((part) => part.length > 0).join(' - ')
+    const newBase = [namePart, joinTags(fields)].filter((part) => part.length > 0).join(' - ')
     if (!newBase) return { name: null, reason: 'preencha ao menos o nome do filme' }
     return { name: `${newBase}${ext}`, reason: null }
   }
@@ -41,7 +58,7 @@ export function buildRenamedName(originalFileName: string, fields: RenameFields)
   const seasonEpisode = formatSeasonEpisode(fields.season, episode)
   const middle = [fields.animeName.trim(), seasonEpisode].filter((part) => part.length > 0).join(' - ')
   const namePart = [fansub ? `[${fansub}]` : '', middle].filter((part) => part.length > 0).join(' ')
-  const newBase = [namePart, fields.tags.trim()].filter((part) => part.length > 0).join(' - ')
+  const newBase = [namePart, joinTags(fields)].filter((part) => part.length > 0).join(' - ')
 
   return { name: `${newBase}${ext}`, reason: null }
 }
@@ -58,14 +75,22 @@ export function detectRenameFields(originalFileName: string): DetectedRenameFiel
   const season = episodeMatch?.season ?? 1
 
   let animeName = ''
-  let tags = ''
+  let source = ''
+  let codec = ''
+  let resolution = ''
   if (episodeMatch) {
     const cutPoint = episodeMatch.matchStart - fansubLen
     animeName = cleanDetectedText(afterFansub.slice(0, Math.max(0, cutPoint)))
 
     const tagsStart = episodeMatch.matchEnd - fansubLen
-    tags = cleanDetectedText(afterFansub.slice(Math.max(0, tagsStart)))
+    const detectedTags = cleanDetectedText(afterFansub.slice(Math.max(0, tagsStart)))
+    for (const word of detectedTags.split(/\s+/).filter(Boolean)) {
+      const category = categorizeTagWord(word)
+      if (category === 'resolution' && !resolution) resolution = word
+      else if (category === 'codec' && !codec) codec = word
+      else if (category === 'source' && !source) source = word
+    }
   }
 
-  return { fansub, animeName, season, tags }
+  return { fansub, animeName, season, source, codec, resolution }
 }

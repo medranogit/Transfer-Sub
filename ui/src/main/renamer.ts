@@ -45,7 +45,9 @@ export function previewRename(folder: string, fields: RenameFields): RenamePrevi
         fansub: detected.fansub,
         animeName: detected.animeName,
         season: detected.season,
-        tags: detected.tags
+        source: detected.source,
+        codec: detected.codec,
+        resolution: detected.resolution
       }
     : fields
 

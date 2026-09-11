@@ -174,8 +174,12 @@ export function SettingsView({
   onPtBrTrackNameChange,
   renameFansubPresets,
   onRenameFansubPresetsChange,
-  renameTagPresets,
-  onRenameTagPresetsChange
+  renameSourcePresets,
+  onRenameSourcePresetsChange,
+  renameCodecPresets,
+  onRenameCodecPresetsChange,
+  renameResolutionPresets,
+  onRenameResolutionPresetsChange
 }: {
   mkvStatus: MkvToolsStatus
   onChooseMkvDir: () => void
@@ -200,8 +204,12 @@ export function SettingsView({
   onPtBrTrackNameChange: (next: string) => void
   renameFansubPresets: string[]
   onRenameFansubPresetsChange: (next: string[]) => void
-  renameTagPresets: string[]
-  onRenameTagPresetsChange: (next: string[]) => void
+  renameSourcePresets: string[]
+  onRenameSourcePresetsChange: (next: string[]) => void
+  renameCodecPresets: string[]
+  onRenameCodecPresetsChange: (next: string[]) => void
+  renameResolutionPresets: string[]
+  onRenameResolutionPresetsChange: (next: string[]) => void
 }) {
   return (
     <SettingsGrid>
@@ -298,8 +306,16 @@ export function SettingsView({
             <TagListEditor values={renameFansubPresets} onChange={onRenameFansubPresetsChange} />
           </Col>
           <Col $gap={6}>
-            <Label>Tags conhecidas</Label>
-            <TagListEditor values={renameTagPresets} onChange={onRenameTagPresetsChange} />
+            <Label>Fontes conhecidas</Label>
+            <TagListEditor values={renameSourcePresets} onChange={onRenameSourcePresetsChange} />
+          </Col>
+          <Col $gap={6}>
+            <Label>Codecs conhecidos</Label>
+            <TagListEditor values={renameCodecPresets} onChange={onRenameCodecPresetsChange} />
+          </Col>
+          <Col $gap={6}>
+            <Label>Resolucoes conhecidas</Label>
+            <TagListEditor values={renameResolutionPresets} onChange={onRenameResolutionPresetsChange} />
           </Col>
         </SettingsPanel>
       </Col>

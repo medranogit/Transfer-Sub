@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import styled from 'styled-components'
-import { CheckOutlined } from '@ant-design/icons'
 import { Input } from './primitives'
 
 const Wrap = styled.div`
@@ -95,58 +94,6 @@ export function SuggestInput({
               {option}
             </MenuItem>
           ))}
-        </Menu>
-      )}
-    </Wrap>
-  )
-}
-
-export function TagPickerInput({
-  value,
-  onChange,
-  options,
-  placeholder
-}: {
-  value: string
-  onChange: (next: string) => void
-  options: string[]
-  placeholder?: string
-}) {
-  const [open, setOpen] = useState(false)
-  const words = value.trim() ? value.trim().split(/\s+/) : []
-
-  function toggle(option: string) {
-    const has = words.some((w) => w.toLowerCase() === option.toLowerCase())
-    const next = has ? words.filter((w) => w.toLowerCase() !== option.toLowerCase()) : [...words, option]
-    onChange(next.join(' '))
-  }
-
-  return (
-    <Wrap>
-      <StyledInput
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-        placeholder={placeholder}
-      />
-      {open && options.length > 0 && (
-        <Menu>
-          {options.map((option) => {
-            const active = words.some((w) => w.toLowerCase() === option.toLowerCase())
-            return (
-              <MenuItem
-                key={option}
-                type="button"
-                $active={active}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => toggle(option)}
-              >
-                {active && <CheckOutlined />}
-                {option}
-              </MenuItem>
-            )
-          })}
         </Menu>
       )}
     </Wrap>
