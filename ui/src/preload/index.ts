@@ -81,6 +81,7 @@ const api = {
   appendSessionLog: (entry: LogEvent): Promise<void> => ipcRenderer.invoke('sessionLog:append', entry),
   listSessionLogs: (): Promise<SessionLogInfo[]> => ipcRenderer.invoke('sessionLog:list'),
   readSessionLog: (id: string): Promise<string> => ipcRenderer.invoke('sessionLog:read', id),
+  deleteSessionLog: (id: string): Promise<void> => ipcRenderer.invoke('sessionLog:delete', id),
 
   previewRename: (folder: string, fields: RenameFields): Promise<RenamePreviewResult> =>
     ipcRenderer.invoke('rename:preview', { folder, fields }),

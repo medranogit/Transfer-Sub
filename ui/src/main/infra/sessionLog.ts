@@ -63,6 +63,10 @@ export async function readSessionLog(id: string): Promise<string> {
   }
 }
 
+export async function deleteSessionLog(id: string): Promise<void> {
+  await unlink(filePathFor(id))
+}
+
 export async function pruneOldSessionLogs(): Promise<void> {
   const sessions = await listSessionLogs()
   const toDelete = sessions.slice(MAX_SESSIONS)

@@ -927,7 +927,7 @@ function AppContent() {
 
         {view === 'history' && <HistoryView onError={(message) => pushLog(message, 'error')} />}
 
-        {view === 'sessionLog' && <SessionLogView />}
+        {view === 'sessionLog' && <SessionLogView onError={(message) => pushLog(message, 'error')} />}
 
         {view === 'settings' && (
           <SettingsView

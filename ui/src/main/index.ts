@@ -4,7 +4,7 @@ import { join } from 'path'
 import { exportConfig, importConfig, loadConfig, saveConfig } from './infra/configStore'
 import { locateMkvToolNix, MkvToolsNotFoundError } from './infra/mkvToolNixLocator'
 import { clearTransferLog, loadTransferLog } from './infra/transferLog'
-import { appendSessionLog, listSessionLogs, pruneOldSessionLogs, readSessionLog } from './infra/sessionLog'
+import { appendSessionLog, deleteSessionLog, listSessionLogs, pruneOldSessionLogs, readSessionLog } from './infra/sessionLog'
 import { CancellationToken } from './infra/cancellation'
 import {
   cleanRows,
@@ -402,6 +402,7 @@ app.whenReady().then(() => {
   ipcMain.handle('sessionLog:append', (_e, entry: LogEvent) => appendSessionLog(entry))
   ipcMain.handle('sessionLog:list', () => listSessionLogs())
   ipcMain.handle('sessionLog:read', (_e, id: string) => readSessionLog(id))
+  ipcMain.handle('sessionLog:delete', (_e, id: string) => deleteSessionLog(id))
   pruneOldSessionLogs().catch(() => {})
 
   ipcMain.handle('clean:run', async (_e, request: TransferRequest) => {
