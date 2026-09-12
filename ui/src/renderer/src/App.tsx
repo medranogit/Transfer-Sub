@@ -16,7 +16,8 @@ import type {
   RowStatus,
   TransferDefaults
 } from '@shared/types'
-import { theme } from './theme'
+import { themeForMode } from './theme'
+import type { ThemeMode } from './theme'
 import { GlobalStyle } from './GlobalStyle'
 import { Sidebar } from './components/Sidebar'
 import type { ViewId } from './components/Sidebar'
@@ -123,6 +124,7 @@ function AppContent() {
   const [renameDefaults, setRenameDefaults] = useState<RenameDefaults>({ movieMode: false })
   const [outputFolderName, setOutputFolderName] = useState('TS - Result')
   const [muteSounds, setMuteSounds] = useState(false)
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
   const [ptBrTrackName, setPtBrTrackName] = useState('')
 
   const [renameFolder, setRenameFolder] = useState('')
@@ -183,6 +185,7 @@ function AppContent() {
     setRenameFields((prev) => ({ ...prev, movieMode: config.renameDefaults.movieMode }))
     setOutputFolderName(config.outputFolderName)
     setMuteSounds(config.muteSounds)
+    setThemeMode(config.themeMode)
     setPtBrTrackName(config.ptBrTrackName)
     setRenameFolder(config.renameFolder)
     setConvertFolder(config.convertFolder)
@@ -281,6 +284,7 @@ function AppContent() {
       renameDefaults: RenameDefaults
       outputFolderName: string
       muteSounds: boolean
+      themeMode: ThemeMode
       ptBrTrackName: string
       renameFolder: string
       renameFansubPresets: string[]
@@ -304,6 +308,7 @@ function AppContent() {
       renameDefaults: overrides.renameDefaults ?? renameDefaults,
       outputFolderName: overrides.outputFolderName ?? outputFolderName,
       muteSounds: overrides.muteSounds ?? muteSounds,
+      themeMode: overrides.themeMode ?? themeMode,
       ptBrTrackName: overrides.ptBrTrackName ?? ptBrTrackName,
       renameFolder: overrides.renameFolder ?? renameFolder,
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
@@ -354,6 +359,11 @@ function AppContent() {
   function handleMuteSoundsChange(next: boolean) {
     setMuteSounds(next)
     persistConfig({ muteSounds: next })
+  }
+
+  function handleThemeModeChange(next: ThemeMode) {
+    setThemeMode(next)
+    persistConfig({ themeMode: next })
   }
 
   async function handleExportConfig() {
@@ -807,7 +817,9 @@ function AppContent() {
   const syncRow = syncRowId ? rows.find((r) => r.id === syncRowId) : undefined
 
   return (
-    <Shell>
+    <ThemeProvider theme={themeForMode(themeMode)}>
+      <GlobalStyle />
+      <Shell>
       <Sidebar
         active={view}
         onNavigate={handleNavigate}
@@ -947,6 +959,8 @@ function AppContent() {
             onOutputFolderNameChange={handleOutputFolderNameChange}
             muteSounds={muteSounds}
             onMuteSoundsChange={handleMuteSoundsChange}
+            themeMode={themeMode}
+            onThemeModeChange={handleThemeModeChange}
             onExportConfig={handleExportConfig}
             onImportConfig={handleImportConfig}
             onCheckForUpdates={handleCheckForUpdates}
@@ -999,15 +1013,11 @@ function AppContent() {
           onCancel={handleCancelManualFansub}
         />
       )}
-    </Shell>
+      </Shell>
+    </ThemeProvider>
   )
 }
 
 export default function App() {
-  return (
-    <ThemeProvider theme={theme}>
-      <GlobalStyle />
-      <AppContent />
-    </ThemeProvider>
-  )
+  return <AppContent />
 }

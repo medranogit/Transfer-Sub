@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 import type { LogEvent } from '@shared/types'
-import { theme } from '../theme'
+import { darkTheme } from '../theme'
 
 const LogWrap = styled.div`
   height: 140px;
@@ -20,7 +20,7 @@ const LogWrap = styled.div`
   cursor: text;
 `
 
-const LOG_COLOR: Record<LogEvent['level'], keyof typeof theme.colors> = {
+const LOG_COLOR: Record<LogEvent['level'], keyof typeof darkTheme.colors> = {
   info: 'info',
   success: 'success',
   warn: 'warning',

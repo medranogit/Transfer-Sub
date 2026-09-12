@@ -112,6 +112,7 @@ export interface AppConfig {
   renameResolutionPresets: string[]
   movieSourceFile: string
   movieDestFile: string
+  themeMode: 'dark' | 'light'
 }
 
 export interface TransferRequest {

@@ -7,10 +7,12 @@ import {
   UploadOutlined
 } from '@ant-design/icons'
 import type { CleanDefaults, MkvToolsStatus, NamingConfig, RenameDefaults, TransferDefaults } from '@shared/types'
+import type { ThemeMode } from '../theme'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Checkbox } from '../ui/Checkbox'
 import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { TagListEditor } from '../ui/TagListEditor'
+import { ThemeModeToggle } from '../ui/ThemeModeToggle'
 
 const SettingsGrid = styled.div`
   display: grid;
@@ -167,6 +169,8 @@ export function SettingsView({
   onOutputFolderNameChange,
   muteSounds,
   onMuteSoundsChange,
+  themeMode,
+  onThemeModeChange,
   onExportConfig,
   onImportConfig,
   onCheckForUpdates,
@@ -197,6 +201,8 @@ export function SettingsView({
   onOutputFolderNameChange: (next: string) => void
   muteSounds: boolean
   onMuteSoundsChange: (next: boolean) => void
+  themeMode: ThemeMode
+  onThemeModeChange: (next: ThemeMode) => void
   onExportConfig: () => void
   onImportConfig: () => void
   onCheckForUpdates: () => void
@@ -246,6 +252,12 @@ export function SettingsView({
             <Checkbox checked={muteSounds} onChange={() => onMuteSoundsChange(!muteSounds)} />
             <ToggleLabel>Silenciar sons de conclusao/aviso</ToggleLabel>
           </Row>
+          <Col $gap={6}>
+            <Label>Tema</Label>
+            <Row>
+              <ThemeModeToggle value={themeMode} onChange={onThemeModeChange} />
+            </Row>
+          </Col>
           <Row $gap={8}>
             <Button type="button" $variant="secondary" onClick={onExportConfig}>
               <UploadOutlined /> Exportar configuracoes...

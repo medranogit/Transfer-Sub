@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import styled from 'styled-components'
+import styled, { useTheme } from 'styled-components'
 import { DeleteOutlined, LeftOutlined, ReloadOutlined, RightOutlined } from '@ant-design/icons'
 import type { TransferLogEntry } from '@shared/types'
-import { theme } from '../theme'
 import { Button, Col, Row, SectionTitle } from '../ui/primitives'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
@@ -65,6 +64,7 @@ const Footer = styled.div`
 `
 
 export function HistoryView({ onError }: { onError: (message: string) => void }) {
+  const theme = useTheme()
   const [entries, setEntries] = useState<TransferLogEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

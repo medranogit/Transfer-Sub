@@ -25,7 +25,8 @@ const DEFAULT_CONFIG: AppConfig = {
   renameCodecPresets: ['HEVC', 'AVC'],
   renameResolutionPresets: ['1080p', '720p'],
   movieSourceFile: '',
-  movieDestFile: ''
+  movieDestFile: '',
+  themeMode: 'dark'
 }
 
 function configPath(): string {

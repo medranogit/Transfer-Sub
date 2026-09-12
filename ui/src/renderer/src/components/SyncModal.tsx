@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import styled from 'styled-components'
+import styled, { useTheme } from 'styled-components'
 import { EXTERNAL_SUBTITLE_TRACK_ID } from '@shared/types'
 import type { EpisodeRow, SubtitleEvent, SubtitleTrack } from '@shared/types'
-import { theme } from '../theme'
 import { Button, Col, Label, Panel, Row } from '../ui/primitives'
 import {
   canSyncTrack,
@@ -211,6 +210,7 @@ export function SyncModal({
   onEnTrackChosen: (trackId: number) => void
   onError: (message: string) => void
 }) {
+  const theme = useTheme()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [ptTrackId, setPtTrackId] = useState<number | null>(null)
