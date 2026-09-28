@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import styled, { ThemeProvider } from 'styled-components'
 import { EXTERNAL_SUBTITLE_TRACK_ID } from '@shared/types'
 import type {
@@ -146,10 +146,13 @@ function AppContent() {
   const [renameRows, setRenameRows] = useState<RenamePreviewRow[]>([])
   const [renameScanning, setRenameScanning] = useState(false)
   const [renameUpdating, setRenameUpdating] = useState(false)
+  const renameUpdateSeq = useRef(0)
   const [pendingFansub, setPendingFansub] = useState<DetectedRenameFields | null>(null)
   const [pendingManualFansub, setPendingManualFansub] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
-  const [renamingTracks, setRenamingTracks] = useState(false)
+  const [rotulandoPtBr, setRotulandoPtBr] = useState(false)
+  const [taggingPtBr, setTaggingPtBr] = useState(false)
+  const [settingDefault, setSettingDefault] = useState(false)
 
   const [convertFolder, setConvertFolder] = useState('')
   const [convertRows, setConvertRows] = useState<ConvertRow[]>([])
@@ -479,16 +482,19 @@ function AppContent() {
       pushLog('Selecione a pasta com os arquivos a renomear.', 'error')
       return
     }
-    if (!renameFields.movieMode && (!Number.isFinite(renameFields.season) || renameFields.season < 0)) {
-      pushLog('Informe uma temporada valida.', 'error')
-      return
+    const seasonInvalid =
+      !renameFields.movieMode && (!Number.isFinite(renameFields.season) || renameFields.season < 0)
+    const scanFields = seasonInvalid ? { ...renameFields, season: 0 } : renameFields
+    if (seasonInvalid) {
+      setRenameFields(scanFields)
+      pushLog('Temporada invalida, usando 0 no lugar.', 'warn')
     }
     await persistConfig({ renameFolder })
     setRenameScanning(true)
     setScanWarnings([])
     setUnmatchedSource([])
     try {
-      const { rows: result, detected, warnings } = await window.api.previewRename(renameFolder, renameFields)
+      const { rows: result, detected, warnings } = await window.api.previewRename(renameFolder, scanFields)
       setRenameRows(result)
       setScanWarnings(warnings)
       if (!muteSounds && warnings.length > 0) playWarningSound()
@@ -525,25 +531,30 @@ function AppContent() {
   }
 
   async function handleRenameUpdate(overrideFields?: RenameFields) {
-    const fields = overrideFields ?? renameFields
-    if (renameRows.length === 0 || renameUpdating) return
-    if (!fields.movieMode && (!Number.isFinite(fields.season) || fields.season < 0)) {
-      pushLog('Informe uma temporada valida.', 'error')
-      return
+    const requested = overrideFields && typeof overrideFields.movieMode === 'boolean' ? overrideFields : renameFields
+    if (renameRows.length === 0) return
+    const seasonInvalid = !requested.movieMode && (!Number.isFinite(requested.season) || requested.season < 0)
+    const fields = seasonInvalid ? { ...requested, season: 0 } : requested
+    if (seasonInvalid) {
+      setRenameFields(fields)
+      pushLog('Temporada invalida, usando 0 no lugar.', 'warn')
     }
+
+    const seq = ++renameUpdateSeq.current
     setRenameUpdating(true)
     try {
       const result = await window.api.recomputeRename(
         renameRows.map((r) => r.originalPath),
         fields
       )
+      if (seq !== renameUpdateSeq.current) return
       setRenameRows(result)
       const ready = result.filter((r) => r.newName).length
       pushLog(`Pre-visualizacao atualizada: ${ready}/${result.length} prontos para renomear.`, ready ? 'success' : 'warn')
     } catch (err) {
-      pushLog(`Erro ao atualizar: ${(err as Error).message}`, 'error')
+      if (seq === renameUpdateSeq.current) pushLog(`Erro ao atualizar: ${(err as Error).message}`, 'error')
     } finally {
-      setRenameUpdating(false)
+      if (seq === renameUpdateSeq.current) setRenameUpdating(false)
     }
   }
 
@@ -603,13 +614,25 @@ function AppContent() {
     }
   }
 
-  async function handleRenameTracks() {
-    const targets = renameRows.filter((r) => /\.(mkv|webm)$/i.test(r.originalName)).map((r) => r.originalPath)
+  async function refreshRowTracks(filePaths: string[]) {
+    if (filePaths.length === 0) return
+    try {
+      const tracksByPath = await window.api.refreshSubtitleTracks(filePaths)
+      setRows((prev) => prev.map((r) => (tracksByPath[r.sourcePath] ? { ...r, tracks: tracksByPath[r.sourcePath] } : r)))
+    } catch (err) {
+      pushLog(`Erro ao atualizar faixas: ${(err as Error).message}`, 'error')
+    }
+  }
+
+  async function handleRotularPtBr() {
+    const targets = rows
+      .filter((r) => selectedIds.has(r.id) && /\.(mkv|webm)$/i.test(r.sourcePath))
+      .map((r) => r.sourcePath)
     if (targets.length === 0) {
-      pushLog('Nenhum arquivo .mkv/.webm para rotular.', 'error')
+      pushLog('Nenhum arquivo .mkv/.webm selecionado para rotular.', 'error')
       return
     }
-    setRenamingTracks(true)
+    setRotulandoPtBr(true)
     try {
       const summary = await window.api.renameSubtitleTracks(targets)
       pushLog(
@@ -619,7 +642,64 @@ function AppContent() {
     } catch (err) {
       pushLog(`Erro ao rotular faixas: ${(err as Error).message}`, 'error')
     } finally {
-      setRenamingTracks(false)
+      await refreshRowTracks(targets)
+      setRotulandoPtBr(false)
+    }
+  }
+
+  async function handleTagSelectedAsPtBr() {
+    const targets = rows
+      .filter((r) => selectedIds.has(r.id) && r.selectedTrackId !== null)
+      .map((r) => {
+        const track = r.tracks.find((t) => t.trackId === r.selectedTrackId)
+        return track ? { filePath: r.sourcePath, trackNumber: track.trackNumber } : null
+      })
+      .filter((t): t is { filePath: string; trackNumber: number } => t !== null)
+    if (targets.length === 0) {
+      pushLog('Nenhuma linha selecionada com uma faixa de legenda escolhida.', 'error')
+      return
+    }
+    setTaggingPtBr(true)
+    try {
+      const summary = await window.api.tagTracksAsPtBr(targets)
+      pushLog(
+        `Marcacao PT-BR concluida: ${summary.success}/${summary.total} com sucesso.`,
+        summary.failed ? 'warn' : 'success'
+      )
+    } catch (err) {
+      pushLog(`Erro ao marcar faixa: ${(err as Error).message}`, 'error')
+    } finally {
+      await refreshRowTracks(targets.map((t) => t.filePath))
+      setTaggingPtBr(false)
+    }
+  }
+
+  async function handleSetSelectedAsDefault() {
+    const targets = rows
+      .filter((r) => selectedIds.has(r.id) && r.selectedTrackId !== null)
+      .map((r) => {
+        const track = r.tracks.find((t) => t.trackId === r.selectedTrackId)
+        if (!track) return null
+        const otherTrackNumbers = r.tracks.filter((t) => t.trackId !== track.trackId).map((t) => t.trackNumber)
+        return { filePath: r.sourcePath, trackNumber: track.trackNumber, otherTrackNumbers }
+      })
+      .filter((t): t is { filePath: string; trackNumber: number; otherTrackNumbers: number[] } => t !== null)
+    if (targets.length === 0) {
+      pushLog('Nenhuma linha selecionada com uma faixa de legenda escolhida.', 'error')
+      return
+    }
+    setSettingDefault(true)
+    try {
+      const summary = await window.api.setTracksAsDefault(targets)
+      pushLog(
+        `Definicao de faixa padrao concluida: ${summary.success}/${summary.total} com sucesso.`,
+        summary.failed ? 'warn' : 'success'
+      )
+    } catch (err) {
+      pushLog(`Erro ao definir faixa padrao: ${(err as Error).message}`, 'error')
+    } finally {
+      await refreshRowTracks(targets.map((t) => t.filePath))
+      setSettingDefault(false)
     }
   }
 
@@ -633,6 +713,15 @@ function AppContent() {
       prev.map((r) => {
         if (template === null) return { ...r, selectedTrackId: null }
         return r.tracks.some((t) => t.trackId === template) ? { ...r, selectedTrackId: template } : r
+      })
+    )
+  }
+
+  function handleSelectPtBrForAll() {
+    setRows((prev) =>
+      prev.map((r) => {
+        const ptTrack = r.tracks.find((t) => t.isPtBr) ?? r.tracks.find((t) => t.isPtBrGuess)
+        return ptTrack ? { ...r, selectedTrackId: ptTrack.trackId } : r
       })
     )
   }
@@ -885,6 +974,12 @@ function AppContent() {
             onScan={handleScan}
             onTransfer={handleTransfer}
             onAbort={handleAbort}
+            onRotularPtBr={handleRotularPtBr}
+            rotulandoPtBr={rotulandoPtBr}
+            onTagSelectedAsPtBr={handleTagSelectedAsPtBr}
+            taggingPtBr={taggingPtBr}
+            onSetSelectedAsDefault={handleSetSelectedAsDefault}
+            settingDefault={settingDefault}
             rows={rows}
             statuses={statuses}
             selectedIds={selectedIds}
@@ -892,6 +987,7 @@ function AppContent() {
             onToggleSelectAll={handleToggleSelectAll}
             onTrackChange={handleTrackChange}
             onApplyTrackToAll={handleApplyTrackToAll}
+            onSelectPtBrForAll={handleSelectPtBrForAll}
             onOpenSync={setSyncRowId}
             onExternalSubtitleChange={handleExternalSubtitleChange}
             progressPct={progressPct}
@@ -936,12 +1032,10 @@ function AppContent() {
             rows={renameRows}
             scanning={renameScanning}
             renaming={renaming}
-            renamingTracks={renamingTracks}
             onScan={handleRenameScan}
             onUpdate={handleRenameUpdate}
             onToggleRenumberEpisodes={handleToggleRenumberEpisodes}
             onApply={handleRenameApply}
-            onRenameTracks={handleRenameTracks}
             logs={logs}
             onClearLog={handleClearLog}
           />

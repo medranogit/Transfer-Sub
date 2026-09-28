@@ -1,5 +1,5 @@
 import styled from 'styled-components'
-import { CheckOutlined, ClearOutlined, StopOutlined } from '@ant-design/icons'
+import { CheckOutlined, ClearOutlined, PushpinOutlined, StopOutlined, TagOutlined, TagsOutlined } from '@ant-design/icons'
 import type { EpisodeRow, LogEvent, RowStatus } from '@shared/types'
 import { Button, Col, Panel, Row, SectionTitle } from '../ui/primitives'
 import { Chip, ChipRow } from '../ui/Chip'
@@ -63,6 +63,12 @@ export function WorkflowView({
   onScan,
   onTransfer,
   onAbort,
+  onRotularPtBr,
+  rotulandoPtBr,
+  onTagSelectedAsPtBr,
+  taggingPtBr,
+  onSetSelectedAsDefault,
+  settingDefault,
   rows,
   statuses,
   selectedIds,
@@ -70,6 +76,7 @@ export function WorkflowView({
   onToggleSelectAll,
   onTrackChange,
   onApplyTrackToAll,
+  onSelectPtBrForAll,
   onOpenSync,
   onExternalSubtitleChange,
   progressPct,
@@ -100,6 +107,12 @@ export function WorkflowView({
   onScan: () => void
   onTransfer: () => void
   onAbort: () => void
+  onRotularPtBr: () => void
+  rotulandoPtBr: boolean
+  onTagSelectedAsPtBr: () => void
+  taggingPtBr: boolean
+  onSetSelectedAsDefault: () => void
+  settingDefault: boolean
   rows: EpisodeRow[]
   statuses: Record<string, RowStatus>
   selectedIds: Set<string>
@@ -107,12 +120,18 @@ export function WorkflowView({
   onToggleSelectAll: () => void
   onTrackChange: (rowId: string, trackId: number | null) => void
   onApplyTrackToAll: () => void
+  onSelectPtBrForAll: () => void
   onOpenSync: (rowId: string) => void
   onExternalSubtitleChange: (rowId: string, path: string | null) => void
   progressPct: number
   logs: LogEvent[]
   onClearLog: () => void
 }) {
+  const rotularCount = rows.filter(
+    (r) => selectedIds.has(r.id) && /\.(mkv|webm)$/i.test(r.sourcePath)
+  ).length
+  const tagSelectedCount = rows.filter((r) => selectedIds.has(r.id) && r.selectedTrackId !== null).length
+
   return (
     <>
       <ConfigPanel>
@@ -201,6 +220,39 @@ export function WorkflowView({
                 <StopOutlined /> {aborting ? 'Abortando...' : 'Abortar'}
               </Button>
             )}
+            {cleanOnly && (
+              <Button
+                type="button"
+                $variant="secondary"
+                onClick={onRotularPtBr}
+                disabled={rotulandoPtBr || rotularCount === 0}
+                title="Acha a faixa em PT-BR de cada arquivo selecionado e renomeia o rotulo dela (Configuracoes > Nome da faixa de legenda). So metadado, sem remuxar."
+              >
+                <TagOutlined /> {rotulandoPtBr ? 'Renomeando...' : `Renomear faixa PT-BR (${rotularCount})`}
+              </Button>
+            )}
+            {cleanOnly && (
+              <Button
+                type="button"
+                $variant="secondary"
+                onClick={onTagSelectedAsPtBr}
+                disabled={taggingPtBr || tagSelectedCount === 0}
+                title="Marca a faixa ja escolhida na coluna Legenda de cada linha selecionada com a flag de idioma PT-BR, sem mexer no nome dela. So metadado, sem remuxar."
+              >
+                <TagsOutlined /> {taggingPtBr ? 'Marcando...' : `Marcar selecionada como PT-BR (${tagSelectedCount})`}
+              </Button>
+            )}
+            {cleanOnly && (
+              <Button
+                type="button"
+                $variant="secondary"
+                onClick={onSetSelectedAsDefault}
+                disabled={settingDefault || tagSelectedCount === 0}
+                title="Define a faixa ja escolhida na coluna Legenda de cada linha selecionada como padrao do arquivo, desmarcando as outras. So metadado, sem remuxar."
+              >
+                <PushpinOutlined /> {settingDefault ? 'Definindo...' : `Definir selecionada como padrao (${tagSelectedCount})`}
+              </Button>
+            )}
           </Row>
         </ToolbarRow>
       </ConfigPanel>
@@ -226,6 +278,7 @@ export function WorkflowView({
           onTrackChange={onTrackChange}
           onOpenSync={onOpenSync}
           onApplyTrackToAll={onApplyTrackToAll}
+          onSelectPtBrForAll={onSelectPtBrForAll}
           onExternalSubtitleChange={onExternalSubtitleChange}
         />
       </Col>

@@ -12,11 +12,14 @@ import {
   getExternalSubtitleEvents,
   getTrackEvents,
   prepareSync,
+  refreshSubtitleTracksForPaths,
   renameSubtitleTracks,
   scanForClean,
   scanForConvert,
   scanFolders,
   scanMovie,
+  setTracksAsDefault,
+  tagTracksAsPtBr,
   transferRows
 } from './workflow'
 import { VIDEO_EXTS } from './infra/videoFiles'
@@ -24,8 +27,10 @@ import { applyRename, previewRename, recomputeRename } from './renamer'
 import type {
   AppConfig,
   ConvertRequest,
+  DefaultTrackTarget,
   LogEvent,
   MkvToolsStatus,
+  PtBrTagTarget,
   RenameFields,
   RenamePreviewRow,
   TransferRequest
@@ -504,6 +509,37 @@ app.whenReady().then(() => {
         mainWindow?.webContents.send('log', log)
       }
     )
+  })
+
+  ipcMain.handle('subtitle:tagPtBr', async (_e, targets: PtBrTagTarget[]) => {
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
+    if (!status.found || !status.mkvpropeditPath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return tagTracksAsPtBr(status.mkvpropeditPath, targets, (log) => {
+      mainWindow?.webContents.send('log', log)
+    })
+  })
+
+  ipcMain.handle('subtitle:setDefault', async (_e, targets: DefaultTrackTarget[]) => {
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
+    if (!status.found || !status.mkvpropeditPath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return setTracksAsDefault(status.mkvpropeditPath, targets, (log) => {
+      mainWindow?.webContents.send('log', log)
+    })
+  })
+
+  ipcMain.handle('subtitle:refreshTracks', async (_e, paths: string[]) => {
+    const config = loadConfig()
+    const status = tryLocate(config.mkvToolNixDir)
+    if (!status.found || !status.mkvmergePath) {
+      throw new Error('MKVToolNix nao localizado.')
+    }
+    return refreshSubtitleTracksForPaths(status.mkvmergePath, paths)
   })
 
   ipcMain.handle('updates:check', () => {

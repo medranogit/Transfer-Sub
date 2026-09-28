@@ -32,7 +32,9 @@ import {
   resolveConvertOutputPath,
   resolveOutputPath,
   resolveResultFolder,
-  setSubtitleTrackLabel,
+  setDefaultSubtitleTrack,
+  setSubtitleTrackLanguage,
+  setSubtitleTrackName,
   subtitleExtension
 } from './infra/mkvProcess'
 import { appendTransferLog } from './infra/transferLog'
@@ -41,9 +43,11 @@ import type { ExternalSubtitleSpec } from './infra/mkvProcess'
 import type {
   ConvertRow,
   ConvertScanResult,
+  DefaultTrackTarget,
   EpisodeRow,
   LogEvent,
   NamingConfig,
+  PtBrTagTarget,
   RenameSummary,
   RowStatus,
   ScanResult,
@@ -955,17 +959,17 @@ export async function renameSubtitleTracks(
       continue
     }
 
-    if (ptTrack.trackName === ptBrTrackName && ptTrack.isPtBr) {
+    if (ptTrack.trackName === ptBrTrackName) {
       onLog({ level: 'info', message: `${label}: faixa ja rotulada como "${ptBrTrackName}", nada a fazer` })
       continue
     }
 
     try {
-      await setSubtitleTrackLabel(mkvpropeditPath, filePath, ptTrack.trackNumber, ptBrTrackName, 'por', token)
+      await setSubtitleTrackName(mkvpropeditPath, filePath, ptTrack.trackNumber, ptBrTrackName, token)
       success += 1
       onLog({
         level: 'success',
-        message: `${label}: faixa #${ptTrack.trackId} rotulada como "${ptBrTrackName}" (por)`
+        message: `${label}: faixa #${ptTrack.trackId} rotulada como "${ptBrTrackName}"`
       })
     } catch (err) {
       if (err instanceof OperationAbortedError) throw err
@@ -980,4 +984,85 @@ export async function renameSubtitleTracks(
   })
 
   return { total, success, failed }
+}
+
+export async function tagTracksAsPtBr(
+  mkvpropeditPath: string,
+  targets: PtBrTagTarget[],
+  onLog: LogFn,
+  token?: CancellationToken
+): Promise<RenameSummary> {
+  let success = 0
+  let failed = 0
+  const total = targets.length
+
+  for (const { filePath, trackNumber } of targets) {
+    if (token?.aborted) break
+    const label = basename(filePath)
+
+    try {
+      await setSubtitleTrackLanguage(mkvpropeditPath, filePath, trackNumber, 'por', 'pt-BR', token)
+      success += 1
+      onLog({ level: 'success', message: `${label}: faixa #${trackNumber} marcada com idioma PT-BR (pt-BR)` })
+    } catch (err) {
+      if (err instanceof OperationAbortedError) throw err
+      failed += 1
+      onLog({ level: 'error', message: `${label}: falha ao marcar a faixa (${(err as Error).message})` })
+    }
+  }
+
+  onLog({
+    level: failed ? 'warn' : 'success',
+    message: `Marcacao PT-BR concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+  })
+
+  return { total, success, failed }
+}
+
+export async function setTracksAsDefault(
+  mkvpropeditPath: string,
+  targets: DefaultTrackTarget[],
+  onLog: LogFn,
+  token?: CancellationToken
+): Promise<RenameSummary> {
+  let success = 0
+  let failed = 0
+  const total = targets.length
+
+  for (const { filePath, trackNumber, otherTrackNumbers } of targets) {
+    if (token?.aborted) break
+    const label = basename(filePath)
+
+    try {
+      await setDefaultSubtitleTrack(mkvpropeditPath, filePath, trackNumber, otherTrackNumbers, token)
+      success += 1
+      onLog({ level: 'success', message: `${label}: faixa #${trackNumber} definida como padrao` })
+    } catch (err) {
+      if (err instanceof OperationAbortedError) throw err
+      failed += 1
+      onLog({ level: 'error', message: `${label}: falha ao definir faixa padrao (${(err as Error).message})` })
+    }
+  }
+
+  onLog({
+    level: failed ? 'warn' : 'success',
+    message: `Definicao de faixa padrao concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
+  })
+
+  return { total, success, failed }
+}
+
+export async function refreshSubtitleTracksForPaths(
+  mkvmergePath: string,
+  paths: string[]
+): Promise<Record<string, SubtitleTrack[]>> {
+  const result: Record<string, SubtitleTrack[]> = {}
+  for (const filePath of paths) {
+    try {
+      result[filePath] = await probeSubtitleTracks(mkvmergePath, filePath)
+    } catch {
+      result[filePath] = []
+    }
+  }
+  return result
 }

@@ -6,6 +6,7 @@ import {
   CloseOutlined,
   CopyOutlined,
   PlusOutlined,
+  StarOutlined,
   SyncOutlined
 } from '@ant-design/icons'
 import type { EpisodeRow, RowStatus } from '@shared/types'
@@ -122,6 +123,7 @@ export function EpisodeTable({
   onTrackChange,
   onOpenSync,
   onApplyTrackToAll,
+  onSelectPtBrForAll,
   onExternalSubtitleChange
 }: {
   rows: EpisodeRow[]
@@ -133,6 +135,7 @@ export function EpisodeTable({
   onTrackChange: (rowId: string, trackId: number | null) => void
   onOpenSync: (rowId: string) => void
   onApplyTrackToAll?: () => void
+  onSelectPtBrForAll?: () => void
   onExternalSubtitleChange: (rowId: string, path: string | null) => void
 }) {
   async function handlePickExternalSubtitle(rowId: string): Promise<void> {
@@ -163,6 +166,17 @@ export function EpisodeTable({
                     style={{ textTransform: 'none', fontWeight: 400, padding: '2px 8px' }}
                   >
                     <CopyOutlined /> Aplicar a todos
+                  </Button>
+                )}
+                {cleanOnly && rows.length > 1 && onSelectPtBrForAll && (
+                  <Button
+                    type="button"
+                    $variant="ghost"
+                    onClick={onSelectPtBrForAll}
+                    title="Em cada linha, seleciona a faixa identificada como PT-BR (idioma/nome ou palpite pelo texto), sem mexer nas linhas onde nenhuma foi identificada"
+                    style={{ textTransform: 'none', fontWeight: 400, padding: '2px 8px' }}
+                  >
+                    <StarOutlined /> Selecionar PT-BR
                   </Button>
                 )}
               </Row>
@@ -215,6 +229,7 @@ export function EpisodeTable({
                           <option key={t.trackId} value={t.trackId}>
                             {trackLabel(t)}
                             {t.isPtBr ? '  ★ PT-BR' : t.isPtBrGuess ? '  ⚠ pode ser PT-BR' : ''}
+                            {t.isDefault ? '  📌 padrao' : ''}
                           </option>
                         ))}
                       </TrackSelect>

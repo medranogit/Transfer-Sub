@@ -7,6 +7,7 @@ export interface SubtitleTrack {
   isAss: boolean
   isPtBr: boolean
   isPtBrGuess: boolean
+  isDefault: boolean
 }
 
 export const EXTERNAL_SUBTITLE_TRACK_ID = -1
@@ -199,6 +200,17 @@ export interface RenameSummary {
   total: number
   success: number
   failed: number
+}
+
+export interface PtBrTagTarget {
+  filePath: string
+  trackNumber: number
+}
+
+export interface DefaultTrackTarget {
+  filePath: string
+  trackNumber: number
+  otherTrackNumbers: number[]
 }
 
 export interface SessionLogInfo {

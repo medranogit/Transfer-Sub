@@ -3,8 +3,10 @@ import type {
   AppConfig,
   ConvertRequest,
   ConvertScanResult,
+  DefaultTrackTarget,
   LogEvent,
   MkvToolsStatus,
+  PtBrTagTarget,
   RenameFields,
   RenamePreviewResult,
   RenamePreviewRow,
@@ -12,6 +14,7 @@ import type {
   ScanResult,
   SessionLogInfo,
   SubtitleEvent,
+  SubtitleTrack,
   SyncPrepareResult,
   TransferLogEntry,
   TransferProgressEvent,
@@ -93,6 +96,15 @@ const api = {
 
   renameSubtitleTracks: (paths: string[]): Promise<RenameSummary> =>
     ipcRenderer.invoke('rename:tracks', { paths }),
+
+  tagTracksAsPtBr: (targets: PtBrTagTarget[]): Promise<RenameSummary> =>
+    ipcRenderer.invoke('subtitle:tagPtBr', targets),
+
+  setTracksAsDefault: (targets: DefaultTrackTarget[]): Promise<RenameSummary> =>
+    ipcRenderer.invoke('subtitle:setDefault', targets),
+
+  refreshSubtitleTracks: (paths: string[]): Promise<Record<string, SubtitleTrack[]>> =>
+    ipcRenderer.invoke('subtitle:refreshTracks', paths),
 
   onLog: (callback: (event: LogEvent) => void): (() => void) => {
     const listener = (_e: unknown, payload: LogEvent): void => callback(payload)

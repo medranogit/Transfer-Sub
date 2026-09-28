@@ -59,6 +59,7 @@ interface MkvMergeTrackJson {
     language_ietf?: string
     track_name?: string
     number?: number
+    default_track?: boolean
   }
 }
 
@@ -83,24 +84,58 @@ export async function probeSubtitleTracks(mkvmergePath: string, videoFile: strin
         trackName,
         isAss: ASS_CODEC_IDS.has(codecId),
         isPtBr: isPtBrTrack(language, trackName),
-        isPtBrGuess: false
+        isPtBrGuess: false,
+        isDefault: props.default_track === true
       }
     })
 }
 
-export async function setSubtitleTrackLabel(
+export async function setSubtitleTrackName(
   mkvpropeditPath: string,
   videoFile: string,
   trackNumber: number,
   name: string,
+  token?: CancellationToken
+): Promise<void> {
+  await runMkvTool(mkvpropeditPath, [videoFile, '--edit', `track:@${trackNumber}`, '--set', `name=${name}`], token)
+}
+
+export async function setSubtitleTrackLanguage(
+  mkvpropeditPath: string,
+  videoFile: string,
+  trackNumber: number,
   language: string,
+  languageIetf: string,
   token?: CancellationToken
 ): Promise<void> {
   await runMkvTool(
     mkvpropeditPath,
-    [videoFile, '--edit', `track:@${trackNumber}`, '--set', `name=${name}`, '--set', `language=${language}`],
+    [
+      videoFile,
+      '--edit',
+      `track:@${trackNumber}`,
+      '--set',
+      `language=${language}`,
+      '--set',
+      `language-ietf=${languageIetf}`
+    ],
     token
   )
+}
+
+export async function setDefaultSubtitleTrack(
+  mkvpropeditPath: string,
+  videoFile: string,
+  trackNumber: number,
+  otherTrackNumbers: number[],
+  token?: CancellationToken
+): Promise<void> {
+  const args: string[] = [videoFile]
+  for (const other of otherTrackNumbers) {
+    args.push('--edit', `track:@${other}`, '--set', 'flag-default=0')
+  }
+  args.push('--edit', `track:@${trackNumber}`, '--set', 'flag-default=1')
+  await runMkvTool(mkvpropeditPath, args, token)
 }
 
 export function subtitleExtension(codecId: string): string {

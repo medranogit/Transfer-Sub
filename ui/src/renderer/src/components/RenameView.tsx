@@ -1,5 +1,5 @@
 import styled from 'styled-components'
-import { CheckCircleFilled, ClearOutlined, OrderedListOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
+import { CheckCircleFilled, ClearOutlined, OrderedListOutlined, WarningFilled } from '@ant-design/icons'
 import { NOT_AVAILABLE_TAG } from '@shared/types'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
@@ -61,12 +61,10 @@ export function RenameView({
   rows,
   scanning,
   renaming,
-  renamingTracks,
   onScan,
   onUpdate,
   onToggleRenumberEpisodes,
   onApply,
-  onRenameTracks,
   logs,
   onClearLog
 }: {
@@ -82,17 +80,14 @@ export function RenameView({
   rows: RenamePreviewRow[]
   scanning: boolean
   renaming: boolean
-  renamingTracks: boolean
   onScan: () => void
   onUpdate: () => void
   onToggleRenumberEpisodes: () => void
   onApply: () => void
-  onRenameTracks: () => void
   logs: LogEvent[]
   onClearLog: () => void
 }) {
   const readyCount = rows.filter((r) => r.newName).length
-  const mkvCount = rows.filter((r) => /\.(mkv|webm)$/i.test(r.originalName)).length
 
   return (
     <>
@@ -125,7 +120,7 @@ export function RenameView({
             <Input
               value={fields.animeName}
               onChange={(e) => onFieldsChange({ ...fields, animeName: e.target.value })}
-              onBlur={onUpdate}
+              onBlur={() => onUpdate()}
               placeholder="Black Clover"
             />
           </Field>
@@ -140,7 +135,7 @@ export function RenameView({
                   const parsed = Number(e.target.value)
                   onFieldsChange({ ...fields, season: Number.isFinite(parsed) ? parsed : fields.season })
                 }}
-                onBlur={onUpdate}
+                onBlur={() => onUpdate()}
               />
             </Field>
           )}
@@ -154,7 +149,7 @@ export function RenameView({
                 onChange={(e) =>
                   onFieldsChange({ ...fields, part: e.target.value === '' ? null : Number(e.target.value) })
                 }
-                onBlur={onUpdate}
+                onBlur={() => onUpdate()}
                 placeholder="N/A"
               />
             </Field>
@@ -166,7 +161,7 @@ export function RenameView({
               onChange={(value) => onFieldsChange({ ...fields, source: value })}
               options={[NOT_AVAILABLE_TAG, ...sourcePresets]}
               placeholder="BD"
-              onBlur={onUpdate}
+              onBlur={() => onUpdate()}
             />
           </Field>
           <Field $width={110}>
@@ -176,7 +171,7 @@ export function RenameView({
               onChange={(value) => onFieldsChange({ ...fields, codec: value })}
               options={[NOT_AVAILABLE_TAG, ...codecPresets]}
               placeholder="HEVC"
-              onBlur={onUpdate}
+              onBlur={() => onUpdate()}
             />
           </Field>
           <Field $width={110}>
@@ -186,7 +181,7 @@ export function RenameView({
               onChange={(value) => onFieldsChange({ ...fields, resolution: value })}
               options={[NOT_AVAILABLE_TAG, ...resolutionPresets]}
               placeholder="1080p"
-              onBlur={onUpdate}
+              onBlur={() => onUpdate()}
             />
           </Field>
         </FieldsRow>
@@ -227,22 +222,6 @@ export function RenameView({
               <OrderedListOutlined /> Renumerar (01, 02...)
             </Button>
           )}
-          <Button
-            type="button"
-            $variant="secondary"
-            onClick={onRenameTracks}
-            disabled={renamingTracks || mkvCount === 0}
-            title={
-              'Nao mexe no nome do arquivo - edita o rotulo da faixa de legenda JA EMBUTIDA em cada .mkv/.webm ' +
-              'listado abaixo (rapido, so metadado, sem remuxar o arquivo inteiro). Em cada arquivo: acha a faixa ' +
-              'em portugues (pelo idioma/nome da faixa, ou pelo palpite no proprio texto quando nenhuma faixa ' +
-              'esta rotulada como PT-BR) e troca o nome dela para o que estiver em Configuracoes > "Nome da faixa ' +
-              'de legenda", alem de sempre marcar o idioma da faixa como portugues. Arquivos sem nenhuma faixa ' +
-              'reconhecida como PT-BR sao pulados (aparece no log).'
-            }
-          >
-            <TagOutlined /> {renamingTracks ? 'Rotulando...' : `Rotular faixa PT-BR (${mkvCount})`}
-          </Button>
         </Row>
       </ConfigPanel>
 
