@@ -44,7 +44,7 @@ export function resolveTransferTrackName(track: SubtitleTrack, ptBrTrackName: st
 }
 
 export function resolveTransferLanguage(track: SubtitleTrack): string {
-  return track.isPtBr || track.isPtBrGuess ? 'por' : track.language
+  return track.isPtBr || track.isPtBrGuess ? 'pt-BR' : track.language
 }
 
 export function pickBestTrackIndex(tracks: SubtitleTrack[]): number {

@@ -211,7 +211,8 @@ export function SyncModal({
   onError: (message: string) => void
 }) {
   const theme = useTheme()
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [ptTrackId, setPtTrackId] = useState<number | null>(null)
   const [ptEvents, setPtEvents] = useState<SubtitleEvent[]>([])
@@ -229,19 +230,30 @@ export function SyncModal({
   useEscapeToClose(onClose)
 
   useEffect(() => {
-    let cancelled = false
-    setLoading(true)
+    setLoading(false)
+    setLoaded(false)
     setError(null)
+    setPtEvents([])
+    setDestTracks([])
+    setEnTrackId(null)
+    setEnEvents([])
+    setSelectedEnIndex(null)
+    setSelectedPtIndex(null)
     const initialPtTrackId = cleanOnly ? defaultPtTrackId(row) : (row.selectedTrackId as number)
     setPtTrackId(initialPtTrackId)
     if (initialPtTrackId === null) {
       setError('Nenhuma faixa de legenda disponivel neste arquivo.')
-      setLoading(false)
-      return
     }
-    const usingExternal = initialPtTrackId === EXTERNAL_SUBTITLE_TRACK_ID && row.externalSubtitlePath
+  }, [row.id])
+
+  function loadFalas() {
+    if (ptTrackId === null) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    const usingExternal = ptTrackId === EXTERNAL_SUBTITLE_TRACK_ID && row.externalSubtitlePath
     Promise.all([
-      window.api.prepareSync(row.sourcePath, initialPtTrackId, row.destPath, preferredEnTrackId),
+      window.api.prepareSync(row.sourcePath, ptTrackId, row.destPath, preferredEnTrackId),
       usingExternal ? window.api.getExternalSubtitleEvents(row.externalSubtitlePath!) : null
     ])
       .then(([result, externalPtEvents]) => {
@@ -250,6 +262,7 @@ export function SyncModal({
         setDestTracks(result.destTracks)
         setEnTrackId(result.chosenEnTrackId)
         setEnEvents(result.enEvents)
+        setLoaded(true)
       })
       .catch((err) => {
         const message = (err as Error).message
@@ -262,7 +275,7 @@ export function SyncModal({
     return () => {
       cancelled = true
     }
-  }, [row.id])
+  }
 
   function handleEnTrackChange(trackId: number) {
     setEnTrackId(trackId)
@@ -351,17 +364,30 @@ export function SyncModal({
           </Col>
         </Row>
 
-        {loading && <div>Carregando falas...</div>}
         {error && <div style={{ color: theme.colors.danger }}>{error}</div>}
 
-        {!loading && !error && destTracks.length === 0 && (
+        {!loaded && !error && ptTrackId !== null && (
+          <Col $gap={8}>
+            <div style={{ color: theme.colors.textMuted, fontSize: 12.5 }}>
+              As falas so sao carregadas quando voce pedir - se for so definir um deslocamento manual
+              acima, pode fechar sem carregar.
+            </div>
+            <Row>
+              <Button $variant="primary" onClick={loadFalas} disabled={loading}>
+                {loading ? 'Carregando falas...' : 'Carregar falas para sincronizar'}
+              </Button>
+            </Row>
+          </Col>
+        )}
+
+        {loaded && !error && destTracks.length === 0 && (
           <div style={{ color: theme.colors.warning }}>
             Este arquivo nao tem nenhuma outra legenda para usar como referencia - nao e possivel
             sincronizar automaticamente. Use os campos acima.
           </div>
         )}
 
-        {!loading && !error && destTracks.length > 0 && (
+        {loaded && !error && destTracks.length > 0 && (
           <>
             {enTrackId === null && (
               <span style={{ color: theme.colors.warning }}>Nao detectei automaticamente - escolha a faixa</span>
@@ -491,7 +517,7 @@ export function SyncModal({
           </>
         )}
 
-        {!loading && !error && destTracks.length > 0 && (
+        {loaded && !error && destTracks.length > 0 && (
           <ModalFooter>
             <Button
               $variant="primary"
