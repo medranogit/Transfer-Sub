@@ -35,11 +35,16 @@ function cleanDetectedText(text: string): string {
     .trim()
 }
 
-export function formatSeasonEpisode(season: number, episode: number): string {
-  return `S${String(season).padStart(2, '0')}E${String(episode).padStart(2, '0')}`
+export function formatSeasonEpisode(season: number, episode: number, part?: number | null): string {
+  const partSegment = part ? `P${part}` : ''
+  return `S${String(season).padStart(2, '0')}${partSegment}E${String(episode).padStart(2, '0')}`
 }
 
-export function buildRenamedName(originalFileName: string, fields: RenameFields): RenameResult {
+export function buildRenamedName(
+  originalFileName: string,
+  fields: RenameFields,
+  episodeOverride?: number | null
+): RenameResult {
   const fansub = fields.fansub.trim()
   const ext = parse(originalFileName).ext
 
@@ -52,11 +57,12 @@ export function buildRenamedName(originalFileName: string, fields: RenameFields)
     return { name: `${newBase}${ext}`, reason: null }
   }
 
-  const [, episode] = findEpisode(originalFileName)
+  const [, detectedEpisode] = findEpisode(originalFileName)
+  const episode = episodeOverride ?? detectedEpisode
   if (episode === null) return { name: null, reason: 'episodio nao detectado no nome original' }
 
-  const seasonEpisode = formatSeasonEpisode(fields.season, episode)
-  const middle = [fields.animeName.trim(), seasonEpisode].filter((part) => part.length > 0).join(' - ')
+  const seasonEpisode = formatSeasonEpisode(fields.season, episode, fields.part)
+  const middle = [fields.animeName.trim(), seasonEpisode].filter((segment) => segment.length > 0).join(' - ')
   const namePart = [fansub ? `[${fansub}]` : '', middle].filter((part) => part.length > 0).join(' ')
   const newBase = [namePart, joinTags(fields)].filter((part) => part.length > 0).join(' - ')
 

@@ -9,14 +9,32 @@ import type { LogEvent, RenameFields, RenamePreviewResult, RenamePreviewRow, Ren
 
 type LogFn = (event: LogEvent) => void
 
+function buildEpisodeOverrides(paths: string[], fields: RenameFields): (number | null)[] {
+  const detected = paths.map((path) => findEpisode(basename(path))[1])
+  if (fields.movieMode || !fields.renumberEpisodes) return detected
+
+  const ordered = detected
+    .map((episode, index) => ({ episode, index }))
+    .filter((entry): entry is { episode: number; index: number } => entry.episode !== null)
+    .sort((a, b) => a.episode - b.episode)
+
+  const overrides = new Array<number | null>(paths.length).fill(null)
+  ordered.forEach(({ index }, position) => {
+    overrides[index] = position + 1
+  })
+  return overrides
+}
+
 function buildPreviewRows(paths: string[], fields: RenameFields): RenamePreviewRow[] {
-  const rows: RenamePreviewRow[] = paths.map((path) => {
+  const episodeOverrides = buildEpisodeOverrides(paths, fields)
+
+  const rows: RenamePreviewRow[] = paths.map((path, index) => {
     const originalName = basename(path)
-    const { name, reason } = buildRenamedName(originalName, fields)
+    const { name, reason } = buildRenamedName(originalName, fields, episodeOverrides[index])
     let episodeKey: string | null = null
     if (!fields.movieMode) {
-      const [, episode] = findEpisode(originalName)
-      episodeKey = episode === null ? null : formatSeasonEpisode(fields.season, episode)
+      const episode = episodeOverrides[index]
+      episodeKey = episode === null ? null : formatSeasonEpisode(fields.season, episode, fields.part)
     }
     return { id: path, originalPath: path, originalName, newName: name, skipReason: reason, episodeKey }
   })

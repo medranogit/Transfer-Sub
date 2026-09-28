@@ -1,5 +1,5 @@
 import styled from 'styled-components'
-import { CheckCircleFilled, ClearOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
+import { CheckCircleFilled, ClearOutlined, OrderedListOutlined, TagOutlined, WarningFilled } from '@ant-design/icons'
 import { NOT_AVAILABLE_TAG } from '@shared/types'
 import type { LogEvent, RenameFields, RenamePreviewRow } from '@shared/types'
 import { Button, Col, Input, Label, Panel, Row, SectionTitle } from '../ui/primitives'
@@ -64,6 +64,7 @@ export function RenameView({
   renamingTracks,
   onScan,
   onUpdate,
+  onToggleRenumberEpisodes,
   onApply,
   onRenameTracks,
   logs,
@@ -84,6 +85,7 @@ export function RenameView({
   renamingTracks: boolean
   onScan: () => void
   onUpdate: () => void
+  onToggleRenumberEpisodes: () => void
   onApply: () => void
   onRenameTracks: () => void
   logs: LogEvent[]
@@ -134,8 +136,26 @@ export function RenameView({
                 type="number"
                 min={0}
                 value={fields.season}
-                onChange={(e) => onFieldsChange({ ...fields, season: Number(e.target.value) })}
+                onChange={(e) => {
+                  const parsed = Number(e.target.value)
+                  onFieldsChange({ ...fields, season: Number.isFinite(parsed) ? parsed : fields.season })
+                }}
                 onBlur={onUpdate}
+              />
+            </Field>
+          )}
+          {!fields.movieMode && (
+            <Field $width={90}>
+              <Label>Parte</Label>
+              <Input
+                type="number"
+                min={1}
+                value={fields.part ?? ''}
+                onChange={(e) =>
+                  onFieldsChange({ ...fields, part: e.target.value === '' ? null : Number(e.target.value) })
+                }
+                onBlur={onUpdate}
+                placeholder="N/A"
               />
             </Field>
           )}
@@ -180,7 +200,10 @@ export function RenameView({
             <>
               O episodio e detectado automaticamente em cada arquivo. Resultado:{' '}
               <strong>[fansub] nome do anime - S(temporada)E(episodio) - fonte codec resolucao</strong> (ex: "[Judas]
-              Black Clover - S01E02 - BD HEVC 1080p").
+              Black Clover - S01E02 - BD HEVC 1080p"). Preenchendo "Parte", vira "S04P2E01" (ex: "[EMBER] DanMachi -
+              S04P2E01") - deixe em branco (N/A) quando a temporada nao for dividida em partes. Ativando "Renumerar
+              (01, 02...)", os episodios da pasta (ex: 12, 13, 14...) sao renumerados em sequencia comecando em 01,
+              na mesma ordem detectada.
             </>
           )}{' '}
           Fansub/nome{fields.movieMode ? '' : '/temporada'}/fonte/codec/resolucao sao sugeridos a cada escaneamento
@@ -194,6 +217,16 @@ export function RenameView({
           <Button onClick={onApply} disabled={renaming || readyCount === 0}>
             {renaming ? 'Renomeando...' : `Renomear (${readyCount})`}
           </Button>
+          {!fields.movieMode && (
+            <Button
+              type="button"
+              $variant={fields.renumberEpisodes ? 'primary' : 'secondary'}
+              onClick={onToggleRenumberEpisodes}
+              title="Ignora o numero de episodio original e renumera os arquivos da pasta em sequencia, comecando em 01, na ordem dos episodios detectados"
+            >
+              <OrderedListOutlined /> Renumerar (01, 02...)
+            </Button>
+          )}
           <Button
             type="button"
             $variant="secondary"

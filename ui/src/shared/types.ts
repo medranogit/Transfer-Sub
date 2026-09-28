@@ -163,6 +163,8 @@ export interface RenameFields {
   fansub: string
   animeName: string
   season: number
+  part: number | null
+  renumberEpisodes: boolean
   source: string
   codec: string
   resolution: string

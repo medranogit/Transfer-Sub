@@ -132,6 +132,8 @@ function AppContent() {
     fansub: '',
     animeName: '',
     season: 1,
+    part: null,
+    renumberEpisodes: false,
     source: '',
     codec: '',
     resolution: '',
@@ -522,9 +524,10 @@ function AppContent() {
     }
   }
 
-  async function handleRenameUpdate() {
+  async function handleRenameUpdate(overrideFields?: RenameFields) {
+    const fields = overrideFields ?? renameFields
     if (renameRows.length === 0 || renameUpdating) return
-    if (!renameFields.movieMode && (!Number.isFinite(renameFields.season) || renameFields.season < 0)) {
+    if (!fields.movieMode && (!Number.isFinite(fields.season) || fields.season < 0)) {
       pushLog('Informe uma temporada valida.', 'error')
       return
     }
@@ -532,7 +535,7 @@ function AppContent() {
     try {
       const result = await window.api.recomputeRename(
         renameRows.map((r) => r.originalPath),
-        renameFields
+        fields
       )
       setRenameRows(result)
       const ready = result.filter((r) => r.newName).length
@@ -542,6 +545,12 @@ function AppContent() {
     } finally {
       setRenameUpdating(false)
     }
+  }
+
+  function handleToggleRenumberEpisodes() {
+    const next = { ...renameFields, renumberEpisodes: !renameFields.renumberEpisodes }
+    setRenameFields(next)
+    handleRenameUpdate(next)
   }
 
   function handleConfirmNewFansub() {
@@ -930,6 +939,7 @@ function AppContent() {
             renamingTracks={renamingTracks}
             onScan={handleRenameScan}
             onUpdate={handleRenameUpdate}
+            onToggleRenumberEpisodes={handleToggleRenumberEpisodes}
             onApply={handleRenameApply}
             onRenameTracks={handleRenameTracks}
             logs={logs}
