@@ -64,6 +64,13 @@ function samePath(a: string, b: string): boolean {
   return resolve(a).toLowerCase() === resolve(b).toLowerCase()
 }
 
+function formatElapsed(ms: number): string {
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
+  const m = Math.floor(ms / 60_000)
+  const s = ((ms % 60_000) / 1000).toFixed(0).padStart(2, '0')
+  return `${m}m${s}s`
+}
+
 async function tagPtBrGuesses(
   mkvextractPath: string,
   sourcePath: string,
@@ -413,6 +420,10 @@ export async function transferRows(
   let success = 0
   let failed = 0
 
+  let totalExtractMs = 0
+  let totalMuxMs = 0
+  const sessionStart = Date.now()
+
   await mkdir(resolveResultFolder(outputDir, resultFolderName), { recursive: true })
 
   for (const row of rows) {
@@ -443,6 +454,8 @@ export async function transferRows(
     try {
       const extension = subtitleExtension(track.codecId)
       const subPath = join(tmpDir, `sub${extension}`)
+
+      const extractStart = Date.now()
       await extractSubtitle(mkvextractPath, row.sourcePath, track.trackId, subPath)
 
       let attachments: Awaited<ReturnType<typeof extractAttachments>> = []
@@ -455,6 +468,8 @@ export async function transferRows(
           message: `[${row.episodeKey}] falha ao copiar fontes anexadas: ${(err as Error).message}`
         })
       }
+      const extractElapsed = Date.now() - extractStart
+      totalExtractMs += extractElapsed
 
       const offsetMs = row.manualOffsetText.trim()
         ? resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
@@ -487,6 +502,7 @@ export async function transferRows(
         message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${fontsInfo}${subsInfo}`
       })
 
+      const muxStart = Date.now()
       await muxSubtitleInto(
         mkvmergePath,
         row.destPath,
@@ -501,10 +517,16 @@ export async function transferRows(
         removeExtraSubtitles,
         token
       )
+      const muxElapsed = Date.now() - muxStart
+      totalMuxMs += muxElapsed
 
       onProgress(row.id, 'done')
       success += 1
-      onLog({ level: 'success', message: `[${row.episodeKey}] concluido: ${basename(outputFile)}` })
+      const epTotal = extractElapsed + muxElapsed
+      onLog({
+        level: 'success',
+        message: `[${row.episodeKey}] concluido: ${basename(outputFile)} — extrair ${formatElapsed(extractElapsed)}, remuxar ${formatElapsed(muxElapsed)}, total ${formatElapsed(epTotal)}`
+      })
       await appendTransferLog({
         timestamp: new Date().toISOString(),
         kind: 'transfer',
@@ -552,12 +574,19 @@ export async function transferRows(
 
   const aborted = token?.aborted ?? false
   const total = rows.length
+  const sessionElapsed = Date.now() - sessionStart
   onLog({
     level: aborted ? 'warn' : failed ? 'warn' : 'success',
     message: aborted
       ? `Transferencia abortada: ${success}/${total} processados antes de parar${failed ? `, ${failed} com erro` : ''}.`
       : `Transferencia concluida: ${success}/${total} com sucesso${failed ? `, ${failed} com erro` : ''}.`
   })
+  if (success > 0) {
+    onLog({
+      level: 'info',
+      message: `Tempo total: ${formatElapsed(sessionElapsed)} | extracao: ${formatElapsed(totalExtractMs)} | remux: ${formatElapsed(totalMuxMs)}`
+    })
+  }
 
   return { total, success, failed, aborted }
 }
