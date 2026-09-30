@@ -14,6 +14,8 @@ import type {
   RenameFields,
   RenamePreviewRow,
   RowStatus,
+  SyncMode,
+  SyncPoint,
   TransferDefaults
 } from '@shared/types'
 import { themeForMode } from './theme'
@@ -32,6 +34,7 @@ import { NotificationsMenu } from './components/NotificationsMenu'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { playCompletionSound } from './utils/completionSound'
 import { playWarningSound } from './utils/warningSound'
+import { formatEventTime } from './utils/subtitleDisplay'
 
 
 const Shell = styled.div`
@@ -761,11 +764,93 @@ function AppContent() {
     )
   }
 
-  function handleApplySync(rowId: string, offsetMs: number, syncTrackId: number) {
+  function handleApplySync(
+    rowId: string,
+    offsetMs: number,
+    syncTrackId: number,
+    details?: {
+      sourceMs: number
+      targetMs: number
+      sourceText?: string
+      targetText?: string
+    }
+  ) {
     const row = rows.find((r) => r.id === rowId)
-    setRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, syncTrackId } : r)))
-    handleManualOffsetChange(rowId, String(offsetMs))
-    if (row) pushLog(`[${row.episodeKey}] deslocamento de ${offsetMs}ms aplicado via auto-sync`, 'success')
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              syncTrackId,
+              manualOffsetText: String(offsetMs),
+              firstLineTargetText: '',
+              syncPoints: undefined,
+              syncMode: undefined
+            }
+          : r
+      )
+    )
+    const sign = offsetMs > 0 ? '+' : ''
+    if (row) pushLog(`[${row.episodeKey}] deslocamento de ${sign}${offsetMs}ms aplicado via auto-sync`, 'success')
+
+    if (row && details) {
+      const srcTxt = details.sourceText ? ` "${details.sourceText.slice(0, 75)}"` : ''
+      const tgtTxt = details.targetText ? ` "${details.targetText.slice(0, 75)}"` : ''
+      window.api
+        .appendSessionLog({
+          level: 'info',
+          message: `  [${row.episodeKey}] detalhe da sincronia (${sign}${offsetMs}ms): destino ${formatEventTime(details.sourceMs)}${srcTxt} ↔ base ${formatEventTime(details.targetMs)}${tgtTxt}`
+        })
+        .catch(() => {})
+    }
+  }
+
+  function handleApplyMultiPointSync(
+    rowId: string,
+    points: SyncPoint[],
+    mode: SyncMode,
+    syncTrackId: number
+  ) {
+    const row = rows.find((r) => r.id === rowId)
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === rowId
+          ? {
+              ...r,
+              syncTrackId,
+              syncPoints: points,
+              syncMode: mode,
+              manualOffsetText: '',
+              firstLineTargetText: ''
+            }
+          : r
+      )
+    )
+    if (row) {
+      pushLog(
+        `[${row.episodeKey}] sincronizacao multiponto (${points.length} pontos, modo ${mode === 'linear' ? 'linear' : 'degrau'}) configurada`,
+        'success'
+      )
+
+      window.api
+        .appendSessionLog({
+          level: 'info',
+          message: `  [${row.episodeKey}] detalhe dos ${points.length} pontos de sincronia configurados (modo ${mode === 'linear' ? 'linear' : 'degrau'}):`
+        })
+        .catch(() => {})
+
+      points.forEach((p, idx) => {
+        const sign = p.offsetMs > 0 ? '+' : ''
+        const srcTxt = p.sourceText ? ` | destino: "${p.sourceText.slice(0, 70)}"` : ''
+        const tgtTxt = p.targetText ? ` | base: "${p.targetText.slice(0, 70)}"` : ''
+        window.api
+          .appendSessionLog({
+            level: 'info',
+            message: `    ↳ Ponto #${idx + 1}: ${formatEventTime(p.sourceMs)} (offset ${sign}${p.offsetMs}ms) ↔ base ${formatEventTime(p.targetMs)}${srcTxt}${tgtTxt}`
+          })
+          .catch(() => {})
+      })
+    }
   }
 
   function selectRows(nextIds: Set<string>) {
@@ -1087,7 +1172,12 @@ function AppContent() {
           row={syncRow}
           cleanOnly={cleanOnly}
           onClose={() => setSyncRowId(null)}
-          onApply={(offsetMs, syncTrackId) => handleApplySync(syncRow.id, offsetMs, syncTrackId)}
+          onApply={(offsetMs, syncTrackId, details) =>
+            handleApplySync(syncRow.id, offsetMs, syncTrackId, details)
+          }
+          onApplyMultiPoint={(points, mode, syncTrackId) =>
+            handleApplyMultiPointSync(syncRow.id, points, mode, syncTrackId)
+          }
           onFirstLineTargetChange={(value) => handleFirstLineTargetChange(syncRow.id, value)}
           onManualOffsetChange={(value) => handleManualOffsetChange(syncRow.id, value)}
           preferredEnTrackId={preferredEnTrackId}

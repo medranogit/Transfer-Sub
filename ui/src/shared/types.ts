@@ -14,6 +14,17 @@ export const EXTERNAL_SUBTITLE_TRACK_ID = -1
 
 export const NOT_AVAILABLE_TAG = 'N/A'
 
+export interface SyncPoint {
+  id: string
+  sourceMs: number
+  targetMs: number
+  offsetMs: number
+  sourceText?: string
+  targetText?: string
+}
+
+export type SyncMode = 'step' | 'linear'
+
 export interface EpisodeRow {
   id: string
   episodeKey: string
@@ -27,6 +38,8 @@ export interface EpisodeRow {
   manualOffsetText: string
   syncTrackId: number | null
   externalSubtitlePath: string | null
+  syncPoints?: SyncPoint[]
+  syncMode?: SyncMode
 }
 
 export interface ScanResult {
@@ -156,6 +169,8 @@ export interface TransferLogEntry {
   trackName: string | null
   firstLineTargetText: string
   appliedOffsetMs: number | null
+  syncPointsCount?: number
+  syncMode?: string
   status: 'done' | 'error'
   error?: string
 }

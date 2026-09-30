@@ -1,6 +1,6 @@
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
-import { mkdir, mkdtemp, readFile, rm } from 'fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'fs/promises'
 import { join, basename, extname, resolve } from 'path'
 import { describeEpisodeGaps, episodeKey, findEpisode } from './domain/episodeMatcher'
 import {
@@ -13,6 +13,8 @@ import { isEnglishAudio } from './domain/audioLanguage'
 import { decodeSubtitleBuffer } from './domain/subtitleEncoding'
 import { parsePgsSubtitle } from './domain/pgsSubtitle'
 import {
+  adjustSubtitleContent,
+  formatEventTime,
   formatMsAsTimeCode,
   parseFirstEventStartMs,
   parseSubtitleEvents,
@@ -38,6 +40,7 @@ import {
   subtitleExtension
 } from './infra/mkvProcess'
 import { appendTransferLog } from './infra/transferLog'
+import { appendSessionLog } from './infra/sessionLog'
 import { CancellationToken, OperationAbortedError } from './infra/cancellation'
 import type { ExternalSubtitleSpec } from './infra/mkvProcess'
 import type {
@@ -471,9 +474,42 @@ export async function transferRows(
       const extractElapsed = Date.now() - extractStart
       totalExtractMs += extractElapsed
 
-      const offsetMs = row.manualOffsetText.trim()
-        ? resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
-        : await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
+      let offsetMs = 0
+      if (row.syncPoints && row.syncPoints.length > 0) {
+        const syncMode = row.syncMode ?? 'step'
+        const rawContent = decodeSubtitleBuffer(await readFile(subPath))
+        const adjustedContent = adjustSubtitleContent(rawContent, extension, row.syncPoints, syncMode)
+        await writeFile(subPath, adjustedContent, 'utf-8')
+        onLog({
+          level: 'info',
+          message: `[${row.episodeKey}] sincronia multiponto aplicada (${row.syncPoints.length} pontos, modo ${syncMode === 'linear' ? 'linear' : 'degrau'})`
+        })
+        appendSessionLog({
+          level: 'info',
+          message: `  [${row.episodeKey}] sincronia multiponto gravada no arquivo (${row.syncPoints.length} pontos, modo ${syncMode === 'linear' ? 'linear' : 'degrau'}):`
+        }).catch(() => {})
+        for (let i = 0; i < row.syncPoints.length; i++) {
+          const p = row.syncPoints[i]
+          const sign = p.offsetMs > 0 ? '+' : ''
+          const srcTxt = p.sourceText ? ` | destino: "${p.sourceText.slice(0, 70)}"` : ''
+          const tgtTxt = p.targetText ? ` | base: "${p.targetText.slice(0, 70)}"` : ''
+          appendSessionLog({
+            level: 'info',
+            message: `    ↳ Ponto #${i + 1}: ${formatEventTime(p.sourceMs)} (offset ${sign}${p.offsetMs}ms) ↔ base ${formatEventTime(p.targetMs)}${srcTxt}${tgtTxt}`
+          }).catch(() => {})
+        }
+        offsetMs = 0
+      } else {
+        offsetMs = row.manualOffsetText.trim()
+          ? resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
+          : await resolveOffsetMs(subPath, extension, row.firstLineTargetText, row.episodeKey, onLog)
+        if (offsetMs !== 0) {
+          appendSessionLog({
+            level: 'info',
+            message: `  [${row.episodeKey}] deslocamento unico aplicado no arquivo: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms`
+          }).catch(() => {})
+        }
+      }
 
       const keepAudioTrackIds = await resolveAudioTrackFilter(
         mkvmergePath,
@@ -538,7 +574,9 @@ export async function transferRows(
         language: track.language,
         trackName: track.trackName,
         firstLineTargetText: row.firstLineTargetText,
-        appliedOffsetMs: offsetMs,
+        appliedOffsetMs: row.syncPoints && row.syncPoints.length > 0 ? null : offsetMs,
+        syncPointsCount: row.syncPoints?.length,
+        syncMode: row.syncPoints && row.syncPoints.length > 0 ? (row.syncMode ?? 'step') : undefined,
         status: 'done'
       })
     } catch (err) {
@@ -623,6 +661,7 @@ export async function cleanRows(
       continue
     }
     onProgress(row.id, 'muxing')
+    let cleanSubTmpDir: string | null = null
 
     try {
       const keepAudioTrackIds = await resolveAudioTrackFilter(
@@ -636,7 +675,86 @@ export async function cleanRows(
       const usingExternalSync = row.syncTrackId === EXTERNAL_SUBTITLE_TRACK_ID && row.externalSubtitlePath !== null
       const syncTrack = !usingExternalSync ? row.tracks.find((t) => t.trackId === row.syncTrackId) : undefined
       let offsetMs = 0
-      if (usingExternalSync || syncTrack) {
+      let externalSubPathToUse = row.externalSubtitlePath
+
+      let keepSubsParam: number[] | number | 'none' | null = row.selectedTrackId
+      let syncTrackIdParam: number | null = usingExternalSync ? null : (syncTrack?.trackId ?? null)
+      let offsetMsParam: number = usingExternalSync ? 0 : offsetMs
+
+      if (usingExternalSync && row.syncPoints && row.syncPoints.length > 0 && row.externalSubtitlePath) {
+        cleanSubTmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-clean-sync-'))
+        const ext = extname(row.externalSubtitlePath)
+        const adjustedExtPath = join(cleanSubTmpDir, `ext_adjusted${ext}`)
+        const rawContent = decodeSubtitleBuffer(await readFile(row.externalSubtitlePath))
+        const syncMode = row.syncMode ?? 'step'
+        const adjustedContent = adjustSubtitleContent(rawContent, ext, row.syncPoints, syncMode)
+        await writeFile(adjustedExtPath, adjustedContent, 'utf-8')
+        externalSubPathToUse = adjustedExtPath
+        offsetMs = 0
+        syncTrackIdParam = null
+        offsetMsParam = 0
+
+        onLog({
+          level: 'info',
+          message: `[${row.episodeKey}] sincronia multiponto aplicada na legenda externa (${row.syncPoints.length} pontos, modo ${syncMode === 'linear' ? 'linear' : 'degrau'})`
+        })
+        appendSessionLog({
+          level: 'info',
+          message: `  [${row.episodeKey}] sincronia multiponto aplicada na legenda externa (${row.syncPoints.length} pontos, modo ${syncMode === 'linear' ? 'linear' : 'degrau'}):`
+        }).catch(() => {})
+        for (let i = 0; i < row.syncPoints.length; i++) {
+          const p = row.syncPoints[i]
+          const sign = p.offsetMs > 0 ? '+' : ''
+          const srcTxt = p.sourceText ? ` | destino: "${p.sourceText.slice(0, 70)}"` : ''
+          const tgtTxt = p.targetText ? ` | base: "${p.targetText.slice(0, 70)}"` : ''
+          appendSessionLog({
+            level: 'info',
+            message: `    ↳ Ponto #${i + 1}: ${formatEventTime(p.sourceMs)} (offset ${sign}${p.offsetMs}ms) ↔ base ${formatEventTime(p.targetMs)}${srcTxt}${tgtTxt}`
+          }).catch(() => {})
+        }
+      } else if (!usingExternalSync && syncTrack && row.syncPoints && row.syncPoints.length > 0) {
+        cleanSubTmpDir = await mkdtemp(join(tmpdir(), 'transfer-sub-clean-sync-'))
+        const ext = subtitleExtension(syncTrack.codecId)
+        const rawExtractedPath = join(cleanSubTmpDir, `internal_raw${ext}`)
+        await extractSubtitle(mkvextractPath, row.destPath, syncTrack.trackId, rawExtractedPath)
+        const rawContent = decodeSubtitleBuffer(await readFile(rawExtractedPath))
+        const syncMode = row.syncMode ?? 'step'
+        const adjustedContent = adjustSubtitleContent(rawContent, ext, row.syncPoints, syncMode)
+        const adjustedPath = join(cleanSubTmpDir, `internal_adjusted${ext}`)
+        await writeFile(adjustedPath, adjustedContent, 'utf-8')
+
+        externalSubPathToUse = adjustedPath
+        syncTrackIdParam = null
+        offsetMsParam = 0
+        offsetMs = 0
+
+        if (row.selectedTrackId === syncTrack.trackId) {
+          keepSubsParam = 'none'
+        } else if (row.selectedTrackId === null) {
+          keepSubsParam = row.tracks.filter((t) => t.trackId !== syncTrack.trackId).map((t) => t.trackId)
+        } else {
+          keepSubsParam = row.selectedTrackId
+        }
+
+        onLog({
+          level: 'info',
+          message: `[${row.episodeKey}] sincronia multiponto aplicada na faixa #${syncTrack.trackId} (${row.syncPoints.length} pontos, modo ${syncMode === 'linear' ? 'linear' : 'degrau'})`
+        })
+        appendSessionLog({
+          level: 'info',
+          message: `  [${row.episodeKey}] sincronia multiponto aplicada na faixa interna #${syncTrack.trackId} (${row.syncPoints.length} pontos, modo ${syncMode === 'linear' ? 'linear' : 'degrau'}):`
+        }).catch(() => {})
+        for (let i = 0; i < row.syncPoints.length; i++) {
+          const p = row.syncPoints[i]
+          const sign = p.offsetMs > 0 ? '+' : ''
+          const srcTxt = p.sourceText ? ` | destino: "${p.sourceText.slice(0, 70)}"` : ''
+          const tgtTxt = p.targetText ? ` | base: "${p.targetText.slice(0, 70)}"` : ''
+          appendSessionLog({
+            level: 'info',
+            message: `    ↳ Ponto #${i + 1}: ${formatEventTime(p.sourceMs)} (offset ${sign}${p.offsetMs}ms) ↔ base ${formatEventTime(p.targetMs)}${srcTxt}${tgtTxt}`
+          }).catch(() => {})
+        }
+      } else if (usingExternalSync || syncTrack) {
         if (row.manualOffsetText.trim()) {
           offsetMs = resolveManualOffsetMs(row.manualOffsetText, row.episodeKey, onLog)
         } else if (row.firstLineTargetText.trim()) {
@@ -660,13 +778,21 @@ export async function cleanRows(
             }
           }
         }
+        offsetMsParam = usingExternalSync ? 0 : offsetMs
+        if (offsetMs !== 0) {
+          appendSessionLog({
+            level: 'info',
+            message: `  [${row.episodeKey}] deslocamento unico aplicado no arquivo: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms`
+          }).catch(() => {})
+        }
       }
 
-      const externalSubtitle: ExternalSubtitleSpec | null = row.externalSubtitlePath
+      const isInternalSyncReplacement = !usingExternalSync && syncTrack && row.syncPoints && row.syncPoints.length > 0
+      const externalSubtitle: ExternalSubtitleSpec | null = externalSubPathToUse
         ? {
-            path: row.externalSubtitlePath,
-            language: 'por',
-            trackName: ptBrTrackName,
+            path: externalSubPathToUse,
+            language: isInternalSyncReplacement ? syncTrack.language : 'por',
+            trackName: isInternalSyncReplacement ? (syncTrack.trackName || ptBrTrackName) : ptBrTrackName,
             offsetMs: usingExternalSync ? offsetMs : 0,
             clearDefaultTrackIds:
               row.selectedTrackId !== null ? [row.selectedTrackId] : row.tracks.map((t) => t.trackId)
@@ -679,9 +805,11 @@ export async function cleanRows(
         row.selectedTrackId !== null ? ` (mantendo somente legenda #${row.selectedTrackId})` : ''
       const externalInfo = row.externalSubtitlePath ? ' (adicionando legenda externa)' : ''
       const syncInfo =
-        offsetMs !== 0
-          ? ` (sincronizando ${usingExternalSync ? 'legenda externa' : `faixa #${syncTrack?.trackId}`} em ${offsetMs}ms)`
-          : ''
+        row.syncPoints && row.syncPoints.length > 0
+          ? ` (multiponto: ${row.syncPoints.length} pontos)`
+          : offsetMs !== 0
+            ? ` (sincronizando ${usingExternalSync ? 'legenda externa' : `faixa #${syncTrack?.trackId}`} em ${offsetMs}ms)`
+            : ''
       onLog({
         level: 'info',
         message: `[${row.episodeKey}] gerando ${basename(outputFile)}${overwriteInfo}${audioInfo}${subInfo}${externalInfo}${syncInfo}`
@@ -691,10 +819,10 @@ export async function cleanRows(
         mkvmergePath,
         row.destPath,
         outputFile,
-        row.selectedTrackId,
+        keepSubsParam,
         keepAudioTrackIds,
-        usingExternalSync ? null : (syncTrack?.trackId ?? null),
-        usingExternalSync ? 0 : offsetMs,
+        syncTrackIdParam,
+        offsetMsParam,
         externalSubtitle,
         token
       )
@@ -713,7 +841,9 @@ export async function cleanRows(
         language: null,
         trackName: null,
         firstLineTargetText: row.firstLineTargetText,
-        appliedOffsetMs: offsetMs || null,
+        appliedOffsetMs: row.syncPoints && row.syncPoints.length > 0 ? null : (offsetMs || null),
+        syncPointsCount: row.syncPoints?.length,
+        syncMode: row.syncPoints && row.syncPoints.length > 0 ? (row.syncMode ?? 'step') : undefined,
         status: 'done'
       })
     } catch (err) {
@@ -742,6 +872,10 @@ export async function cleanRows(
         status: 'error',
         error: message
       })
+    } finally {
+      if (cleanSubTmpDir) {
+        await rm(cleanSubTmpDir, { recursive: true, force: true }).catch(() => {})
+      }
     }
   }
 

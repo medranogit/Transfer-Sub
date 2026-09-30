@@ -153,7 +153,7 @@ export function EpisodeTable({
               <Checkbox checked={allSelected} onChange={onToggleSelectAll} title="Selecionar todos" />
             </th>
             <th style={{ width: 90 }}>Episodio</th>
-            <th style={{ width: 150 }}>Sincronizacao</th>
+            <th style={{ width: 175 }}>Sincronizacao</th>
             <th>
               <Row $gap={8} style={{ alignItems: 'center' }}>
                 <span>{cleanOnly ? 'Limpeza' : 'Faixa de legenda'}</span>
@@ -198,11 +198,11 @@ export function EpisodeTable({
                 </Td>
                 <Td>{row.episodeKey}</Td>
                 <Td onClick={(e) => e.stopPropagation()}>
-                  <Row $gap={8}>
+                  <Row $gap={6} style={{ alignItems: 'center', flexWrap: 'wrap' }}>
                     {syncAdjustmentLabel(row) && <SyncStatusIcon title={syncAdjustmentLabel(row)!} />}
                     <Button
                       type="button"
-                      $variant="secondary"
+                      $variant={row.syncPoints && row.syncPoints.length > 0 ? 'primary' : 'secondary'}
                       onClick={() => onOpenSync(row.id)}
                       disabled={
                         cleanOnly
@@ -213,6 +213,22 @@ export function EpisodeTable({
                     >
                       <SyncOutlined /> Sincronizar
                     </Button>
+                    {syncAdjustmentLabel(row) && (
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          color: row.syncPoints && row.syncPoints.length > 0 ? '#38bdf8' : undefined,
+                          opacity: row.syncPoints && row.syncPoints.length > 0 ? 1 : 0.8,
+                          maxWidth: 160,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                        title={syncAdjustmentLabel(row)!}
+                      >
+                        {syncAdjustmentLabel(row)}
+                      </span>
+                    )}
                   </Row>
                 </Td>
                 <Td onClick={(e) => e.stopPropagation()}>

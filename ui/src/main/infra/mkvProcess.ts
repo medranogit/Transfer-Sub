@@ -292,7 +292,7 @@ export async function cleanTracksInto(
   mkvmergePath: string,
   sourceFile: string,
   outputFile: string,
-  keepSubtitleTrackId: number | null,
+  keepSubtitleTrackId: number[] | number | 'none' | null,
   keepAudioTrackIds: number[] | undefined,
   syncTrackId: number | null,
   offsetMs: number,
@@ -303,15 +303,25 @@ export async function cleanTracksInto(
   if (keepAudioTrackIds) {
     args.push('--audio-tracks', keepAudioTrackIds.join(','))
   }
-  if (keepSubtitleTrackId !== null) {
+  if (keepSubtitleTrackId === 'none') {
+    args.push('--no-subtitles')
+  } else if (Array.isArray(keepSubtitleTrackId)) {
+    if (keepSubtitleTrackId.length === 0) {
+      args.push('--no-subtitles')
+    } else {
+      args.push('--subtitle-tracks', keepSubtitleTrackId.join(','))
+    }
+  } else if (keepSubtitleTrackId !== null) {
     args.push('--subtitle-tracks', String(keepSubtitleTrackId))
   }
   if (externalSubtitle) {
     externalSubtitle.clearDefaultTrackIds.forEach((trackId) => {
       args.push('--default-track-flag', `${trackId}:no`)
     })
-  } else if (keepSubtitleTrackId !== null) {
+  } else if (typeof keepSubtitleTrackId === 'number') {
     args.push('--default-track-flag', `${keepSubtitleTrackId}:yes`)
+  } else if (Array.isArray(keepSubtitleTrackId) && keepSubtitleTrackId.length === 1) {
+    args.push('--default-track-flag', `${keepSubtitleTrackId[0]}:yes`)
   }
   if (syncTrackId !== null && offsetMs !== 0) {
     args.push('--sync', `${syncTrackId}:${offsetMs}`)

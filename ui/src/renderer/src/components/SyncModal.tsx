@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import styled, { useTheme } from 'styled-components'
+import {
+  ClearOutlined,
+  DeleteOutlined,
+  InfoCircleOutlined,
+  PlusOutlined
+} from '@ant-design/icons'
 import { EXTERNAL_SUBTITLE_TRACK_ID } from '@shared/types'
-import type { EpisodeRow, SubtitleEvent, SubtitleTrack } from '@shared/types'
+import type { EpisodeRow, SubtitleEvent, SubtitleTrack, SyncMode, SyncPoint } from '@shared/types'
 import { Button, Col, Label, Panel, Row } from '../ui/primitives'
 import {
   canSyncTrack,
@@ -120,7 +126,7 @@ const FilterInput = styled.input`
 `
 
 const ColumnList = styled.div`
-  height: 360px;
+  height: 250px;
   overflow-y: auto;
   border: 1px solid ${(p) => p.theme.colors.border};
   border-radius: ${(p) => p.theme.radius.md};
@@ -165,7 +171,130 @@ const SubtitleThumb = styled.img`
 const OffsetPreview = styled.div`
   font-size: 12.5px;
   color: ${(p) => p.theme.colors.text};
-  text-align: center;
+`
+
+const PointsSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: ${(p) => p.theme.colors.panelAlt};
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.md};
+`
+
+const PointsHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+`
+
+const PointsTitle = styled.div`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${(p) => p.theme.colors.text};
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`
+
+const ModeToggleRow = styled.div`
+  display: flex;
+  gap: 6px;
+  align-items: center;
+`
+
+const ModeButton = styled.button<{ $active: boolean }>`
+  border: 1px solid ${(p) => (p.$active ? p.theme.colors.accent : p.theme.colors.border)};
+  background: ${(p) => (p.$active ? `color-mix(in srgb, ${p.theme.colors.accent} 20%, transparent)` : 'transparent')};
+  color: ${(p) => (p.$active ? p.theme.colors.text : p.theme.colors.textMuted)};
+  padding: 3px 8px;
+  border-radius: ${(p) => p.theme.radius.sm};
+  font-size: 11px;
+  font-weight: ${(p) => (p.$active ? 600 : 400)};
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: ${(p) => p.theme.colors.accent};
+  }
+`
+
+const PointsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 4px;
+`
+
+const PointItem = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background: ${(p) => p.theme.colors.panel};
+  border: 1px solid ${(p) => p.theme.colors.border};
+  border-radius: ${(p) => p.theme.radius.sm};
+  font-size: 11.5px;
+`
+
+const PointInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+`
+
+const PointBadge = styled.span<{ $positive?: boolean }>`
+  font-family: ${(p) => p.theme.font.mono};
+  font-weight: 700;
+  color: ${(p) => (p.$positive ? p.theme.colors.warning : p.theme.colors.accent)};
+  background: ${(p) =>
+    p.$positive
+      ? `color-mix(in srgb, ${p.theme.colors.warning} 15%, transparent)`
+      : `color-mix(in srgb, ${p.theme.colors.accent} 15%, transparent)`};
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  flex-shrink: 0;
+`
+
+const PointTime = styled.span`
+  font-family: ${(p) => p.theme.font.mono};
+  font-size: 11px;
+  color: ${(p) => p.theme.colors.textFaint};
+  flex-shrink: 0;
+`
+
+const PointText = styled.span`
+  color: ${(p) => p.theme.colors.textMuted};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+`
+
+const DeletePointBtn = styled.button`
+  background: transparent;
+  border: none;
+  color: ${(p) => p.theme.colors.textFaint};
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: ${(p) => p.theme.radius.sm};
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+
+  &:hover {
+    color: ${(p) => p.theme.colors.danger};
+    background: ${(p) => `color-mix(in srgb, ${p.theme.colors.danger} 15%, transparent)`};
+  }
 `
 
 const ModalFooter = styled.div`
@@ -194,6 +323,7 @@ export function SyncModal({
   cleanOnly,
   onClose,
   onApply,
+  onApplyMultiPoint,
   onFirstLineTargetChange,
   onManualOffsetChange,
   preferredEnTrackId,
@@ -203,7 +333,17 @@ export function SyncModal({
   row: EpisodeRow
   cleanOnly: boolean
   onClose: () => void
-  onApply: (offsetMs: number, syncTrackId: number) => void
+  onApply: (
+    offsetMs: number,
+    syncTrackId: number,
+    details?: {
+      sourceMs: number
+      targetMs: number
+      sourceText?: string
+      targetText?: string
+    }
+  ) => void
+  onApplyMultiPoint?: (points: SyncPoint[], mode: SyncMode, syncTrackId: number) => void
   onFirstLineTargetChange: (value: string) => void
   onManualOffsetChange: (value: string) => void
   preferredEnTrackId: number | null
@@ -227,6 +367,9 @@ export function SyncModal({
   const [ptFilterInput, setPtFilterInput] = useState('')
   const [ptFilter, setPtFilter] = useState('')
 
+  const [syncPoints, setSyncPoints] = useState<SyncPoint[]>(row.syncPoints ? [...row.syncPoints] : [])
+  const [syncMode, setSyncMode] = useState<SyncMode>(row.syncMode ?? 'step')
+
   useEscapeToClose(onClose)
 
   useEffect(() => {
@@ -239,12 +382,38 @@ export function SyncModal({
     setEnEvents([])
     setSelectedEnIndex(null)
     setSelectedPtIndex(null)
+    setSyncPoints(row.syncPoints ? [...row.syncPoints] : [])
+    setSyncMode(row.syncMode ?? 'step')
     const initialPtTrackId = cleanOnly ? defaultPtTrackId(row) : (row.selectedTrackId as number)
     setPtTrackId(initialPtTrackId)
     if (initialPtTrackId === null) {
       setError('Nenhuma faixa de legenda disponivel neste arquivo.')
     }
   }, [row.id])
+
+  function handleAddPoint() {
+    if (!selectedEn || !selectedPt || offsetMs === null) return
+    const newPoint: SyncPoint = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      sourceMs: selectedPt.startMs,
+      targetMs: selectedEn.startMs,
+      offsetMs,
+      sourceText: selectedPt.text,
+      targetText: selectedEn.text
+    }
+    setSyncPoints((prev) => {
+      const filtered = prev.filter((p) => p.sourceMs !== newPoint.sourceMs)
+      return [...filtered, newPoint].sort((a, b) => a.sourceMs - b.sourceMs)
+    })
+  }
+
+  function handleRemovePoint(id: string) {
+    setSyncPoints((prev) => prev.filter((p) => p.id !== id))
+  }
+
+  function handleClearAllPoints() {
+    setSyncPoints([])
+  }
 
   function loadFalas() {
     if (ptTrackId === null) return
@@ -338,6 +507,27 @@ export function SyncModal({
             Fechar
           </Button>
         </ModalHeader>
+
+        {row.syncPoints && row.syncPoints.length > 0 && (
+          <Row
+            $gap={8}
+            style={{
+              padding: '6px 10px',
+              borderRadius: 6,
+              background: 'color-mix(in srgb, #38bdf8 12%, transparent)',
+              border: '1px solid color-mix(in srgb, #38bdf8 30%, transparent)',
+              alignItems: 'center',
+              fontSize: 12,
+              color: '#38bdf8'
+            }}
+          >
+            <InfoCircleOutlined />
+            <span>
+              Sincronização multiponto ativa ({row.syncPoints.length} pontos, modo{' '}
+              {row.syncMode === 'linear' ? 'linear' : 'degrau'}). Os campos de 1a fala e atraso único são ignorados enquanto houver pontos.
+            </span>
+          </Row>
+        )}
 
         <Row $gap={20}>
           <Col $gap={4}>
@@ -506,26 +696,168 @@ export function SyncModal({
             </ColumnsRow>
 
             {!anyTrackUnsupported && (
-              <OffsetPreview>
-                {offsetMs !== null
-                  ? `Deslocamento calculado: ${offsetMs > 0 ? '+' : ''}${offsetMs}ms (${
-                      offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'
-                    } a legenda)`
-                  : 'Selecione uma fala em cada coluna para calcular o deslocamento'}
-              </OffsetPreview>
+              <Row $gap={12} style={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                <OffsetPreview>
+                  {offsetMs !== null ? (
+                    <span>
+                      Deslocamento neste ponto:{' '}
+                      <strong style={{ color: offsetMs === 0 ? undefined : offsetMs > 0 ? theme.colors.warning : theme.colors.accent }}>
+                        {offsetMs > 0 ? '+' : ''}{offsetMs}ms
+                      </strong>{' '}
+                      ({offsetMs > 0 ? 'atrasa' : offsetMs < 0 ? 'adianta' : 'sem ajuste'} a legenda)
+                    </span>
+                  ) : (
+                    <span style={{ color: theme.colors.textMuted }}>
+                      Selecione uma fala em cada coluna para calcular o deslocamento
+                    </span>
+                  )}
+                </OffsetPreview>
+                {offsetMs !== null && (
+                  <Button
+                    type="button"
+                    $variant="primary"
+                    onClick={handleAddPoint}
+                    title="Adicionar o par de falas selecionado como um novo ponto de sincronizacao"
+                    style={{ fontSize: 12, padding: '4px 12px' }}
+                  >
+                    <PlusOutlined /> Adicionar ponto de sincronia
+                  </Button>
+                )}
+              </Row>
+            )}
+
+            {syncPoints.length > 0 && (
+              <PointsSection>
+                <PointsHeader>
+                  <PointsTitle>
+                    <span>Pontos de sincronia ({syncPoints.length})</span>
+                    <span
+                      title="No modo Degrau, a cada ponto um novo atraso entra em vigor dali para frente. No modo Linear, o atraso e interpolado gradualmente entre os pontos."
+                      style={{ cursor: 'help', color: theme.colors.textFaint }}
+                    >
+                      <InfoCircleOutlined />
+                    </span>
+                  </PointsTitle>
+
+                  <ModeToggleRow>
+                    <span style={{ fontSize: 11, color: theme.colors.textFaint }}>Modo:</span>
+                    <ModeButton
+                      type="button"
+                      $active={syncMode === 'step'}
+                      onClick={() => setSyncMode('step')}
+                      title="A partir de cada ponto, o novo atraso entra em vigor fixo (ideal para cortes de comercial e TV vs Blu-ray)"
+                    >
+                      Degrau (TV vs BD)
+                    </ModeButton>
+                    <ModeButton
+                      type="button"
+                      $active={syncMode === 'linear'}
+                      onClick={() => setSyncMode('linear')}
+                      title="Estica o tempo gradualmente entre os pontos (ideal para diferenca de velocidade/framerate)"
+                    >
+                      Linear (Esticar)
+                    </ModeButton>
+                    <Button
+                      type="button"
+                      $variant="ghost"
+                      onClick={handleClearAllPoints}
+                      title="Remover todos os pontos adicionados"
+                      style={{ fontSize: 11, padding: '2px 6px', color: theme.colors.textFaint }}
+                    >
+                      <ClearOutlined /> Limpar
+                    </Button>
+                  </ModeToggleRow>
+                </PointsHeader>
+
+                <PointsList>
+                  {syncPoints.map((point, idx) => (
+                    <PointItem key={point.id}>
+                      <PointInfo>
+                        <span style={{ fontWeight: 600, color: theme.colors.textFaint, fontSize: 10.5 }}>
+                          #{idx + 1}
+                        </span>
+                        <PointTime title="Momento na legenda de destino">{formatEventTime(point.sourceMs)}</PointTime>
+                        <PointBadge $positive={point.offsetMs > 0}>
+                          {point.offsetMs > 0 ? `+${point.offsetMs}ms` : `${point.offsetMs}ms`}
+                        </PointBadge>
+                        <PointText title={point.sourceText}>
+                          {point.sourceText ? `"${point.sourceText}"` : '(sem texto)'}
+                        </PointText>
+                      </PointInfo>
+                      <DeletePointBtn
+                        type="button"
+                        onClick={() => handleRemovePoint(point.id)}
+                        title="Remover este ponto"
+                      >
+                        <DeleteOutlined />
+                      </DeletePointBtn>
+                    </PointItem>
+                  ))}
+                </PointsList>
+              </PointsSection>
             )}
           </>
         )}
 
         {loaded && !error && destTracks.length > 0 && (
           <ModalFooter>
-            <Button
-              $variant="primary"
-              disabled={offsetMs === null || ptTrackId === null}
-              onClick={() => offsetMs !== null && ptTrackId !== null && onApply(offsetMs, ptTrackId)}
-            >
-              Usar este deslocamento
-            </Button>
+            {syncPoints.length > 0 ? (
+              <>
+                <Button
+                  $variant="primary"
+                  disabled={ptTrackId === null}
+                  onClick={() =>
+                    ptTrackId !== null &&
+                    onApplyMultiPoint &&
+                    onApplyMultiPoint(syncPoints, syncMode, ptTrackId)
+                  }
+                >
+                  Salvar sincronização multiponto ({syncPoints.length} ponto{syncPoints.length > 1 ? 's' : ''})
+                </Button>
+                {offsetMs !== null && (
+                  <Button
+                    $variant="secondary"
+                    disabled={ptTrackId === null}
+                    onClick={() => {
+                      if (offsetMs === null || ptTrackId === null) return
+                      const details =
+                        selectedPt && selectedEn
+                          ? {
+                              sourceMs: selectedPt.startMs,
+                              targetMs: selectedEn.startMs,
+                              sourceText: selectedPt.text,
+                              targetText: selectedEn.text
+                            }
+                          : undefined
+                      onApply(offsetMs, ptTrackId, details)
+                    }}
+                    title="Ignorar os pontos e aplicar somente o deslocamento selecionado no par atual para o arquivo todo"
+                  >
+                    Usar apenas deslocamento único ({offsetMs > 0 ? '+' : ''}{offsetMs}ms)
+                  </Button>
+                )}
+              </>
+            ) : (
+              <Button
+                $variant="primary"
+                disabled={offsetMs === null || ptTrackId === null}
+                onClick={() => {
+                  if (offsetMs === null || ptTrackId === null) return
+                  const details =
+                    selectedPt && selectedEn
+                      ? {
+                          sourceMs: selectedPt.startMs,
+                          targetMs: selectedEn.startMs,
+                          sourceText: selectedPt.text,
+                          targetText: selectedEn.text
+                        }
+                      : undefined
+                  onApply(offsetMs, ptTrackId, details)
+                }}
+              >
+                Usar este deslocamento
+              </Button>
+            )}
           </ModalFooter>
         )}
       </ModalBox>

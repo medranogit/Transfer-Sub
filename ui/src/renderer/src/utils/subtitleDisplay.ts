@@ -18,6 +18,10 @@ export function canSyncTrack(codecId: string): boolean {
 }
 
 export function syncAdjustmentLabel(row: EpisodeRow): string | null {
+  if (row.syncPoints && row.syncPoints.length > 0) {
+    const modeLabel = row.syncMode === 'linear' ? 'linear' : 'degrau'
+    return `Multiponto (${row.syncPoints.length} pt${row.syncPoints.length > 1 ? 's' : ''}, ${modeLabel})`
+  }
   if (row.manualOffsetText) return `Ajuste: ${row.manualOffsetText}ms`
   if (row.firstLineTargetText) return `1a fala: ${row.firstLineTargetText}`
   return null
