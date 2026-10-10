@@ -19,9 +19,19 @@ export function categorizeTagWord(word: string): 'source' | 'codec' | 'resolutio
   return 'source'
 }
 
+const ILLEGAL_FILENAME_CHARS = /[<>:"/\\|?*\x00-\x1F]/g
+
+export function sanitizeFileNameSegment(text: string): string {
+  return text
+    .replace(/:/g, ' -')
+    .replace(ILLEGAL_FILENAME_CHARS, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function joinTags(fields: Pick<RenameFields, 'source' | 'codec' | 'resolution'>): string {
   return [fields.source, fields.codec, fields.resolution]
-    .map((part) => part.trim())
+    .map((part) => sanitizeFileNameSegment(part.trim()))
     .filter((part) => part.length > 0 && part.toLowerCase() !== NOT_AVAILABLE_TAG.toLowerCase())
     .join(' ')
 }
@@ -45,11 +55,12 @@ export function buildRenamedName(
   fields: RenameFields,
   episodeOverride?: number | null
 ): RenameResult {
-  const fansub = fields.fansub.trim()
+  const fansub = sanitizeFileNameSegment(fields.fansub.trim())
+  const animeName = sanitizeFileNameSegment(fields.animeName.trim())
   const ext = parse(originalFileName).ext
 
   if (fields.movieMode) {
-    const namePart = [fansub ? `[${fansub}]` : '', fields.animeName.trim()]
+    const namePart = [fansub ? `[${fansub}]` : '', animeName]
       .filter((part) => part.length > 0)
       .join(' ')
     const newBase = [namePart, joinTags(fields)].filter((part) => part.length > 0).join(' - ')
@@ -62,7 +73,7 @@ export function buildRenamedName(
   if (episode === null) return { name: null, reason: 'episodio nao detectado no nome original' }
 
   const seasonEpisode = formatSeasonEpisode(fields.season, episode, fields.part)
-  const middle = [fields.animeName.trim(), seasonEpisode].filter((segment) => segment.length > 0).join(' - ')
+  const middle = [animeName, seasonEpisode].filter((segment) => segment.length > 0).join(' - ')
   const namePart = [fansub ? `[${fansub}]` : '', middle].filter((part) => part.length > 0).join(' ')
   const newBase = [namePart, joinTags(fields)].filter((part) => part.length > 0).join(' - ')
 

@@ -89,6 +89,9 @@ const api = {
   previewRename: (folder: string, fields: RenameFields): Promise<RenamePreviewResult> =>
     ipcRenderer.invoke('rename:preview', { folder, fields }),
 
+  previewRenameMovie: (filePath: string, fields: RenameFields): Promise<RenamePreviewResult> =>
+    ipcRenderer.invoke('rename:previewMovie', { filePath, fields }),
+
   recomputeRename: (paths: string[], fields: RenameFields): Promise<RenamePreviewRow[]> =>
     ipcRenderer.invoke('rename:recompute', { paths, fields }),
 

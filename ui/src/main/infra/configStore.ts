@@ -26,6 +26,7 @@ const DEFAULT_CONFIG: AppConfig = {
   renameResolutionPresets: ['1080p', '720p'],
   movieSourceFile: '',
   movieDestFile: '',
+  renameMovieFile: '',
   themeMode: 'dark'
 }
 

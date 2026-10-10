@@ -18,9 +18,10 @@ function buildEpisodeOverrides(paths: string[], fields: RenameFields): (number |
     .filter((entry): entry is { episode: number; index: number } => entry.episode !== null)
     .sort((a, b) => a.episode - b.episode)
 
+  const start = Number.isFinite(fields.renumberStart) && fields.renumberStart > 0 ? fields.renumberStart : 1
   const overrides = new Array<number | null>(paths.length).fill(null)
   ordered.forEach(({ index }, position) => {
-    overrides[index] = position + 1
+    overrides[index] = position + start
   })
   return overrides
 }
@@ -53,9 +54,7 @@ function buildPreviewRows(paths: string[], fields: RenameFields): RenamePreviewR
   })
 }
 
-export function previewRename(folder: string, fields: RenameFields): RenamePreviewResult {
-  const paths = listVideoFiles(folder)
-
+function previewFromPaths(paths: string[], fields: RenameFields): RenamePreviewResult {
   const detected = paths.length > 0 ? detectRenameFields(basename(paths[0])) : null
   const effectiveFields = detected
     ? {
@@ -81,6 +80,14 @@ export function previewRename(folder: string, fields: RenameFields): RenamePrevi
   }
 
   return { rows, detected, warnings }
+}
+
+export function previewRename(folder: string, fields: RenameFields): RenamePreviewResult {
+  return previewFromPaths(listVideoFiles(folder), fields)
+}
+
+export function previewRenameMovie(filePath: string, fields: RenameFields): RenamePreviewResult {
+  return previewFromPaths(filePath ? [filePath] : [], fields)
 }
 
 export function recomputeRename(paths: string[], fields: RenameFields): RenamePreviewRow[] {

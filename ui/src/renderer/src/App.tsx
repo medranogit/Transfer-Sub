@@ -131,12 +131,14 @@ function AppContent() {
   const [ptBrTrackName, setPtBrTrackName] = useState('')
 
   const [renameFolder, setRenameFolder] = useState('')
+  const [renameMovieFile, setRenameMovieFile] = useState('')
   const [renameFields, setRenameFields] = useState<RenameFields>({
     fansub: '',
     animeName: '',
     season: 1,
     part: null,
     renumberEpisodes: false,
+    renumberStart: 1,
     source: '',
     codec: '',
     resolution: '',
@@ -196,6 +198,7 @@ function AppContent() {
     setThemeMode(config.themeMode)
     setPtBrTrackName(config.ptBrTrackName)
     setRenameFolder(config.renameFolder)
+    setRenameMovieFile(config.renameMovieFile)
     setConvertFolder(config.convertFolder)
     setRenameFansubPresets(config.renameFansubPresets)
     setRenameSourcePresets(config.renameSourcePresets)
@@ -295,6 +298,7 @@ function AppContent() {
       themeMode: ThemeMode
       ptBrTrackName: string
       renameFolder: string
+      renameMovieFile: string
       renameFansubPresets: string[]
       renameSourcePresets: string[]
       renameCodecPresets: string[]
@@ -319,6 +323,7 @@ function AppContent() {
       themeMode: overrides.themeMode ?? themeMode,
       ptBrTrackName: overrides.ptBrTrackName ?? ptBrTrackName,
       renameFolder: overrides.renameFolder ?? renameFolder,
+      renameMovieFile: overrides.renameMovieFile ?? renameMovieFile,
       renameFansubPresets: overrides.renameFansubPresets ?? renameFansubPresets,
       renameSourcePresets: overrides.renameSourcePresets ?? renameSourcePresets,
       renameCodecPresets: overrides.renameCodecPresets ?? renameCodecPresets,
@@ -481,7 +486,12 @@ function AppContent() {
   }
 
   async function handleRenameScan() {
-    if (!renameFolder) {
+    if (renameFields.movieMode) {
+      if (!renameMovieFile) {
+        pushLog('Selecione o arquivo do filme a renomear.', 'error')
+        return
+      }
+    } else if (!renameFolder) {
       pushLog('Selecione a pasta com os arquivos a renomear.', 'error')
       return
     }
@@ -492,12 +502,14 @@ function AppContent() {
       setRenameFields(scanFields)
       pushLog('Temporada invalida, usando 0 no lugar.', 'warn')
     }
-    await persistConfig({ renameFolder })
+    await persistConfig(renameFields.movieMode ? { renameMovieFile } : { renameFolder })
     setRenameScanning(true)
     setScanWarnings([])
     setUnmatchedSource([])
     try {
-      const { rows: result, detected, warnings } = await window.api.previewRename(renameFolder, scanFields)
+      const { rows: result, detected, warnings } = renameFields.movieMode
+        ? await window.api.previewRenameMovie(renameMovieFile, scanFields)
+        : await window.api.previewRename(renameFolder, scanFields)
       setRenameRows(result)
       setScanWarnings(warnings)
       if (!muteSounds && warnings.length > 0) playWarningSound()
@@ -1107,6 +1119,8 @@ function AppContent() {
           <RenameView
             folder={renameFolder}
             onFolderChange={setRenameFolder}
+            movieFile={renameMovieFile}
+            onMovieFileChange={setRenameMovieFile}
             fields={renameFields}
             onFieldsChange={setRenameFields}
             fansubPresets={renameFansubPresets}

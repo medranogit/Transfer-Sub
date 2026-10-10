@@ -126,6 +126,7 @@ export interface AppConfig {
   renameResolutionPresets: string[]
   movieSourceFile: string
   movieDestFile: string
+  renameMovieFile: string
   themeMode: 'dark' | 'light'
 }
 
@@ -181,6 +182,7 @@ export interface RenameFields {
   season: number
   part: number | null
   renumberEpisodes: boolean
+  renumberStart: number
   source: string
   codec: string
   resolution: string

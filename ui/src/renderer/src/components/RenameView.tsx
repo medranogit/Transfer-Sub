@@ -7,6 +7,7 @@ import { EmptyState, Mono, Table, TableWrap, Td, Thead, Tr } from '../ui/Table'
 import { SuggestInput } from '../ui/SuggestInput'
 import { EpisodeMovieToggle } from '../ui/EpisodeMovieToggle'
 import { FolderField } from './FolderField'
+import { FileField } from './FileField'
 import { LogPanel } from './LogPanel'
 
 const ConfigPanel = styled(Panel)`
@@ -51,6 +52,8 @@ const StatusText = styled.span<{ $ok: boolean }>`
 export function RenameView({
   folder,
   onFolderChange,
+  movieFile,
+  onMovieFileChange,
   fields,
   onFieldsChange,
   fansubPresets,
@@ -70,6 +73,8 @@ export function RenameView({
 }: {
   folder: string
   onFolderChange: (value: string) => void
+  movieFile: string
+  onMovieFileChange: (value: string) => void
   fields: RenameFields
   onFieldsChange: (next: RenameFields) => void
   fansubPresets: string[]
@@ -99,7 +104,11 @@ export function RenameView({
           />
         </Row>
 
-        <FolderField label="Pasta com os arquivos" value={folder} onChange={onFolderChange} />
+        {fields.movieMode ? (
+          <FileField label="Arquivo do filme" value={movieFile} onChange={onMovieFileChange} />
+        ) : (
+          <FolderField label="Pasta com os arquivos" value={folder} onChange={onFolderChange} />
+        )}
 
         <FieldsRow>
           <Field $width={130}>
@@ -196,18 +205,23 @@ export function RenameView({
               O episodio e detectado automaticamente em cada arquivo. Resultado:{' '}
               <strong>[fansub] nome do anime - S(temporada)E(episodio) - fonte codec resolucao</strong> (ex: "[Judas]
               Black Clover - S01E02 - BD HEVC 1080p"). Preenchendo "Parte", vira "S04P2E01" (ex: "[EMBER] DanMachi -
-              S04P2E01") - deixe em branco (N/A) quando a temporada nao for dividida em partes. Ativando "Renumerar
-              (01, 02...)", os episodios da pasta (ex: 12, 13, 14...) sao renumerados em sequencia comecando em 01,
-              na mesma ordem detectada.
+              S04P2E01") - deixe em branco (N/A) quando a temporada nao for dividida em partes. Ativando "Renumerar",
+              os episodios da pasta sao renumerados em sequencia a partir do numero em "Comecar em" (ex: comecando em
+              14, um arquivo que seria E12 vira E14, o proximo E15...), na mesma ordem detectada.
             </>
           )}{' '}
-          Fansub/nome{fields.movieMode ? '' : '/temporada'}/fonte/codec/resolucao sao sugeridos a cada escaneamento
-          da pasta. A extensao do arquivo (.mkv, .ass...) e mantida automaticamente.
+          Fansub/nome{fields.movieMode ? '' : '/temporada'}/fonte/codec/resolucao sao sugeridos a cada
+          {fields.movieMode ? ' carregamento do arquivo' : ' escaneamento da pasta'}. A extensao do arquivo
+          (.mkv, .ass...) e mantida automaticamente.
         </Hint>
 
-        <Row $gap={8}>
-          <Button $variant="primary" onClick={onScan} disabled={scanning || !folder}>
-            {scanning ? 'Escaneando...' : 'Escanear pasta'}
+        <Row $gap={8} $align="flex-end">
+          <Button
+            $variant="primary"
+            onClick={onScan}
+            disabled={scanning || (fields.movieMode ? !movieFile : !folder)}
+          >
+            {scanning ? 'Escaneando...' : fields.movieMode ? 'Carregar filme' : 'Escanear pasta'}
           </Button>
           <Button onClick={onApply} disabled={renaming || readyCount === 0}>
             {renaming ? 'Renomeando...' : `Renomear (${readyCount})`}
@@ -217,10 +231,29 @@ export function RenameView({
               type="button"
               $variant={fields.renumberEpisodes ? 'primary' : 'secondary'}
               onClick={onToggleRenumberEpisodes}
-              title="Ignora o numero de episodio original e renumera os arquivos da pasta em sequencia, comecando em 01, na ordem dos episodios detectados"
+              title="Ignora o numero de episodio original e renumera os arquivos da pasta em sequencia a partir do numero inicial ao lado, na ordem dos episodios detectados"
             >
-              <OrderedListOutlined /> Renumerar (01, 02...)
+              <OrderedListOutlined /> Renumerar ({String(fields.renumberStart).padStart(2, '0')},{' '}
+              {String(fields.renumberStart + 1).padStart(2, '0')}...)
             </Button>
+          )}
+          {!fields.movieMode && fields.renumberEpisodes && (
+            <Field $width={110}>
+              <Label>Comecar em</Label>
+              <Input
+                type="number"
+                min={1}
+                value={fields.renumberStart}
+                onChange={(e) => {
+                  const parsed = Number(e.target.value)
+                  onFieldsChange({
+                    ...fields,
+                    renumberStart: Number.isFinite(parsed) && parsed > 0 ? parsed : fields.renumberStart
+                  })
+                }}
+                onBlur={() => onUpdate()}
+              />
+            </Field>
           )}
         </Row>
       </ConfigPanel>

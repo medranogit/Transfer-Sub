@@ -23,7 +23,7 @@ import {
   transferRows
 } from './workflow'
 import { VIDEO_EXTS } from './infra/videoFiles'
-import { applyRename, previewRename, recomputeRename } from './renamer'
+import { applyRename, previewRename, previewRenameMovie, recomputeRename } from './renamer'
 import type {
   AppConfig,
   ConvertRequest,
@@ -481,6 +481,10 @@ app.whenReady().then(() => {
 
   ipcMain.handle('rename:preview', (_e, { folder, fields }: { folder: string; fields: RenameFields }) =>
     previewRename(folder, fields)
+  )
+
+  ipcMain.handle('rename:previewMovie', (_e, { filePath, fields }: { filePath: string; fields: RenameFields }) =>
+    previewRenameMovie(filePath, fields)
   )
 
   ipcMain.handle('rename:recompute', (_e, { paths, fields }: { paths: string[]; fields: RenameFields }) =>
